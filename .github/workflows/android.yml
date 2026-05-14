@@ -1,0 +1,163 @@
+name: Android Build (Mystery of Limbo)
+
+on:
+  push:
+    branches: [ "ShadowRoot-*" ]  # Esto activará el build en cualquier rama que empiece con ShadowRoot-
+  pull_request:
+    branches: [ "ShadowRoot-*" ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Entorno
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Instalar NDK y Herramientas
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Compilar C++ a Binario Android
+        run: |
+          mkdir -p build_android
+          cd build_android
+          for ABI in armeabi-v7a arm64-v8a; do
+            mkdir -p $ABI
+            cd $ABI
+            cmake ../.. \
+              -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake \
+              -DANDROID_ABI=$ABI \
+              -DANDROID_PLATFORM=android-26 \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=ON \
+              -GNinja
+            ninja
+            cd ..
+          done
+
+      - name: Generar APK - Estrategia 1 (Deep Search)
+        run: |
+          export TOOL_PATH=$ANDROID_HOME/build-tools/34.0.0
+          export PLATFORM=$ANDROID_HOME/platforms/android-34/android.jar
+
+          # --- PASO 1: LIMPIEZA Y CLONADO SINCRONIZADO ---
+          rm -rf java_src obj dex_out sdl_temp
+          mkdir -p java_src/com/shadowroot/mysteryoflimbo obj dex_out
+
+          echo "📥 Clonando SDL release-2.30.2 para sincronizar con C++..."
+          # Cambiamos --branch SDL2 por --branch release-2.30.2
+          git clone --branch release-2.30.2 --depth 1 https://github.com/libsdl-org/SDL.git sdl_temp
+
+          # --- PASO 2: LA RED DE ARRASTRE POR CONTENIDO ---
+          echo "🔍 Buscando archivos que contengan el paquete 'org.libsdl.app'..."
+          mkdir -p java_src/org/libsdl/app
+
+          # Buscamos todos los archivos .java y filtramos los que tengan el package de SDL
+          # Luego los copiamos a nuestra carpeta de construcción
+          find sdl_temp -name "*.java" -exec grep -l "package org.libsdl.app" {} + | xargs -I {} cp {} java_src/org/libsdl/app/
+
+          echo "🔍 Verificando versión del código Java descargado..."
+          grep "SDL_MAJOR_VERSION =" java_src/org/libsdl/app/SDLActivity.java -A 2
+
+
+          # Inyectamos tu actividad personalizada
+          cp android/app/src/main/java/com/shadowroot/mysteryoflimbo/MysteryOfLimboActivity.java java_src/com/shadowroot/mysteryoflimbo/
+
+          # --- PASO 3: DIAGNÓSTICO Y CONTEO ---
+          find java_src -name "*.java" > java_files.txt
+          TOTAL_FILES=$(cat java_files.txt | wc -l)
+
+          echo "--- 📋 RESULTADOS DE LA EXPLORACIÓN ---"
+          if [ "$TOTAL_FILES" -gt 1 ]; then
+            cat java_files.txt
+          else
+            echo "❌ No se encontró ningún archivo con el patrón de paquete org.libsdl.app"
+            # Log de emergencia: ¿Qué hay en la carpeta de android del repo?
+            find sdl_temp -type d -name "android" -o -name "java" | head -n 5
+          fi
+          echo "-------------------------------------------"
+          echo "Total de archivos detectados: $TOTAL_FILES"
+
+          # --- PASO 4: INTENTO DE COMPILACIÓN ---
+          if [ "$TOTAL_FILES" -lt 5 ]; then
+            echo "❌ ERROR: Insuficientes archivos para una estructura SDL válida."
+            exit 1
+          fi
+
+          echo "✅ Iniciando javac con los archivos encontrados..."
+          javac -d obj -cp $PLATFORM @java_files.txt || (echo "❌ ERROR: Falló javac" && exit 1)
+
+          # --- PASO 5: DEX (Ya lo tienes, solo asegúrate que termine así) ---
+          find obj -name "*.class" > class_files.txt
+          $TOOL_PATH/d8 --output dex_out/ --lib $PLATFORM --min-api 26 @class_files.txt
+          echo "✅ Proceso DEX completado."
+
+          # --- PASO 6: ENSAMBLAJE QUIRÚRGICO ---
+          echo "📦 Ensamblando con alineación de librerías..."
+          mkdir -p bin
+          
+          # 1. Base con Manifest binario
+          $TOOL_PATH/aapt package -f -M android/app/src/main/AndroidManifest.xml \
+            -I $PLATFORM \
+            -F bin/MysteryOfLimbo_V2.apk
+
+          # 2. Inyectar DEX (Compresión normal está bien aquí)
+          cd dex_out && zip -ur9 ../bin/MysteryOfLimbo_V2.apk classes.dex && cd ..
+
+          # 3. Inyectar Librerías SIN COMPRESIÓN (-0) y en la ruta correcta
+          # Esto es vital para que zipalign no de error y el SO las cargue rápido
+          mkdir -p lib/armeabi-v7a lib/arm64-v8a
+          cp build_android/armeabi-v7a/libmain.so lib/armeabi-v7a/
+          cp build_android/arm64-v8a/libmain.so lib/arm64-v8a/
+          
+          # Rescatar dependencias de SDL si existen
+          find . -name "libSDL2*.so" -path "*/armeabi-v7a/*" -exec cp {} lib/armeabi-v7a/ \;
+          find . -name "libSDL2*.so" -path "*/arm64-v8a/*" -exec cp {} lib/arm64-v8a/ \;
+
+          # USAMOS -0 (Cero compresión) para las carpetas lib/
+          zip -ur0 bin/MysteryOfLimbo_V2.apk lib/
+
+          # 4. Inyectar Assets (Asegurando que la carpeta interna sea correcta)
+          if [ -d "assets" ]; then
+            # Entramos a la carpeta para que en el zip no aparezca "assets/assets/..."
+            # Pero SDL espera que los archivos estén bajo la jerarquía que definimos
+            zip -ur9 bin/MysteryOfLimbo_V2.apk assets/
+          fi
+
+          # --- PASO 7: ALINEACIÓN TOTAL ---
+          echo "⚖️ Alineando a 4 bytes (y 4096 para .so)..."
+          # -p asegura que las librerías .so compartidas se alineen a páginas de memoria
+          $TOOL_PATH/zipalign -f -p 4 bin/MysteryOfLimbo_V2.apk bin/MysteryOfLimbo_V2_final.apk
+          mv bin/MysteryOfLimbo_V2_final.apk bin/MysteryOfLimbo_V2.apk
+
+      - name: Commit y Push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "ShadowRoot07"
+          git config --global user.email "shadowroot07@users.noreply.github.com"
+          
+          # Forzamos el fetch para asegurar que conocemos las ramas
+          git fetch origin ${{ github.ref_name }}
+          
+          git add bin/MysteryOfLimbo_V2.apk
+          # Solo hacemos commit si hay cambios reales en el APK
+          if git diff --staged --quiet; then
+            echo "No hay cambios en el APK para subir."
+          else
+            git commit -m "chore: V2 Build [skip ci]"
+            # Empujamos a la rama actual dinámicamente
+            git push --force origin HEAD:${{ github.ref_name }}
+          fi
+
