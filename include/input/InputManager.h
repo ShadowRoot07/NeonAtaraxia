@@ -31,6 +31,7 @@ public:
     SDL_Rect GetBtnXArea() const { return btnXArea; }
     SDL_Rect GetBtnFArea() const { return btnFArea; }
     SDL_Rect GetJoyArea() const { return joystickArea; }
+    SDL_Rect GetBtnGArea() const { return btnGArea; }
 
 private:
     const Uint8* state;
@@ -38,7 +39,7 @@ private:
     JoyState joystick;
 
     SDL_Rect joystickArea;
-    SDL_Rect btnZArea, btnXArea, btnFArea;
+    SDL_Rect btnZArea, btnXArea, btnFArea, btnGArea;
 
     bool vJump, vAttack, vDash;
     bool lastVJump, lastVAttack, lastVDash;

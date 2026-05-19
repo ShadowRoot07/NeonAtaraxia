@@ -3,12 +3,15 @@
 #include <SDL_ttf.h>
 #include <random>
 
-
-ShadowGFX::ShadowGFX(SDL_Renderer* r) : renderer(r) {}
+// Inicializamos guardando la ruta base de assets
+ShadowGFX::ShadowGFX(SDL_Renderer* r, const std::string& assetRoot) : renderer(r), assetRootPath(assetRoot) {}
 
 ShadowGFX::~ShadowGFX() {
     for (auto const& [id, tex] : textureCache) {
         SDL_DestroyTexture(tex);
+    }
+    for (auto const& [id, font] : fontCache) {
+        TTF_CloseFont(font); // Liberamos también las fuentes abiertas para evitar leaks
     }
 }
 
@@ -29,20 +32,23 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
     if (textureCache.count(id)) return textureCache[id];
 
     if (!p_path.empty()) {
-        // Log para rastrear qué está intentando cargar el APK
-        SDL_Log("ShadowGFX: Intentando cargar [%s] desde ruta: %s", id.c_str(), p_path.c_str());
+        // 1. Intentar cargar desde el directorio específico del juego activo
+        std::string primaryPath = assetRootPath + p_path;
+        SDL_Log("ShadowGFX: Intentando Ruta Primaria: %s", primaryPath.c_str());
 
-        SDL_RWops* rw = SDL_RWFromFile(p_path.c_str(), "rb");
+        SDL_RWops* rw = SDL_RWFromFile(primaryPath.c_str(), "rb");
+        
+        // 2. Si falla, usar el Fallback de la carpeta global de assets
         if (!rw) {
-            std::string altPath = "assets/" + p_path;
-            rw = SDL_RWFromFile(altPath.c_str(), "rb");
+            std::string fallbackPath = "assets/" + p_path;
+            SDL_Log("ShadowGFX: Fallback a Ruta Global: %s", fallbackPath.c_str());
+            rw = SDL_RWFromFile(fallbackPath.c_str(), "rb");
         }
 
         if (rw) {
             SDL_Surface* surface = SDL_LoadBMP_RW(rw, 1);
             if (surface) {
                 if (useColorKey) {
-                    // Tu lógica de colorkey se mantiene igual...
                     Uint32 colorkey;
                     if (SDL_LockSurface(surface) == 0) {
                         Uint8* pixels = (Uint8*)surface->pixels;
@@ -65,14 +71,13 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
                 SDL_FreeSurface(surface);
 
                 if (tex) {
-                    SDL_Log("ShadowGFX: EXITOSO [%s]", id.c_str());
+                    SDL_Log("ShadowGFX: CARGA EXITOSA [%s]", id.c_str());
                     textureCache[id] = tex;
                     return tex;
                 }
             }
         }
-        // Si llegamos aquí, falló la carga
-        SDL_Log("ShadowGFX: ERROR al cargar %s. SDL_Error: %s", p_path.c_str(), SDL_GetError());
+        SDL_Log("ShadowGFX: ERROR fatal al cargar %s. Archivo ausente en juego y global.", p_path.c_str());
     }
 
     std::cout << "[ShadowGFX] Advertencia: Usando fallback para " << id << std::endl;
@@ -81,6 +86,7 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
     return fallback;
 }
 
+// DrawStatic y DrawAnimated se quedan exactamente igual...
 void ShadowGFX::DrawStatic(const std::string& id, SDL_Rect dest) {
     SDL_RenderCopy(renderer, GetTexture(id), NULL, &dest);
 }
@@ -93,14 +99,17 @@ void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frame, bo
 
 bool ShadowGFX::LoadFont(const std::string& id, const std::string& path, int size) {
     if (TTF_WasInit() == 0 && TTF_Init() == -1) return false;
+
+    // 1. Buscar en la carpeta del juego
+    std::string primaryPath = assetRootPath + path;
+    TTF_Font* font = TTF_OpenFont(primaryPath.c_str(), size);
     
-    TTF_Font* font = TTF_OpenFont(path.c_str(), size);
+    // 2. Fallback a la carpeta general
     if (!font) {
-        // Reintento con ruta assets/
-        std::string altPath = "assets/" + path;
-        font = TTF_OpenFont(altPath.c_str(), size);
+        std::string fallbackPath = "assets/" + path;
+        font = TTF_OpenFont(fallbackPath.c_str(), size);
     }
-    
+
     if (font) {
         fontCache[id] = font;
         return true;
@@ -108,6 +117,7 @@ bool ShadowGFX::LoadFont(const std::string& id, const std::string& path, int siz
     return false;
 }
 
+// DrawText se queda exactamente igual...
 void ShadowGFX::DrawText(const std::string& text, const std::string& fontId, int x, int y, SDL_Color color, bool center) {
     if (fontCache.count(fontId) == 0) return;
 
@@ -119,7 +129,8 @@ void ShadowGFX::DrawText(const std::string& text, const std::string& fontId, int
     if (center) dest.x -= surf->w / 2;
 
     SDL_RenderCopy(renderer, tex, NULL, &dest);
-    
+
     SDL_FreeSurface(surf);
     SDL_DestroyTexture(tex);
 }
+

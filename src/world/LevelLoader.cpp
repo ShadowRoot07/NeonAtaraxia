@@ -1,30 +1,31 @@
-#include <vector>
-#include <string>
-#include <sstream> 
+#include "world/LevelLoader.h"
 #include <iostream>
-#include <SDL.h>   
-#include "world/Platform.h"
-#include "world/Enemy.h"
+#include <SDL.h>
+#include <nlohmann/json.hpp>
 
-std::vector<Platform> LoadLevel(const std::string& path, std::vector<Enemy>& enemies) {
+using json = nlohmann::json;
+
+std::vector<Platform> LoadLevel(const std::string& jsonPath, const std::string& assetRoot, std::vector<Enemy>& enemies) {
     std::vector<Platform> level;
     enemies.clear();
 
-    // Intento 1: Ruta directa (Android / Termux-assets)
-    SDL_RWops* rw = SDL_RWFromFile(path.c_str(), "rb");
-    
-    // Intento 2: Fallback para X11 (añadiendo assets/)
+    // 1. Resolver rutas usando la jerarquía dinámica de NeonAtaraxia
+    std::string primaryPath = assetRoot + jsonPath;
+    SDL_Log("[LevelLoader] Intentando cargar mapa desde: %s", primaryPath.c_str());
+
+    SDL_RWops* rw = SDL_RWFromFile(primaryPath.c_str(), "rb");
     if (!rw) {
-        std::string altPath = "assets/" + path;
-        rw = SDL_RWFromFile(altPath.c_str(), "rb");
+        std::string fallbackPath = "assets/" + jsonPath;
+        SDL_Log("[LevelLoader] Fallback a mapa global: %s", fallbackPath.c_str());
+        rw = SDL_RWFromFile(fallbackPath.c_str(), "rb");
     }
 
     if (!rw) {
-        SDL_Log("[LevelLoader] ERROR: Imposible abrir el mapa en %s", path.c_str());
+        SDL_Log("[LevelLoader] ERROR: No se encontró el archivo JSON del mapa.");
         return level;
     }
 
-    // Leer todo el archivo a memoria de forma segura
+    // Leer el archivo JSON de forma segura a un buffer intermedio
     Sint64 size = SDL_RWsize(rw);
     if (size <= 0) {
         SDL_RWclose(rw);
@@ -36,75 +37,78 @@ std::vector<Platform> LoadLevel(const std::string& path, std::vector<Enemy>& ene
     buffer[size] = '\0';
     SDL_RWclose(rw);
 
-    std::string content(buffer);
-    delete[] buffer;
+    // 2. Parsear los datos con nlohmann/json
+    json mapData;
+    try {
+        mapData = json::parse(buffer);
+    } catch (json::parse_error& e) {
+        SDL_Log("[LevelLoader] ERROR de sintaxis JSON: %s", e.what());
+        delete[] buffer;
+        return level;
+    }
+    delete[] buffer; // Liberamos memoria inmediatamente
 
-    std::stringstream file(content);
-    std::string line;
-    int tileSize = 50;
-    bool parsingMap = false;
-    int row = 0;
+    // 3. Extraer metadatos del nivel
+    int tileSize = mapData.value("tile_size", 50);
+    int mapWidth = mapData["dimensions"]["width"];
+    
+    // 4. Parsear Capas de Tiles (Enfoque Metroidvania)
+    // Nos enfocamos en la capa "gameplay" que es la que tiene colisiones físicas
+    if (mapData["layers"].contains("gameplay")) {
+        auto gameplayLayer = mapData["layers"]["gameplay"];
+        
+        for (int i = 0; i < (int)gameplayLayer.size(); i++) {
+            int tileId = gameplayLayer[i];
+            if (tileId == 0) continue; // 0 significa espacio vacío / aire
 
-    while (std::getline(file, line)) {
-        // Limpieza de retornos de carro de Windows (\r)
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (line.empty()) continue;
+            // Calcular coordenadas (x, y) basadas en el índice de la lista lineal
+            float x = (float)((i % mapWidth) * tileSize);
+            float y = (float)((i / mapWidth) * tileSize);
+            Rect r = { x, y, (float)tileSize, (float)tileSize };
 
-        if (line.find("TILE_SIZE:") != std::string::npos) {
-            try {
-                tileSize = std::stoi(line.substr(11));
-            } catch (...) {
-                tileSize = 50;
+            if (tileId == 1) { // El equivalente a tu viejo '#'
+                level.push_back({r, NORMAL, 0, "ground_stone"});
+            } else if (tileId == 2) { // El equivalente a tu vieja 'S'
+                level.push_back({r, SPIKE, 25.0f, "spike_metal"});
             }
-        } else if (line.find("MAP_START") != std::string::npos) {
-            parsingMap = true;
-            row = 0;
-            continue;
-        }
-
-        if (parsingMap) {
-            for (int col = 0; col < (int)line.length(); col++) {
-                char c = line[col];
-                if (c == ' ' || c == '.') continue; 
-
-                float x = (float)(col * tileSize);
-                float y = (float)(row * tileSize);
-                Rect r = {x, y, (float)tileSize, (float)tileSize};
-
-                // Lógica de plataformas
-                if (c == '#') {
-                    level.push_back({r, NORMAL, 0, "ground_stone"});
-                } else if (c == 'S') {
-                    level.push_back({r, SPIKE, 25.0f, "spike_metal"});
-                } 
-                // Lógica de enemigos (Walker, Flyer, Turret)
-                else if (c == 'W' || c == 'V' || c == 'T') {
-                    Enemy e;
-                    float offsetX = (tileSize - 32) / 2.0f;
-                    float offsetY = (float)(tileSize - 48); 
-
-                    e.pos = {x + offsetX, y + offsetY};
-                    e.hitbox = {e.pos.x, e.pos.y, 32, 48};
-                    e.dir = 1;
-                    e.health = (c == 'T') ? 100.0f : 50.0f;
-                    e.timer = 0; // Inicializar timer para torretas
-                    e.detectionRange = 400.0f; // Rango base
-                    e.speedMult = 1.0f;
-                    e.state = PATROL;
-
-                    if (c == 'W') e.type = WALKER;
-                    else if (c == 'V') e.type = FLYER;
-                    else e.type = TURRET;
-
-                    enemies.push_back(e);
-                }
-            }
-            row++;
         }
     }
 
-    std::cout << "[LevelLoader] Éxito: " << level.size() << " plataformas y " 
-              << enemies.size() << " enemigos cargados." << std::endl;
+    // 5. Parsear Entidades / Enemigos con posiciones y propiedades exactas
+    if (mapData.contains("entities")) {
+        for (auto& entity : mapData["entities"]) {
+            std::string type = entity["type"];
+            
+            Enemy e;
+            e.pos.x = entity["x"];
+            e.pos.y = entity["y"];
+            e.hitbox = {e.pos.x, e.pos.y, 32, 48};
+            e.dir = entity.value("direction", 1);
+            e.timer = 0;
+            e.detectionRange = entity.value("detection_range", 400.0f);
+            e.speedMult = 1.0f;
+            e.state = PATROL;
+
+            if (type == "WALKER") {
+                e.type = WALKER;
+                e.health = entity.value("health", 50.0f);
+            } else if (type == "FLYER") {
+                e.type = FLYER;
+                e.health = entity.value("health", 50.0f);
+            } else if (type == "TURRET") {
+                e.type = TURRET;
+                e.health = entity.value("health", 100.0f);
+            } else {
+                continue; // Tipo desconocido, ignorar
+            }
+
+            enemies.push_back(e);
+        }
+    }
+
+    SDL_Log("[LevelLoader] Éxito: %d plataformas colisionables y %d entidades cargadas desde JSON.", 
+            (int)level.size(), (int)enemies.size());
+            
     return level;
 }
 

@@ -12,6 +12,7 @@ InputManager::InputManager() {
     btnZArea = {680, 460, 80, 80};
     btnXArea = {590, 480, 80, 80};
     btnFArea = {680, 370, 80, 80};
+    btnGArea = { 20, 20, 50, 50 };
 
     vJump = vAttack = vDash = false;
     lastVJump = lastVAttack = lastVDash = false;

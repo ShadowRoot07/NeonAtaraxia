@@ -1,0 +1,21 @@
+{
+  "level_name": "Limbo Testing Lab",
+  "tile_size": 50,
+  "dimensions": {
+    "width": 10,
+    "height": 4
+  },
+  "layers": {
+    "gameplay": [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 2, 0, 0, 0, 0,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    ]
+  },
+  "entities": [
+    { "type": "WALKER", "x": 100, "y": 102, "health": 50.0, "direction": 1 },
+    { "type": "TURRET", "x": 400, "y": 102, "health": 100.0, "direction": -1 }
+  ]
+}
+

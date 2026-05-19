@@ -24,17 +24,7 @@ Player::Player() {
     isDashing = false;
     invulTimer = attackTimer = attackCooldown = 0.0f;
     faceDir = 1;
-}
-
-void Player::SetElements(ElementType slot1, ElementType slot2) {
-    elementSlot1 = slot1;
-    elementSlot2 = slot2;
-    maxJumps = (HasElement(AIR)) ? 2 : 1;
-    speed = (HasElement(LIGHT)) ? 450.0f : 300.0f;
-}
-
-bool Player::HasElement(ElementType type) const {
-    return (elementSlot1 == type || elementSlot2 == type);
+    isShieldActive = false;
 }
 
 void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
@@ -44,7 +34,7 @@ void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
     if (input.IsKeyDown(SDL_SCANCODE_LEFT)) { vel.x = -speed; faceDir = -1; }
     else if (input.IsKeyDown(SDL_SCANCODE_RIGHT)) { vel.x = speed; faceDir = 1; }
 
-    // Salto con sonidos diferenciados
+    // --- SISTEMA DE SALTO / DOBLE SALTO CONSOLIDADO ---
     if (input.IsKeyPressed(SDL_SCANCODE_Z)) {
         if (isGrounded) {
             vel.y = jumpForce;
@@ -54,13 +44,15 @@ void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
         } else if (jumpCount < maxJumps) {
             vel.y = jumpForce * 0.85f;
             jumpCount++;
-            sfx.Play("double_jump"); 
+            sfx.Play("double_jump"); // Sonido diferenciado que ya tenías mapeado
         }
     }
 
+    // Extracción de estados del D-Pad / Joystick virtual para combos
     bool isDown = (input.GetJoystick().y > 0.5f || input.IsKeyDown(SDL_SCANCODE_DOWN));
     bool isUp = (input.GetJoystick().y < -0.5f || input.IsKeyDown(SDL_SCANCODE_UP));
 
+    // --- ASIGNACIÓN DEL BOTÓN X (OFENSIVO: ESPADA Y MAGIAS) ---
     if (input.IsKeyPressed(SDL_SCANCODE_X)) {
         if (isDown && HasElement(EARTH)) {
             pendingPlatform = true;
@@ -81,27 +73,40 @@ void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
         else if (attackCooldown <= 0) {
             ApplyAttack();
             sfx.Play("attack");
+            
+            // Si el arma actual es de rango (ej: báculo o runa), podrías disparar el proyectil aquí
+            // SkillManager::CastProjectile(*this, projectiles, sfx);
         }
     }
 
-    if (input.IsKeyPressed(SDL_SCANCODE_F) && dashCooldown <= 0) {
-        if (isDown && HasElement(WATER) && !isLiquid) {
+    // --- ASIGNACIÓN DEL BOTÓN F (MOVILIDAD Y DEFENSA ABSOLUTA) ---
+    if (input.IsKeyPressed(SDL_SCANCODE_F)) {
+        // COMBO NUEVO: Arriba + F -> ESCUDO DE ENERGÍA
+        if (isUp) {
+            isShieldActive = !isShieldActive; // Alternar estado del escudo
+            sfx.Play("blipSelect");
+            SDL_Log("Player: Estado del Escudo alterado cuanticamente.");
+        }
+        // Combo Existente: Abajo + F -> Forma Líquida de Agua
+        else if (isDown && HasElement(WATER) && !isLiquid) {
             isLiquid = true;
             liquidTimer = 1.0f;
             dashCooldown = 1.5f;
             sfx.Play("liquid_form");
-        } else {
+        } 
+        // Acción Neutra: Dash estándar
+        else if (dashCooldown <= 0 && !isShieldActive) {
             ApplyDash((float)faceDir);
             sfx.Play("dash");
         }
     }
 }
-
 void Player::Update(float dt) {
     if (invulTimer > 0) invulTimer -= dt;
     if (dashCooldown > 0) dashCooldown -= dt;
+    if (attackTimer > 0)  attackTimer -= dt;
     if (attackCooldown > 0) attackCooldown -= dt;
-    if (attackTimer > 0) attackTimer -= dt;
+    if (invulTimer > 0)   invulTimer -= dt;
 
     if (liquidTimer > 0) {
         liquidTimer -= dt;
@@ -124,14 +129,24 @@ void Player::Update(float dt) {
 }
 
 void Player::TakeDamage(float amount, float sourceX) {
-    if (isLiquid) return;
+    if (isLiquid) return; // Inmunidad del elemento Agua
+    
     if (invulTimer <= 0 && !isDashing) {
+        // MITIGACIÓN POR ESCUDO ELEMENTAL
+        if (isShieldActive) {
+            amount *= 0.5f; // Absorbe el 50% del impacto
+            invulTimer = 0.4f; // Menos frames de aturdimiento
+            SDL_Log("Player: ¡Escudo absorbio parte del impacto! Daño real: %.1f", amount);
+        } else {
+            invulTimer = 1.0f;
+            // Solo hay empuje físico si el escudo no bloqueó el impacto
+            float knockDir = (pos.x + hitbox.w/2 > sourceX) ? 1.0f : -1.0f;
+            vel.x = knockDir * 400.0f;
+            vel.y = -300.0f;
+            isGrounded = false;
+        }
+        
         health -= amount;
-        invulTimer = 1.0f;
-        float knockDir = (pos.x + hitbox.w/2 > sourceX) ? 1.0f : -1.0f;
-        vel.x = knockDir * 400.0f;
-        vel.y = -300.0f;
-        isGrounded = false;
     }
 }
 
@@ -149,9 +164,18 @@ void Player::ApplyAttack() {
 }
 
 Rect Player::GetAttackRect() const {
-    float range = 50.0f;
-    float height = 40.0f;
-    float attackX = (faceDir == 1) ? pos.x + hitbox.w : pos.x - range;
-    return { attackX, pos.y + 4, range, height };
+    Rect attackBox;
+    // El ancho base de tu espadazo hereda el bono del arma equipada
+    attackBox.w = 40 + currentWeapon.rangeBonus; 
+    attackBox.h = 32;
+    attackBox.y = hitbox.y + (hitbox.h / 2) - (attackBox.h / 2);
+
+    if (faceDir > 0) {
+        attackBox.x = hitbox.x + hitbox.w;
+    } else {
+        attackBox.x = hitbox.x - attackBox.w;
+    }
+
+    return attackBox;
 }
 

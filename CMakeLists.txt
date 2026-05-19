@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(MysteryOfLimbo)
+project(NeonAtaraxia)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -20,39 +20,59 @@ FetchContent_Declare(
   GIT_TAG release-2.8.0
 )
 
-# NUEVO: SDL2_ttf
+# SDL2_ttf
 FetchContent_Declare(
   SDL2_ttf
   GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf.git
   GIT_TAG release-2.22.0
 )
 
-# Desactivar opciones innecesarias y forzar compilación estática/compartida según necesites
+# NUEVO: nlohmann/json para el ecosistema de datos
+FetchContent_Declare(
+  json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.3
+)
+
 set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
-set(SDL2TTF_VENDORED ON CACHE BOOL "" FORCE) # Esto ayuda a que SDL_ttf use sus propias librerías de fuentes
+set(SDL2TTF_VENDORED ON CACHE BOOL "" FORCE)
 
-# Descargar y poner a disposición
-FetchContent_MakeAvailable(SDL2 SDL2_mixer SDL2_ttf)
+# Descargar y poner a disposición todas las dependencias
+FetchContent_MakeAvailable(SDL2 SDL2_mixer SDL2_ttf json)
 # ----------------------------------------------
 
-# Incluimos tus carpetas de código
-include_directories(include include/gfx src)
+include_directories(
+    include 
+    include/gfx 
+    include/input 
+    include/physics 
+    include/player 
+    include/ui 
+    include/world
+    include/core
+)
 
-# Escaneo de archivos fuente
-file(GLOB_RECURSE SOURCES "src/*.cpp")
-# Excluimos el archivo que me mencionaste que da problemas
-list(FILTER SOURCES EXCLUDE REGEX "src/elements/EarthSkill.cpp")
+# Escaneo de los archivos fuentes del MOTOR
+file(GLOB_RECURSE MOTOR_SOURCES "src/*.cpp")
+list(FILTER MOTOR_SOURCES EXCLUDE REGEX "src/main.cpp")
+list(FILTER MOTOR_SOURCES EXCLUDE REGEX "src/elements/EarthSkill.cpp")
 
-# Creamos la librería compartida (.so) para Android
-add_library(main SHARED ${SOURCES})
+# Definición del JUEGO / EJEMPLO activo
+set(ACTIVE_GAME "examples/Limbo/LimboGame.cpp")
+set(ALL_SOURCES ${MOTOR_SOURCES} ${ACTIVE_GAME})
 
-# Vinculamos con los targets oficiales de SDL2 descargados
+# Creamos la librería compartida (.so)
+add_library(main SHARED ${ALL_SOURCES})
+
+# Vinculamos con las librerías, incluyendo ahora nlohmann_json
 target_link_libraries(main
     android
     log
     SDL2::SDL2
     SDL2_mixer::SDL2_mixer
     SDL2_ttf::SDL2_ttf
+    nlohmann_json::nlohmann_json # <--- VINCULACIÓN DE LA LIBRERÍA JSON
 )
+

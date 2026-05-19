@@ -3,6 +3,7 @@
 
 #include "Common.h"
 #include "input/InputManager.h"
+#include "player/Weapon.h"
 
 // Forward declaration para no saturar el header
 class ShadowAudio;
@@ -29,6 +30,9 @@ public:
     bool GetHasMark() const { return hasMark; }
     Vector2 GetShadowMark() const { return shadowMark; }
     bool IsLiquid() const { return isLiquid; }
+
+    void EquipWeapon(const Weapon& newWeapon) { currentWeapon = newWeapon; }
+    Weapon GetCurrentWeapon() const { return currentWeapon; }
 
     bool pendingPlatform;
 
@@ -60,6 +64,7 @@ private:
 
     void ApplyDash(float direction);
     void ApplyAttack();
+    bool isShieldActive;
 };
 
 #endif
