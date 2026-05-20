@@ -5,6 +5,7 @@
 #include <vector>
 #include <SDL.h>
 #include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
 
 class DialogueBox {
 public:
@@ -28,6 +29,8 @@ public:
     // Devuelve si el diálogo completo llegó a su fin
     bool IsDialogueComplete() const { return dialogueFinished; }
 
+    void Update(float dt);
+
 private:
     std::vector<std::string> dialoguePages;
     std::string currentText;
@@ -39,6 +42,9 @@ private:
     size_t charIndex;
     
     bool dialogueFinished;
+
+    ShadowAudio sfx;       
+    std::string sfxId;
 };
 
 #endif

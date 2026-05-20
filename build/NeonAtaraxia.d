@@ -1,5 +1,5 @@
-build/world/WorldProcessor.o: src/world/WorldProcessor.cpp \
-  include/world/Platform.h include/Common.h \
+build/NeonAtaraxia.o: src/NeonAtaraxia.cpp include/NeonAtaraxia.h \
+  include/gfx/ShadowGFX.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_main.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_stdinc.h \
@@ -50,7 +50,7 @@ build/world/WorldProcessor.o: src/world/WorldProcessor.cpp \
   /data/data/com.termux/files/usr/include/SDL2/SDL_version.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
-  include/player/Player.h include/input/InputManager.h \
-  include/gfx/ShadowAudio.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
-  include/world/Enemy.h include/physics/Collision.h
+  /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h \
+  include/input/InputManager.h include/Common.h \
+  include/core/StateManager.h \
+  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h

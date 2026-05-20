@@ -51,4 +51,5 @@ build/ui/UIManager.o: src/ui/UIManager.cpp include/ui/UIManager.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
   include/input/InputManager.h include/Common.h include/gfx/ShadowGFX.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h \
-  include/player/Player.h
+  include/player/Player.h include/gfx/ShadowAudio.h \
+  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h

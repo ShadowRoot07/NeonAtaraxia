@@ -6,8 +6,7 @@
 #include "world/Platform.h"
 #include "world/Enemy.h"
 
-// Ahora pasamos la ruta del JSON y la ruta base de los assets del motor como contexto
+// Firma exacta que coincide con tu LevelLoader.cpp
 std::vector<Platform> LoadLevel(const std::string& jsonPath, const std::string& assetRoot, std::vector<Enemy>& enemies);
 
-#endif
-
+#endif // LEVEL_LOADER_H

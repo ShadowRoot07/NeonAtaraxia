@@ -31,12 +31,11 @@ struct Projectile {
 };
 
 namespace Assets {
-    // Rutas relativas desde el interior de la carpeta assets/
-    const char* const JOY_BASE_PATH = "sprites/ui/joystick_base.bmp";
-    const char* const JOY_KNOB_PATH = "sprites/ui/joystick_knob.bmp";
-    const char* const BTN_Z_PATH    = "sprites/ui/button_z.bmp";
-    const char* const BTN_X_PATH    = "sprites/ui/botonX.bmp";
-    const char* const BTN_F_PATH    = "sprites/ui/botonF.bmp";
+    const std::string BTN_F_PATH = "sprites/ui/botonF.bmp";
+    const std::string BTN_X_PATH = "sprites/ui/botonX.bmp";
+    const std::string BTN_Z_PATH = "sprites/ui/button_z.bmp"; // Ojo: en tu ls -R se llama button_z.bmp, no botonZ.bmp
+    const std::string JOY_BASE_PATH = "sprites/ui/joystick_base.bmp";
+    const std::string JOY_KNOB_PATH = "sprites/ui/joystick_knob.bmp";
 }
 
 #endif

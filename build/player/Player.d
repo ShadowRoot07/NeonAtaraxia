@@ -1,5 +1,5 @@
 build/player/Player.o: src/player/Player.cpp include/player/Player.h \
-  include/Common.h /data/data/com.termux/files/usr/include/SDL2/SDL.h \
+  /data/data/com.termux/files/usr/include/SDL2/SDL.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_main.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_stdinc.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_config.h \
@@ -49,5 +49,6 @@ build/player/Player.o: src/player/Player.cpp include/player/Player.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_version.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
-  include/input/InputManager.h include/gfx/ShadowAudio.h \
+  include/Common.h include/input/InputManager.h \
+  include/gfx/ShadowAudio.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h
