@@ -2,6 +2,8 @@
 #include <iostream>
 #include <SDL_ttf.h>
 #include <random>
+#include <SDL_image.h>
+
 
 // Inicializamos guardando la ruta base de assets
 ShadowGFX::ShadowGFX(SDL_Renderer* r, const std::string& assetRoot) : renderer(r), assetRootPath(assetRoot) {}
@@ -46,7 +48,7 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
         }
 
         if (rw) {
-            SDL_Surface* surface = SDL_LoadBMP_RW(rw, 1);
+            SDL_Surface* surface = IMG_Load_RW(rw, 1);
             if (surface) {
                 if (useColorKey) {
                     Uint32 colorkey;
@@ -91,8 +93,8 @@ void ShadowGFX::DrawStatic(const std::string& id, SDL_Rect dest) {
     SDL_RenderCopy(renderer, GetTexture(id), NULL, &dest);
 }
 
-void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frame, bool flip) {
-    SDL_Rect src = { frame * 64, 0, 64, 64 };
+void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip, int spriteW, int spriteH) {
+    SDL_Rect src = { frameC * spriteW, frameF * spriteH, spriteW, spriteH };
     SDL_RendererFlip sdlFlip = flip ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
     SDL_RenderCopyEx(renderer, GetTexture(id), &src, &dest, 0, NULL, sdlFlip);
 }

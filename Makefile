@@ -2,7 +2,7 @@
 CXX = clang++
 # Agregamos -Iinclude para que encuentre todas las subcarpetas (world, gfx, player)
 CXXFLAGS = -Iinclude -Isrc `sdl2-config --cflags` -std=c++17 -MMD -O2
-LDFLAGS = `sdl2-config --libs` -lSDL2_mixer -lSDL2_ttf
+LDFLAGS = `sdl2-config --libs` -lSDL2_mixer -lSDL2_ttf -lSDL2_image
 
 # Directorios
 SRC_DIR = src

@@ -5,7 +5,7 @@
 Player::Player() {
     pos = {100.0f, 100.0f};
     vel = {0.0f, 0.0f};
-    hitbox = {0, 0, 32.0f, 48.0f};
+    hitbox = {0, 0, 32.0f, 32.0f}; // ¡CORREGIDO! Ajustado a la caja de 32x32 de tu nuevo pixel art
     isGrounded = false;
     health = 100.0f;
     speed = 300.0f;
@@ -25,6 +25,12 @@ Player::Player() {
     invulTimer = attackTimer = attackCooldown = 0.0f;
     faceDir = 1;
     isShieldActive = false;
+
+    currentAnimID = "player_indle";
+    currentFrameC = 0;
+    currentFrameF = 0;
+    animTimer = 0.0f;
+
 }
 
 void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
@@ -101,18 +107,73 @@ void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
         }
     }
 }
+
 void Player::Update(float dt) {
     if (invulTimer > 0) invulTimer -= dt;
     if (dashCooldown > 0) dashCooldown -= dt;
     if (attackTimer > 0)  attackTimer -= dt;
     if (attackCooldown > 0) attackCooldown -= dt;
-    if (invulTimer > 0)   invulTimer -= dt;
 
     if (liquidTimer > 0) {
         liquidTimer -= dt;
         if (liquidTimer <= 0) isLiquid = false;
     }
 
+    // ============================================================================
+    // MÁQUINA DE ESTADOS DE ANIMACIÓN CORREGIDA (VECTORZERO NATIVO)
+    // ============================================================================
+    std::string nextAnim = "player_idle";
+    int maxCols = 4; // 'VectorZero_indle(f=2, c=4).png' tiene 4 columnas por defecto
+
+    if (isDashing) {
+        nextAnim = "player_dash";
+        maxCols = 4; // (f=2, c=4)
+    } 
+    else if (!isGrounded) {
+        // Corrección de alucinación: Se usa la hoja de Dash para animar el salto/caída aérea
+        nextAnim = "player_dash";
+        maxCols = 4; // (f=2, c=4)
+    } 
+    else if (attackTimer > 0) {
+        nextAnim = "player_attack";
+        maxCols = 3; // (f=2, c=3)
+    } 
+    else if (isShieldActive) {
+        nextAnim = "player_defense";
+        maxCols = 3; // (f=2, c=3)
+    } 
+    else if (vel.x != 0) {
+        nextAnim = "player_walk";
+        maxCols = 6; // 'VectorZero_walk(f=2, c=6).png' tiene 6 columnas
+    }
+
+    // PROTECCIÓN ANTI-DESBORDAMIENTO: Reinicio inmediato al cambiar de acción
+    if (currentAnimID != nextAnim) {
+        currentAnimID = nextAnim;
+        currentFrameC = 0;
+        animTimer = 0.0f;
+    }
+
+    // Avanzar el ticker de fotogramas (Excepto si está en idle estático, donde sí cicla sus 4 frames)
+    animTimer += dt;
+    if (animTimer >= 0.1f) {
+        animTimer = 0.0f;
+        currentFrameC = (currentFrameC + 1) % maxCols;
+    }
+
+    // REGLA DE ORO DE DIRECCIÓN: Fila 0 = Derecha, Fila 1 = Izquierda
+    if (faceDir > 0) {
+        currentFrameF = 0;
+    } else {
+        currentFrameF = 1;
+    }
+
+
+    // Avanzar el ticker de animación de forma segura dentro de los límites de columnas
+
+    // ============================================================================
+    // FÍSICAS Y HITBOX (Se mantienen estrictamente en 32x32)
+    // ============================================================================
     if (isDashing) {
         dashTimer -= dt;
         if (dashTimer <= 0) isDashing = false;
@@ -122,10 +183,14 @@ void Player::Update(float dt) {
 
     pos.x += vel.x * dt;
     pos.y += vel.y * dt;
+
     hitbox.x = pos.x;
     hitbox.y = pos.y;
+    hitbox.w = 32.0f;
+    hitbox.h = 32.0f;
 
     if (isGrounded) jumpCount = 0;
+
 }
 
 void Player::TakeDamage(float amount, float sourceX) {

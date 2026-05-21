@@ -15,6 +15,11 @@ struct Weapon {
 
 class Player {
 public:
+    std::string GetCurrentAnimID() const { return currentAnimID; }
+    int GetCurrentFrameC() const { return currentFrameC; }
+    int GetCurrentFrameF() const { return currentFrameF; }
+    int GetFaceDir() const { return faceDir; }
+
     Player();
     void HandleInput(InputManager& input, ShadowAudio& sfx);
     void Update(float dt);
@@ -27,7 +32,6 @@ public:
     Vector2 GetShadowMark() const { return shadowMark; }
     Rect GetHitbox() const { return hitbox; }
     Rect GetAttackRect() const;
-    int GetFaceDir() const { return faceDir; }
     float GetInvulTimer() const { return invulTimer; }
     float GetHealth() const { return health; }
     bool IsAttacking() const { return attackTimer > 0.0f; }
@@ -65,6 +69,11 @@ private:
     int maxJumps;
     int faceDir;
 
+    std::string currentAnimID;
+    int currentFrameC;
+    int currentFrameF;
+    float animTimer;
+    
     // Gestión de estados elementales
     ElementType elementSlot1;
     ElementType elementSlot2;

@@ -1,4 +1,5 @@
 #include <SDL.h>
+
 #include <vector>
 #include <iostream>
 #include <string>
@@ -147,10 +148,42 @@ public:
         }
 
         // Dibujado del Jugador (Con parpadeo por invulnerabilidad)
+
+        // RENDERIZADO ESCALADO DE VECTORZERO
         bool shouldDraw = (player.GetInvulTimer() <= 0) || ((SDL_GetTicks() / 100) % 2 == 0);
         if (shouldDraw) {
-            SDL_Rect pRect = {(int)(player.GetPos().x - camera.pos.x), (int)(player.GetPos().y - camera.pos.y), 64, 64};
-            gfx.DrawAnimated("player_main", pRect, 0, player.GetFaceDir() < 0);
+            // Escalamos visualmente a 64x64 en el destino.
+            // Desplazamos -32 en Y para que los pies coincidan perfectamente con la hitbox física.
+            SDL_Rect pRect = {
+                (int)(player.GetPos().x - camera.pos.x),
+                (int)(player.GetPos().y - camera.pos.y - 32),
+                64, 64
+            };
+
+            // Pasamos FALSE en el flip porque la Fila (F) ya contiene la orientación nativa
+            gfx.DrawAnimated(
+                player.GetCurrentAnimID(),
+                pRect,
+                player.GetCurrentFrameC(),
+                player.GetCurrentFrameF(),
+                false, 
+                32, 32 // Cada celda mide exactamente 32x32 en la imagen
+            );
+        }
+        
+        // RENDERIZADO DE ENEMIGOS CON VOLTEO POR SOFTWARE (f=1, c=2)
+        for (auto& enemy : enemies) {
+            SDL_Rect eRect = {(int)(enemy.pos.x - camera.pos.x), (int)(enemy.pos.y - camera.pos.y), 32, 32};
+
+            // Ciclo de animación local de piernas/luces para los bugs (columna 0 y 1)
+            int enemyFrameC = (SDL_GetTicks() / 200) % 2;
+
+            std::string enemyTex = "enemy_bug";
+            if (enemy.type == FLYER) enemyTex = "bug_404";
+            else if (enemy.type == TURRET) enemyTex = "bug_500";
+
+            // Pasamos Fila = 0, y el flip responde a si su dirección es negativa (hacia la izquierda)
+            gfx.DrawAnimated(enemyTex, eRect, enemyFrameC, 0, enemy.dir < 0, 32, 32);
         }
 
         // UI GLOBAL (Filtro superior para controles táctiles)
@@ -207,12 +240,28 @@ int main(int argc, char* argv[]) {
         std::cerr << "Advertencia: Fallo al precargar texturas del sistema de UI global." << std::endl;
     }
 
-    // Precarga del banco de sonidos nativos
-    gfx.GetTexture("ground_stone", "");
+    // ============================================================================
+    // CARGA DE TEXTURAS DE VECTORZERO Y ENEMIGOS CON FORMATO REAL
+    // ============================================================================
+    // Registramos cada hoja con una clave limpia
+        gfx.GetTexture("player_idle", "sprites/player/VectorZero_indle(f=2, c=4).png");
+    gfx.GetTexture("player_walk", "sprites/player/VectorZero_walk(f=2, c=6).png");
+    gfx.GetTexture("player_attack", "sprites/player/VectorZero_attack(f=2, c=3).png");
+    gfx.GetTexture("player_dash", "sprites/player/VectorZero_dash(f=2, c=4).png");
+    gfx.GetTexture("player_time_travel", "sprites/player/VectorZero_time_travel(f=2, c=5).png");
+    gfx.GetTexture("player_defense", "sprites/player/VectorZero_defense(f=2, c=3).png");
+
+    // Enemigos y coleccionables
+    gfx.GetTexture("enemy_bug", "sprites/enemies/Bug(f=1, c=2).png");
+    gfx.GetTexture("bug_404", "sprites/enemies/Bug-404(f=1, c=2).png");
+    gfx.GetTexture("bug_500", "sprites/enemies/BugError500(f=1, c=2).png");
+    gfx.GetTexture("coin_gold", "sprites/money/coinGold(f=1, c=1).png");
+    gfx.GetTexture("coin_plata", "sprites/money/coinPlata(f=1, c=1).png");
+    gfx.GetTexture("gem", "sprites/money/Gem(f=1, c=1).png");
+
+    // Fallbacks limpios para el mapa
+    gfx.GetTexture("ground_stone", ""); // Ajusta al bloque que desees
     gfx.GetTexture("spike_metal", "");
-    gfx.GetTexture("enemy_generic", "");
-    gfx.GetTexture("projectile_yellow", "");
-    gfx.GetTexture("player_main", "");
 
     sfx.LoadSound("jump", "jump.wav");
     sfx.LoadSound("double_jump", "jump.wav");
