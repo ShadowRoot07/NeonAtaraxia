@@ -98,11 +98,8 @@ public:
     void OnEnter() override {
         player.SetElements(EARTH, DARKNESS);
         
-        // CORRECCIÓN MAPA: Cambiado de .txt a .json para usar el nuevo LevelLoader
-        level = LoadLevel("maps/test_level.json", "assets/", enemies);
-
+        level = LoadLevel("maps/test_level.json", "assets/", enemies, player);
     }
-
     void OnExit() override {}
 
     void HandleInput(SDL_Event& ev) override {}

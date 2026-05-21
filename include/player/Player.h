@@ -60,6 +60,7 @@ public:
     bool isGrounded;
     bool pendingPlatform;
 
+
 private:
     float speed;
     float jumpForce;

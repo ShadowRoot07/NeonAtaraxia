@@ -5,8 +5,15 @@
 #include <string>
 #include "world/Platform.h"
 #include "world/Enemy.h"
+#include "player/Player.h" // Inclusión requerida para pasar la referencia del jugador
 
-// Firma exacta que coincide con tu LevelLoader.cpp
-std::vector<Platform> LoadLevel(const std::string& jsonPath, const std::string& assetRoot, std::vector<Enemy>& enemies);
+// Firma actualizada de NeonAtaraxia que inyecta datos al Player
+std::vector<Platform> LoadLevel(
+    const std::string& jsonPath, 
+    const std::string& assetRoot, 
+    std::vector<Enemy>& enemies,
+    Player& player
+);
 
 #endif // LEVEL_LOADER_H
+
