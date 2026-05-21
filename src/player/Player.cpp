@@ -5,16 +5,16 @@
 Player::Player() {
     pos = {100.0f, 100.0f};
     vel = {0.0f, 0.0f};
-    hitbox = {0, 0, 32.0f, 32.0f}; // ¡CORREGIDO! Ajustado a la caja de 32x32 de tu nuevo pixel art
+    hitbox = {0, 0, 32.0f, 32.0f}; 
     isGrounded = false;
     health = 100.0f;
-    speed = 300.0f;
-    jumpForce = -600.0f;
+    speed = 320.0f;
+    jumpForce = -700.0f;
 
     elementSlot1 = NONE;
     elementSlot2 = NONE;
     jumpCount = 0;
-    maxJumps = 1;
+    maxJumps = 2;
     isLiquid = false;
     liquidTimer = 0.0f;
     hasMark = false;
@@ -26,31 +26,45 @@ Player::Player() {
     faceDir = 1;
     isShieldActive = false;
 
-    currentAnimID = "player_indle";
+    // CORRECCIÓN: Eliminamos la 'n' fantasma para sincronizar con main.cpp
+    currentAnimID = "player_idle"; 
     currentFrameC = 0;
     currentFrameF = 0;
     animTimer = 0.0f;
-
 }
 
 void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
     if (isDashing) return;
 
-    vel.x = 0;
-    if (input.IsKeyDown(SDL_SCANCODE_LEFT)) { vel.x = -speed; faceDir = -1; }
-    else if (input.IsKeyDown(SDL_SCANCODE_RIGHT)) { vel.x = speed; faceDir = 1; }
+    // Control de inercia horizontal: Solo forzamos cero si está tocando el suelo
+    if (isGrounded) {
+        vel.x = 0;
+    }
 
-    // --- SISTEMA DE SALTO / DOBLE SALTO CONSOLIDADO ---
+    if (input.IsKeyDown(SDL_SCANCODE_LEFT)) { 
+        vel.x = -speed; 
+        faceDir = -1; 
+    }
+    else if (input.IsKeyDown(SDL_SCANCODE_RIGHT)) { 
+        vel.x = speed; 
+        faceDir = 1; 
+    }
+    else if (isGrounded) {
+        vel.x = 0; // Detenerse en seco solo si pisa el suelo
+    }
+
+    // --- SISTEMA DE SALTO / DOBLE SALTO REPARADO ---
     if (input.IsKeyPressed(SDL_SCANCODE_Z)) {
         if (isGrounded) {
-            vel.y = jumpForce;
+            vel.y = jumpForce;    // Impulso completo (-700.0f)
             isGrounded = false;
-            jumpCount = 1;
+            jumpCount = 1;        // Primer salto registrado
             sfx.Play("jump");
-        } else if (jumpCount < maxJumps) {
-            vel.y = jumpForce * 0.85f;
-            jumpCount++;
-            sfx.Play("double_jump"); // Sonido diferenciado que ya tenías mapeado
+        } 
+        else if (jumpCount < maxJumps) { // Ahora evalúa 1 < 2 de forma CORRECTA
+            vel.y = jumpForce * 0.95f;   // El segundo impulso conserva el 95% de la fuerza
+            jumpCount++;                 // Sube a 2, bloqueando saltos infinitos
+            sfx.Play("double_jump");
         }
     }
 

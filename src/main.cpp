@@ -67,7 +67,7 @@ public:
 
     void Render() override {
         SDL_Color titleColor = {0, 255, 150, 255};
-        gfx.DrawText("MYSTERY OF LIMBO", "pixel_font", 400, 100, titleColor, true);
+        gfx.DrawText("VECTORZERO: OverWrite", "pixel_font", 400, 100, titleColor, true);
         menu.Render(gfx);
 
         ui.Render(renderer, gfx, input, dummyPlayer);
@@ -123,70 +123,65 @@ public:
     }
 
     void Render() override {
-        // Dibujado de Plataformas
+        // 1. Dibujado de Plataformas
         for (const auto& plat : level) {
             SDL_Rect r = {(int)(plat.bounds.x - camera.pos.x), (int)(plat.bounds.y - camera.pos.y), (int)plat.bounds.w, (int)plat.bounds.h};
             gfx.DrawStatic(plat.textureID, r);
         }
 
-        // Dibujado de Enemigos
-        for (const auto& e : enemies) {
-            SDL_Rect r = {(int)(e.pos.x - camera.pos.x), (int)(e.pos.y - camera.pos.y), (int)e.hitbox.w, (int)e.hitbox.h};
-            gfx.DrawStatic("enemy_generic", r);
-        }
-
-        // Dibujado de Proyectiles
+        // 2. Dibujado de Proyectiles (Escalados visualmente a 24x24 para balance de pantalla)
         for (const auto& b : bullets) {
-            SDL_Rect bRect = {(int)(b.pos.x - camera.pos.x), (int)(b.pos.y - camera.pos.y), (int)b.hitbox.w, (int)b.hitbox.h};
+            SDL_Rect bRect = {
+                (int)(b.pos.x - camera.pos.x - 6), 
+                (int)(b.pos.y - camera.pos.y - 6), 
+                24, 24 
+            };
             gfx.DrawStatic("projectile_yellow", bRect);
         }
 
-        // Dibujado de la Marca de Sombra (Mecánica Quantum)
+        // 3. Dibujado de la Marca de Sombra (Mecánica Quantum Escalada)
         if (player.GetHasMark()) {
-            SDL_Rect mRect = {(int)(player.GetShadowMark().x - camera.pos.x), (int)(player.GetShadowMark().y - camera.pos.y), 32, 48};
+            SDL_Rect mRect = {(int)(player.GetShadowMark().x - camera.pos.x), (int)(player.GetShadowMark().y - camera.pos.y - 16), 64, 96};
             gfx.DrawStatic("shadow_mark", mRect);
         }
 
-        // Dibujado del Jugador (Con parpadeo por invulnerabilidad)
-
-        // RENDERIZADO ESCALADO DE VECTORZERO
+        // 4. RENDERIZADO ESCALADO DE VECTORZERO (64x64)
         bool shouldDraw = (player.GetInvulTimer() <= 0) || ((SDL_GetTicks() / 100) % 2 == 0);
         if (shouldDraw) {
-            // Escalamos visualmente a 64x64 en el destino.
-            // Desplazamos -32 en Y para que los pies coincidan perfectamente con la hitbox física.
             SDL_Rect pRect = {
                 (int)(player.GetPos().x - camera.pos.x),
-                (int)(player.GetPos().y - camera.pos.y - 32),
-                64, 64
+                (int)(player.GetPos().y - camera.pos.y - 32), // Compensación vertical del pie del sprite
+                64, 64 
             };
 
-            // Pasamos FALSE en el flip porque la Fila (F) ya contiene la orientación nativa
             gfx.DrawAnimated(
                 player.GetCurrentAnimID(),
                 pRect,
                 player.GetCurrentFrameC(),
                 player.GetCurrentFrameF(),
-                false, 
-                32, 32 // Cada celda mide exactamente 32x32 en la imagen
+                false,
+                32, 32
             );
         }
-        
-        // RENDERIZADO DE ENEMIGOS CON VOLTEO POR SOFTWARE (f=1, c=2)
-        for (auto& enemy : enemies) {
-            SDL_Rect eRect = {(int)(enemy.pos.x - camera.pos.x), (int)(enemy.pos.y - camera.pos.y), 32, 32};
 
-            // Ciclo de animación local de piernas/luces para los bugs (columna 0 y 1)
+        // 5. RENDERIZADO ESCALADO DE ENEMIGOS (64x64) SIN FALLBACK ROSA
+        for (auto& enemy : enemies) {
+            SDL_Rect eRect = {
+                (int)(enemy.pos.x - camera.pos.x),
+                (int)(enemy.pos.y - camera.pos.y - 32), // Desfase Y para apoyarse correctamente
+                64, 64 
+            };
+
             int enemyFrameC = (SDL_GetTicks() / 200) % 2;
 
             std::string enemyTex = "enemy_bug";
             if (enemy.type == FLYER) enemyTex = "bug_404";
             else if (enemy.type == TURRET) enemyTex = "bug_500";
 
-            // Pasamos Fila = 0, y el flip responde a si su dirección es negativa (hacia la izquierda)
             gfx.DrawAnimated(enemyTex, eRect, enemyFrameC, 0, enemy.dir < 0, 32, 32);
         }
 
-        // UI GLOBAL (Filtro superior para controles táctiles)
+        // UI GLOBAL (Capa de inputs y HUD)
         ui.Render(renderer, gfx, input, player);
     }
 };
@@ -215,8 +210,7 @@ int main(int argc, char* argv[]) {
     if (!renderer) return 1;
 
     // Forzamos el tamaño lógico interno
-    SDL_RenderSetLogicalSize(renderer, 800, 600);
-    SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
+    SDL_RenderSetIntegerScale(renderer, SDL_FALSE);
 
     ShadowGFX gfx(renderer, "assets/");
     ShadowAudio sfx;

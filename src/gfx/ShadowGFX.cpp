@@ -94,8 +94,14 @@ void ShadowGFX::DrawStatic(const std::string& id, SDL_Rect dest) {
 }
 
 void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip, int spriteW, int spriteH) {
+    // 1. El rectángulo de ORIGEN (src) corta estrictamente los píxeles nativos del archivo PNG
     SDL_Rect src = { frameC * spriteW, frameF * spriteH, spriteW, spriteH };
+    
+    // 2. El rectángulo de DESTINO (dest) mantiene intactos sus campos dest.w y dest.h
+    // que le pasa el programador desde el bucle principal, permitiendo escalados dinámicos libres.
     SDL_RendererFlip sdlFlip = flip ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    
+    // 3. Renderizado con rotación e inversión por software si se requiere
     SDL_RenderCopyEx(renderer, GetTexture(id), &src, &dest, 0, NULL, sdlFlip);
 }
 
