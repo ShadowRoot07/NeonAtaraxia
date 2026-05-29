@@ -142,3 +142,20 @@ void ShadowGFX::DrawText(const std::string& text, const std::string& fontId, int
     SDL_DestroyTexture(tex);
 }
 
+void ShadowGFX::DrawBackgroundInfinity(const std::string& textureId, float camX, float camY, int bgW, int bgH) {
+    // Aritmética modular para calcular el desfase continuo
+    int bgOffsetX = -((int)camX) % bgW;
+    int bgOffsetY = -((int)camY) % bgH;
+
+    // Dibujamos una matriz 2x2 para cubrir toda la pantalla lógica (800x600) en movimiento
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            SDL_Rect bgRect = {
+                bgOffsetX + (x * bgW),
+                bgOffsetY + (y * bgH),
+                bgW, bgH
+            };
+            DrawStatic(textureId, bgRect);
+        }
+    }
+}

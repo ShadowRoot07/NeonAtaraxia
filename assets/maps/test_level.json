@@ -1,25 +1,83 @@
 {
   "map_dimensions": {
-    "width": 1000,
+    "width": 3000,
     "height": 750
   },
   "player_spawn": {
-    "x": 150.0,
-    "y": 400.0
+    "x": 100.0,
+    "y": 450.0
   },
   "palette": {
     "p1": { "type": "NORMAL", "texture": "ground_stone", "damage": 0.0 },
-    "p2": { "type": "SPIKE", "texture": "spike_metal", "damage": 25.0 }
+    "p2": { "type": "SPIKE", "texture": "spike_metal", "damage": 20.0 },
+    "p3": { "type": "NORMAL", "texture": "wall_default", "damage": 0.0 },
+    "p4": { "type": "LAVA", "texture": "lava_default", "damage": 40.0 }
   },
   "gameplay_structures": [
-    { "id": "p1", "x": 0, "y": 550, "w": 800, "h": 50 },
-    { "id": "p1", "x": 200, "y": 420, "w": 300, "h": 40 },
-    { "id": "p2", "x": 550, "y": 510, "w": 100, "h": 40 }
+    { "id": "p1", "x": 0, "y": 550, "w": 700, "h": 50 },
+    { "id": "p3", "x": 0, "y": 0, "w": 40, "h": 550 },
+    
+    { "id": "p1", "x": 250, "y": 420, "w": 160, "h": 32 },
+    { "id": "p1", "x": 450, "y": 320, "w": 160, "h": 32 },
+    { "id": "p1", "x": 250, "y": 210, "w": 120, "h": 32 },
+    
+    { "id": "p4", "x": 700, "y": 560, "w": 400, "h": 40 },
+    { "id": "p2", "x": 600, "y": 518, "w": 96, "h": 32 },
+    
+    { "id": "p1", "x": 780, "y": 430, "w": 90, "h": 32 },
+    { "id": "p1", "x": 930, "y": 330, "w": 90, "h": 32 },
+    
+    { "id": "p1", "x": 1100, "y": 550, "w": 800, "h": 50 },
+    { "id": "p2", "x": 1300, "y": 518, "w": 128, "h": 32 },
+    
+    { "id": "p3", "x": 1550, "y": 250, "w": 40, "h": 300 },
+    { "id": "p1", "x": 1420, "y": 420, "w": 130, "h": 32 },
+    { "id": "p1", "x": 1420, "y": 290, "w": 130, "h": 32 },
+    
+    { "id": "p1", "x": 1590, "y": 250, "w": 300, "h": 32 },
+    
+    { "id": "p4", "x": 1900, "y": 560, "w": 500, "h": 40 },
+    { "id": "p1", "x": 2000, "y": 400, "w": 64, "h": 32 },
+    { "id": "p1", "x": 2150, "y": 280, "w": 64, "h": 32 },
+    { "id": "p1", "x": 2300, "y": 400, "w": 64, "h": 32 },
+    
+    { "id": "p1", "x": 2400, "y": 550, "w": 600, "h": 50 },
+    { "id": "p3", "x": 2960, "y": 0, "w": 40, "h": 550 },
+    { "id": "p2", "x": 2550, "y": 518, "w": 160, "h": 32 }
   ],
   "entities": [
-    { "type": "WALKER", "x": 250, "y": 350, "direction": 1, "health": 50.0, "detection_range": 300.0 },
-    { "type": "FLYER", "x": 400, "y": 200, "direction": -1, "health": 30.0, "detection_range": 400.0 },
-    { "type": "TURRET", "x": 600, "y": 450, "direction": -1, "health": 100.0 }
+    { "type": "WALKER", "x": 300, "y": 480, "direction": 1, "health": 50.0, "detection_range": 300.0 },
+    { "type": "FLYER", "x": 500, "y": 150, "direction": -1, "health": 30.0, "detection_range": 400.0 },
+    { "type": "TURRET", "x": 650, "y": 480, "direction": -1, "health": 100.0, "detection_range": 450.0 },
+    { "type": "WALKER", "x": 1200, "y": 480, "direction": 1, "health": 60.0, "detection_range": 300.0 },
+    { "type": "TURRET", "x": 1500, "y": 220, "direction": -1, "health": 100.0, "detection_range": 500.0 },
+    { "type": "FLYER", "x": 2150, "y": 150, "direction": 1, "health": 40.0, "detection_range": 400.0 },
+    { "type": "WALKER", "x": 2750, "y": 480, "direction": -1, "health": 80.0, "detection_range": 350.0 }
+  ],
+  "items": [
+    { "type": "COIN_GOLD", "x": 280, "y": 380 },
+    { "type": "COIN_GOLD", "x": 320, "y": 380 },
+    { "type": "COIN_PLATA", "x": 480, "y": 280 },
+    { "type": "COIN_PLATA", "x": 520, "y": 280 },
+    { "type": "GEM", "x": 300, "y": 150 },
+    
+    { "type": "COIN_GOLD", "x": 810, "y": 390 },
+    { "type": "COIN_GOLD", "x": 960, "y": 290 },
+    
+    { "type": "COIN_GOLD", "x": 1450, "y": 380 },
+    { "type": "COIN_GOLD", "x": 1450, "y": 250 },
+    { "type": "GEM", "x": 1730, "y": 200 },
+    
+    { "type": "COIN_GOLD", "x": 2015, "y": 360 },
+    { "type": "COIN_GOLD", "x": 2165, "y": 240 },
+    { "type": "COIN_GOLD", "x": 2315, "y": 360 },
+    
+    { "type": "COIN_PLATA", "x": 2600, "y": 470 },
+    { "type": "COIN_PLATA", "x": 2640, "y": 470 }
+  ],
+  "interactive_objects": [
+    { "type": "CHEST", "x": 2850, "y": 518 },
+    { "type": "DOOR", "x": 1800, "y": 486 }
   ]
 }
 

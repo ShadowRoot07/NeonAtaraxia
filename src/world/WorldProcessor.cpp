@@ -2,16 +2,29 @@
 #include "player/Player.h"
 #include "world/Enemy.h"
 #include "physics/Collision.h"
+#include "input/InputManager.h"
+#include "gfx/ShadowAudio.h"
 #include <vector>
 #include <cmath>
 #include <SDL.h>
 
-void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, float dt) {
+void ProcessWorld(
+    Player& p, 
+    std::vector<Platform>& level, 
+    std::vector<Enemy>& enemies, 
+    std::vector<Projectile>& bullets, 
+    std::vector<Item>& items,
+    std::vector<InteractiveObject>& objects,
+    InputManager& input,
+    ShadowAudio& sfx,
+    float dt
+) {
     p.isGrounded = false;
 
-    // 1. Procesamiento de Plataformas (Temporales y Colisiones)
+    // ============================================================================
+    // 1. PROCESAMIENTO DE PLATAFORMAS (TEMPORALES, COLISIONES Y LAVA)
+    // ============================================================================
     for (auto it = level.begin(); it != level.end(); ) {
-        // Si es temporal, reducir vida
         if (it->type == TEMPORARY) {
             it->lifetime -= dt;
             if (it->lifetime <= 0) {
@@ -20,14 +33,81 @@ void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& e
             }
         }
 
-        // Colisión Jugador vs Plataforma
+        // Colisión estándar y respuesta física
         if (PhysicsEngine::AABB(p.hitbox, it->bounds)) {
             PhysicsEngine::ResolvePlatformCollision(p, it->bounds);
+
+            // FISICA DE LAVA: Si la plataforma es letal, infligimos daño directo
+            if (it->type == LAVA && p.GetInvulTimer() <= 0) {
+                p.TakeDamage((int)it->damage, it->bounds.x);
+                sfx.Play("attack");
+            }
         }
         ++it;
     }
 
-    // 2. Procesamiento de enemigos (IA)
+    // ============================================================================
+    // 2. PROCESAMIENTO DE ITEMS VOLÁTILES (COMPLETAMENTE SEGURO)
+    // ============================================================================
+    for (auto it = items.begin(); it != items.end(); ) {
+        // Si el jugador toca la moneda o gema, se desactiva
+        if (PhysicsEngine::AABB(p.hitbox, it->hitbox) && it->active) {
+            sfx.Play("blipSelect");
+            it->active = false;
+        }
+
+        if (!it->active) {
+            it = items.erase(it); // erase retorna el siguiente iterador válido automáticamente
+        } else {
+            ++it;
+        }
+    }
+
+    // ============================================================================
+    // 3. NUEVO: PROCESAMIENTO DE OBJETOS INTERACTIVOS (COFRES Y PUERTAS)
+    // ============================================================================
+    for (auto& obj : objects) {
+        if (obj.type == DOOR) {
+            // Si la puerta está cerrada, actúa como una pared sólida infranqueable
+            if (!obj.isOpen) {
+                if (PhysicsEngine::AABB(p.hitbox, obj.hitbox)) {
+                    PhysicsEngine::ResolvePlatformCollision(p, obj.hitbox);
+                }
+
+                // Trigger de Apertura: Si está cerca y presiona 'X' (o la tecla de acción mapeada)
+                // Aquí usamos SDL_SCANCODE_X como botón de interacción por defecto
+                float dist = std::abs((p.pos.x + 32) - (obj.pos.x + 16));
+                if (dist < 64.0f && input.IsKeyPressed(SDL_SCANCODE_X)) {
+                    obj.isOpen = true;
+                    sfx.Play("earth_skill");
+                }
+            }
+        }
+        else if (obj.type == CHEST) {
+            if (!obj.isOpen) {
+                float dist = std::abs((p.pos.x + 32) - (obj.pos.x + 24));
+                // Si el jugador se para frente al cofre y presiona acción
+                if (dist < 48.0f && input.IsKeyPressed(SDL_SCANCODE_X)) {
+                    obj.isOpen = true;
+                    sfx.Play("click");
+                    
+                    // MECÁNICA QUANTUM: Spawnea una gema flotando sobre el cofre inmediatamente
+                    Item rewardG;
+                    rewardG.pos = { obj.pos.x + 8, obj.pos.y - 32 };
+                    rewardG.hitbox = { rewardG.pos.x, rewardG.pos.y, 32.0f, 32.0f };
+                    rewardG.type = GEM;
+                    rewardG.textureID = "gem";
+                    rewardG.value = 100;
+                    rewardG.active = true;
+                    items.push_back(rewardG);
+                }
+            }
+        }
+    }
+
+    // ============================================================================
+    // 4. PROCESAMIENTO DE ENEMIGOS (IA ACTIVA)
+    // ============================================================================
     for (auto it = enemies.begin(); it != enemies.end(); ) {
         if (it->health <= 0) {
             it = enemies.erase(it);
@@ -116,7 +196,9 @@ void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& e
         ++it;
     }
 
-    // 3. Proyectiles
+    // ============================================================================
+    // 5. PROCESAMIENTO DE PROYECTILES
+    // ============================================================================
     for (auto it = bullets.begin(); it != bullets.end(); ) {
         it->pos.x += it->vel.x * dt;
         it->pos.y += it->vel.y * dt;

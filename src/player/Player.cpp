@@ -137,62 +137,68 @@ void Player::Update(float dt) {
     // MÁQUINA DE ESTADOS DE ANIMACIÓN CORREGIDA (VECTORZERO NATIVO)
     // ============================================================================
     std::string nextAnim = "player_idle";
-    int maxCols = 4; // 'VectorZero_indle(f=2, c=4).png' tiene 4 columnas por defecto
+    int maxCols = 4;
 
     if (isDashing) {
         nextAnim = "player_dash";
-        maxCols = 4; // (f=2, c=4)
-    } 
+        maxCols = 4;
+    }
     else if (!isGrounded) {
-        // Corrección de alucinación: Se usa la hoja de Dash para animar el salto/caída aérea
         nextAnim = "player_dash";
-        maxCols = 4; // (f=2, c=4)
-    } 
+        maxCols = 4;
+    }
     else if (attackTimer > 0) {
         nextAnim = "player_attack";
-        maxCols = 3; // (f=2, c=3)
-    } 
+        maxCols = 3;
+    }
     else if (isShieldActive) {
         nextAnim = "player_defense";
-        maxCols = 3; // (f=2, c=3)
-    } 
+        maxCols = 3;
+    }
     else if (vel.x != 0) {
         nextAnim = "player_walk";
-        maxCols = 6; // 'VectorZero_walk(f=2, c=6).png' tiene 6 columnas
+        maxCols = 6;
     }
 
-    // PROTECCIÓN ANTI-DESBORDAMIENTO: Reinicio inmediato al cambiar de acción
     if (currentAnimID != nextAnim) {
         currentAnimID = nextAnim;
         currentFrameC = 0;
         animTimer = 0.0f;
     }
 
-    // Avanzar el ticker de fotogramas (Excepto si está en idle estático, donde sí cicla sus 4 frames)
     animTimer += dt;
     if (animTimer >= 0.1f) {
         animTimer = 0.0f;
         currentFrameC = (currentFrameC + 1) % maxCols;
     }
 
-    // REGLA DE ORO DE DIRECCIÓN: Fila 0 = Derecha, Fila 1 = Izquierda
     if (faceDir > 0) {
         currentFrameF = 0;
     } else {
         currentFrameF = 1;
     }
 
-
-    // Avanzar el ticker de animación de forma segura dentro de los límites de columnas
-
     // ============================================================================
-    // FÍSICAS Y HITBOX (Se mantienen estrictamente en 32x32)
+    // FÍSICAS REFACTORIZADAS: SISTEMA DE DESACELERACIÓN Y FRICCIÓN
     // ============================================================================
     if (isDashing) {
         dashTimer -= dt;
         if (dashTimer <= 0) isDashing = false;
     } else {
+        // Gravedad normalizada
         vel.y += 1800.0f * dt;
+
+        // Si no se está presionando ninguna dirección, aplicamos fricción de frenado
+        if (vel.x != 0) {
+            float friction = isGrounded ? 15.0f : 4.0f; // Más fricción en el suelo que en el aire
+            if (std::abs(vel.x) > 0.1f) {
+                vel.x -= vel.x * friction * dt;
+                // Si la velocidad es ridículamente baja, la clavamos a cero para evitar el goteo de flotantes
+                if (std::abs(vel.x) < 10.0f) vel.x = 0.0f;
+            } else {
+                vel.x = 0.0f;
+            }
+        }
     }
 
     pos.x += vel.x * dt;
@@ -204,7 +210,6 @@ void Player::Update(float dt) {
     hitbox.h = 32.0f;
 
     if (isGrounded) jumpCount = 0;
-
 }
 
 void Player::TakeDamage(float amount, float sourceX) {

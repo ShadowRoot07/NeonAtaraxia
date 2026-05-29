@@ -15,6 +15,7 @@ public:
     SDL_Texture* GetTexture(const std::string& id, const std::string& p_path = "", bool useColorKey = true);
     void DrawStatic(const std::string& id, SDL_Rect dest);
     void DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip = false, int spriteW = 32, int spriteH = 32);
+    void DrawBackgroundInfinity(const std::string& textureId, float camX, float camY, int bgW = 800, int bgH = 600);
 
     bool LoadFont(const std::string& id, const std::string& path, int size);
     void DrawText(const std::string& text, const std::string& fontId, int x, int y, SDL_Color color, bool center = false);

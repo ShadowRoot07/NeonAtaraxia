@@ -1,4 +1,5 @@
-build/main.o: src/main.cpp \
+build/elements/EarthSkill.o: src/elements/EarthSkill.cpp \
+  src/elements/EarthSkill.h include/Common.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_main.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_stdinc.h \
@@ -49,11 +50,4 @@ build/main.o: src/main.cpp \
   /data/data/com.termux/files/usr/include/SDL2/SDL_version.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h \
-  include/gfx/ShadowGFX.h include/gfx/ShadowAudio.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
-  include/ui/UIManager.h include/input/InputManager.h include/Common.h \
-  include/ui/MenuManager.h include/world/Camera.h include/world/Enemy.h \
-  include/world/Platform.h include/player/Player.h \
-  include/core/StateManager.h include/world/LevelLoader.h \
-  src/elements/EarthSkill.h
+  include/world/Platform.h

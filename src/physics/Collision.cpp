@@ -1,8 +1,17 @@
 #include "physics/Collision.h"
 #include "player/Player.h"
+#include "world/Platform.h" // <--- Añade esto temporalmente para el log
 #include <cmath>
+#include <SDL.h>            // <--- Añade esto para usar SDL_Log
+
 
 bool PhysicsEngine::AABB(Rect a, Rect b) {
+    static bool log_done = false;
+    if (!log_done) {
+        SDL_Log("[LOG-PHYSICS-SIZE] sizeof(Item) en Physics: %zu bytes", sizeof(Item));
+        log_done = true;
+    }
+
     return (a.x < b.x + b.w &&
             a.x + a.w > b.x &&
             a.y < b.y + b.h &&

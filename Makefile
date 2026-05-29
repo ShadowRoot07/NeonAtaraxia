@@ -9,8 +9,8 @@ SRC_DIR = src
 BUILD_DIR = build
 TARGET = game_core
 
-# Encontrar todos los .cpp recursivamente, excluyendo EarthSkill.cpp
-SOURCES = $(shell find $(SRC_DIR) -name '*.cpp' ! -name 'EarthSkill.cpp')
+# Encontrar TODOS los .cpp recursivamente, incluyendo EarthSkill de forma estándar
+SOURCES = $(shell find $(SRC_DIR) -name '*.cpp')
 # Generar la lista de objetos manteniendo la estructura de carpetas en build/
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SOURCES))
 DEPS = $(OBJECTS:.o=.d)
