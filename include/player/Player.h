@@ -35,6 +35,7 @@ public:
     float GetInvulTimer() const { return invulTimer; }
     float GetHealth() const { return health; }
     bool IsAttacking() const { return attackTimer > 0.0f; }
+    bool IsShieldActive() const { return isShieldActive; }
 
     // Mecánicas Quantum (Marca de Sombra)
     bool GetHasMark() const { return hasMark; }

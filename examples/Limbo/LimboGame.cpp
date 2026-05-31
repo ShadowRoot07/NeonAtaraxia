@@ -96,8 +96,7 @@ public:
         SDL_RenderDrawRect(renderer, &btnG);
         gfx->DrawText("G", "main_font", 45, 30, {0, 255, 150, 180}, true);
 
-        // <<-- SOLUCIONADO: Acceso seguro al estado del escudo usando el método público expuesto de Player
-        if (player.IsShieldActive()) { 
+        if (player.IsShieldActive()) { // Con mayúscula, llamando al método público
             SDL_Rect shieldVisual = { (int)player.GetPos().x - 4, (int)player.GetPos().y - 4, 40, 56 };
             SDL_SetRenderDrawColor(renderer, 0, 180, 255, 100); 
             SDL_RenderDrawRect(renderer, &shieldVisual);
@@ -146,10 +145,10 @@ class LimboGame : public NeonEngine {
 public:
     void OnStart() override {
         ShadowAudio* mockAudio = new ShadowAudio();
-        // <<-- SOLUCIONADO: Modificado de LoadWAV a LoadSFX de acuerdo a la API nativa de ShadowAudio
-        mockAudio->LoadSFX("click", "audio/click.wav");
-        mockAudio->LoadSFX("blipSelect", "audio/blipSelect.wav");
-        mockAudio->LoadSFX("powerUp", "audio/powerUp.wav"); 
+        // Corregido con el nombre real de tu API: LoadSound
+        mockAudio->LoadSound("click", "audio/click.wav");
+        mockAudio->LoadSound("blipSelect", "audio/blipSelect.wav");
+        mockAudio->LoadSound("powerUp", "audio/powerUp.wav"); 
 
         auto gameplayState = std::make_shared<LimboGameplayState>(stateManager, gfx, this->renderer, mockAudio, baseAssetPath);
         stateManager.PushState(gameplayState);
