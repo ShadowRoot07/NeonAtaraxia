@@ -104,8 +104,8 @@ jobs:
 
           # --- PASO 7: AGREGAR RECURSOS MULTIMEDIA (ASSETS) ---
           if [ -d "assets" ]; then
-            echo "📦 Inyectando assets de juego (Mapas JSON, texturas, fuentes)..."
-            zip -ur9 bin/game_file.apk assets/
+            echo "📦 Inyectando assets de juego (Mapas JSON, texturas, fuentes) con CERO COMPRESIÓN..."
+            zip -ur0 bin/game_file.apk assets/
           fi
 
           # --- PASO 8: ALINEACIÓN REPARADA (ZIPALIGN) ---
