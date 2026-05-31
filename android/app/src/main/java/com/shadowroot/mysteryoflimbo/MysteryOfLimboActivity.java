@@ -14,6 +14,7 @@ public class MysteryOfLimboActivity extends SDLActivity {
         return new String[] {
             "SDL2",
             "SDL2_mixer",
+            "SDL2_ttf", // <<-- AGREGADO: Carga del módulo de fuentes para mapas JSON/UI
             "main"
         };
     }
@@ -21,11 +22,11 @@ public class MysteryOfLimboActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.i("ShadowRoot", "=== [ Mystery of Limbo: ENGINE START ] ===");
-        
+
         // --- PASO CRÍTICO: Antes del super.onCreate ---
         // 1. Quitar el título de la ventana
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-        
+
         // 2. Forzar que la ventana sea Fullscreen a nivel de WindowManager
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                            WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -53,7 +54,7 @@ public class MysteryOfLimboActivity extends SDLActivity {
                       | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                       | View.SYSTEM_UI_FLAG_FULLSCREEN
                       | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
-        
+
         decorView.setSystemUiVisibility(uiOptions);
     }
 }
