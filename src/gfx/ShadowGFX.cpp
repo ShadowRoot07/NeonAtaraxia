@@ -34,13 +34,11 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
     if (textureCache.count(id)) return textureCache[id];
 
     if (!p_path.empty()) {
-        // 1. Intentar cargar desde el directorio específico del juego activo
         std::string primaryPath = assetRootPath + p_path;
         SDL_Log("ShadowGFX: Intentando Ruta Primaria: %s", primaryPath.c_str());
 
         SDL_RWops* rw = SDL_RWFromFile(primaryPath.c_str(), "rb");
-        
-        // 2. Si falla, usar el Fallback de la carpeta global de assets
+
         if (!rw) {
             std::string fallbackPath = "assets/" + p_path;
             SDL_Log("ShadowGFX: Fallback a Ruta Global: %s", fallbackPath.c_str());
@@ -50,7 +48,10 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
         if (rw) {
             SDL_Surface* surface = IMG_Load_RW(rw, 1);
             if (surface) {
-                if (useColorKey) {
+                SDL_Texture* tex = nullptr;
+
+                // BLINDAJE PARA ANDROID: Si el formato es PNG con Alpha, evitamos bloquear la superficie
+                if (useColorKey && surface->format->BytesPerPixel < 4) {
                     Uint32 colorkey;
                     if (SDL_LockSurface(surface) == 0) {
                         Uint8* pixels = (Uint8*)surface->pixels;
@@ -68,15 +69,23 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
                     }
                 }
 
-                SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surface);
-                SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+                // Creamos la textura directamente desde la superficie optimizada
+                tex = SDL_CreateTextureFromSurface(renderer, surface);
+                if (tex) {
+                    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+                } else {
+                    SDL_Log("ShadowGFX: [ANDROID ERROR] Falló CreateTextureFromSurface para %s: %s", id.c_str(), SDL_GetError());
+                }
+
                 SDL_FreeSurface(surface);
 
                 if (tex) {
-                    SDL_Log("ShadowGFX: CARGA EXITOSA [%s]", id.c_str());
+                    SDL_Log("ShadowGFX: CARGA REAL Y EXITOSA EN GPU [%s]", id.c_str());
                     textureCache[id] = tex;
                     return tex;
                 }
+            } else {
+                SDL_Log("ShadowGFX: [ANDROID ERROR] IMG_Load_RW no pudo decodificar bytes: %s", IMG_GetError());
             }
         }
         SDL_Log("ShadowGFX: ERROR fatal al cargar %s. Archivo ausente en juego y global.", p_path.c_str());

@@ -6,7 +6,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:label="Mystery of Limbo"
+        android:label="VectorZero: OverWrite"
         android:hasCode="true"
         android:extractNativeLibs="true"
         android:allowBackup="true"
