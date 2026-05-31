@@ -127,7 +127,15 @@ std::vector<Platform> LoadLevel(
                 float w = structObj.value("w", 32.0f);
                 float h = structObj.value("h", 32.0f);
 
-                level.push_back({{x, y, w, h}, pData.type, 0.0f, pData.texture, pData.damage});
+                // ASIGNACIÓN EXPLÍCITA (Segura, limpia y sin bugs de orden)
+                Platform plat;
+                plat.textureID = pData.texture;
+                plat.bounds = {x, y, w, h};
+                plat.type = pData.type;
+                plat.lifetime = 0.0f;
+                plat.damage = pData.damage;
+
+                level.push_back(plat);
                 count++;
             }
             SDL_Log("[DEBUG-RAM] Estructuras cargadas con exito: %d", count);

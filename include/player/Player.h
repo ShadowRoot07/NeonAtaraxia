@@ -59,6 +59,9 @@ public:
     Rect hitbox;
     bool isGrounded;
     bool pendingPlatform;
+    int coinsCollected;
+    int gemsCollected;
+
 
 
 private:

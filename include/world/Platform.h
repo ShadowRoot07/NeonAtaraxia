@@ -4,15 +4,14 @@
 #include "Common.h"
 #include <string>
 
-// 1. Tipos de plataforma expandidos (Inclusión de LAVA)
 enum PlatformType { NORMAL, SPIKE, TEMPORARY, LAVA };
 
 struct Platform {
-    Rect bounds;
-    PlatformType type;
-    float lifetime;
-    std::string textureID;
-    float damage; // Añadido para modular el daño por lava/pinchos
+    std::string textureID; // <<-- SIEMPRE AL INICIO (Evita corrupción RAM)
+    Rect bounds;           // 16 bytes
+    PlatformType type;     // 4 bytes
+    float lifetime;        // 4 bytes
+    float damage;          // 4 bytes
 };
 
 // ============================================================================

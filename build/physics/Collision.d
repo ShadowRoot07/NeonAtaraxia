@@ -52,5 +52,4 @@ build/physics/Collision.o: src/physics/Collision.cpp \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
   include/player/Player.h include/input/InputManager.h \
   include/gfx/ShadowAudio.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
-  include/world/Platform.h
+  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h

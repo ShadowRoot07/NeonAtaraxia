@@ -1,17 +1,9 @@
 #include "physics/Collision.h"
 #include "player/Player.h"
-#include "world/Platform.h" // <--- Añade esto temporalmente para el log
 #include <cmath>
-#include <SDL.h>            // <--- Añade esto para usar SDL_Log
-
+#include <SDL.h>
 
 bool PhysicsEngine::AABB(Rect a, Rect b) {
-    static bool log_done = false;
-    if (!log_done) {
-        SDL_Log("[LOG-PHYSICS-SIZE] sizeof(Item) en Physics: %zu bytes", sizeof(Item));
-        log_done = true;
-    }
-
     return (a.x < b.x + b.w &&
             a.x + a.w > b.x &&
             a.y < b.y + b.h &&
@@ -33,19 +25,32 @@ void PhysicsEngine::ResolvePlatformCollision(Player& e, Rect plat) {
     float overlapX = minDistanceX - std::abs(diffX);
     float overlapY = minDistanceY - std::abs(diffY);
 
-    if (overlapX < overlapY) {
-        if (diffX > 0) e.pos.x += overlapX;
-        else e.pos.x -= overlapX;
-        e.vel.x = 0;
+    // Si no hay superposición real, salimos inmediatamente
+    if (overlapX <= 0 || overlapY <= 0) return;
+
+    // Un Bias de 4.0f le da una tolerancia fuerte al eje Y.
+    // Esto evita que las uniones entre bloques adyacentes sean interpretadas como paredes laterales.
+    if (overlapX < overlapY - 4.0f) {
+        // Es una colisión lateral legítima (Pared)
+        if (diffX > 0) {
+            e.pos.x += overlapX;
+        } else {
+            e.pos.x -= overlapX;
+        }
+        
+        // Solo frenamos en X si se mueve activamente hacia la pared
+        if ((diffX > 0 && e.vel.x < 0) || (diffX < 0 && e.vel.x > 0)) {
+            e.vel.x = 0;
+        }
     } else {
+        // Es una colisión vertical (Suelo o Techo)
         if (diffY > 0) {
             e.pos.y += overlapY;
-            e.vel.y = 0;
+            if (e.vel.y < 0) e.vel.y = 0; // Chocó con un techo
         } else {
             e.pos.y -= overlapY;
-            e.vel.y = 0;
+            e.vel.y = 0;                  // Apoyado en el suelo
             e.isGrounded = true;
         }
     }
 }
-

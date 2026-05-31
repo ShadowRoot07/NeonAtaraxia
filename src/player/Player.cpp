@@ -19,6 +19,8 @@ Player::Player() {
     liquidTimer = 0.0f;
     hasMark = false;
     pendingPlatform = false;
+    coinsCollected = 0;
+    gemsCollected = 0;
 
     dashCooldown = dashTimer = 0.0f;
     isDashing = false;
@@ -179,7 +181,7 @@ void Player::Update(float dt) {
     }
 
     // ============================================================================
-    // FÍSICAS REFACTORIZADAS: SISTEMA DE DESACELERACIÓN Y FRICCIÓN
+    // FÍSICAS REFACTORIZADAS: SISTEMA DE DESACELERACIÓN Y FRICCIÓN (FIX PEGAJOSO)
     // ============================================================================
     if (isDashing) {
         dashTimer -= dt;
@@ -188,13 +190,14 @@ void Player::Update(float dt) {
         // Gravedad normalizada
         vel.y += 1800.0f * dt;
 
-        // Si no se está presionando ninguna dirección, aplicamos fricción de frenado
-        if (vel.x != 0) {
-            float friction = isGrounded ? 15.0f : 4.0f; // Más fricción en el suelo que en el aire
+        // PARCHE: Solo aplicamos fricción de frenado si el jugador NO se está moviendo con los controles
+        bool isMovingInput = (vel.x > 300.0f || vel.x < -300.0f); 
+        
+        if (!isMovingInput && vel.x != 0) {
+            float friction = isGrounded ? 22.0f : 5.0f; // Fricción rápida para frenados en seco limpios
             if (std::abs(vel.x) > 0.1f) {
                 vel.x -= vel.x * friction * dt;
-                // Si la velocidad es ridículamente baja, la clavamos a cero para evitar el goteo de flotantes
-                if (std::abs(vel.x) < 10.0f) vel.x = 0.0f;
+                if (std::abs(vel.x) < 15.0f) vel.x = 0.0f;
             } else {
                 vel.x = 0.0f;
             }

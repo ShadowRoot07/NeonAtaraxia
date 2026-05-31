@@ -147,23 +147,59 @@ public:
     void Render() override {
         gfx.DrawBackgroundInfinity("background_base", camera.pos.x, camera.pos.y, 800, 600);
 
+        // ==========================================
+        // 1. RENDER DE PLATAFORMAS CON FIJACIÓN DE PINCHOS
+        // ==========================================
         for (const auto& plat : level) {
-            SDL_Rect r = {(int)(plat.bounds.x - camera.pos.x), (int)(plat.bounds.y - camera.pos.y), (int)plat.bounds.w, (int)plat.bounds.h};
-            gfx.DrawStatic(plat.textureID, r);
+            // Tiling para pinchos de metal (evita el ensanchamiento)
+            if (plat.textureID == "spike_metal") {
+                int spriteSize = 32;
+                int cantidadPinchos = (int)plat.bounds.w / spriteSize;
+                if (cantidadPinchos <= 0) cantidadPinchos = 1;
+
+                for (int n = 0; n < cantidadPinchos; n++) {
+                    SDL_Rect rSpike = {
+                        (int)(plat.bounds.x + (n * spriteSize) - camera.pos.x),
+                        (int)(plat.bounds.y - camera.pos.y),
+                        spriteSize,
+                        (int)plat.bounds.h
+                    };
+                    gfx.DrawStatic(plat.textureID, rSpike);
+                }
+            } else {
+                SDL_Rect r = {(int)(plat.bounds.x - camera.pos.x), (int)(plat.bounds.y - camera.pos.y), (int)plat.bounds.w, (int)plat.bounds.h};
+                gfx.DrawStatic(plat.textureID, r);
+            }
         }
 
+        // ==========================================
+        // 2. RENDER DE OBJETOS (COFRES Y PUERTAS)
+        // ==========================================
         for (const auto& obj : objects) {
             SDL_Rect oRect = {(int)(obj.pos.x - camera.pos.x), (int)(obj.pos.y - camera.pos.y), (int)obj.hitbox.w, (int)obj.hitbox.h};
             int frameC = obj.isOpen ? 1 : 0;
-            gfx.DrawAnimated(obj.textureID, oRect, frameC, 0, false, (int)obj.hitbox.w/2, (int)obj.hitbox.h/2);
+            
+            // Forzamos a que detecte que el archivo tiene exactamente 2 columnas (c=2).
+            // Pasamos el tamaño real del frame (que es el ancho de la hitbox).
+            gfx.DrawAnimated(obj.textureID, oRect, frameC, 0, false, (int)obj.hitbox.w, (int)obj.hitbox.h);
         }
 
+        // ==========================================
+        // 3. RENDER DE ITEMS (MONEDAS Y GEMAS)
+        // ==========================================
         for (const auto& item : items) {
             if (!item.active) continue;
             SDL_Rect iRect = {(int)(item.pos.x - camera.pos.x), (int)(item.pos.y - camera.pos.y), (int)item.hitbox.w, (int)item.hitbox.h};
-            gfx.DrawAnimated(item.textureID, iRect, 0, 0, false, (int)item.hitbox.w/2, (int)item.hitbox.h/2);
+            
+            // Si tus monedas/gemas se ven cortadas con DrawAnimated, usamos DrawStatic.
+            // Al ser texturas estáticas de 1x1 (f=1, c=1), DrawStatic dibujará el PNG entero
+            // perfectamente escalado dentro del cuadrado de la hitbox sin peligro de cortes por frames.
+            gfx.DrawStatic(item.textureID, iRect);
         }
 
+        // ==========================================
+        // RETAL DE RENDER (BALAS, MARCAS, JUGADOR, ENEMIGOS) - SE QUEDA IGUAL
+        // ==========================================
         for (const auto& b : bullets) {
             SDL_Rect bRect = {(int)(b.pos.x - camera.pos.x - 6), (int)(b.pos.y - camera.pos.y - 6), 24, 24};
             gfx.DrawStatic("projectile_yellow", bRect);

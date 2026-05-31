@@ -33,31 +33,46 @@ void ProcessWorld(
             }
         }
 
-        // Colisión estándar y respuesta física
         if (PhysicsEngine::AABB(p.hitbox, it->bounds)) {
+            // Resolver colisión sólida primero para mantener a VectorZero arriba
             PhysicsEngine::ResolvePlatformCollision(p, it->bounds);
 
-            // FISICA DE LAVA: Si la plataforma es letal, infligimos daño directo
-            if (it->type == LAVA && p.GetInvulTimer() <= 0) {
-                p.TakeDamage((int)it->damage, it->bounds.x);
+            // Si es LAVA o PINCHOS y no somos invulnerables
+            if ((it->type == LAVA || it->type == SPIKE) && p.GetInvulTimer() <= 0) {
+                // Aplicamos daño
+                p.TakeDamage(it->damage, it->bounds.x);
                 sfx.Play("attack");
+
+                // PARCHE DE SEGURIDAD FÍSICA PARA LA LAVA:
+                // Si es lava, forzamos que vel.y no se dispare al infinito negativo
+                // para evitar que el jugador perfore el fondo del mapa.
+                if (it->type == LAVA) {
+                    p.vel.y = -150.0f; // Un pequeño salto de dolor, no el colosal -300
+                    p.isGrounded = false;
+                }
             }
         }
         ++it;
     }
 
     // ============================================================================
-    // 2. PROCESAMIENTO DE ITEMS VOLÁTILES (COMPLETAMENTE SEGURO)
+    // 2. PROCESAMIENTO DE ITEMS VOLÁTILES (CON CONTEO ACTIVO)
     // ============================================================================
     for (auto it = items.begin(); it != items.end(); ) {
-        // Si el jugador toca la moneda o gema, se desactiva
         if (PhysicsEngine::AABB(p.hitbox, it->hitbox) && it->active) {
-            sfx.Play("blipSelect");
+            sfx.Play("pickup_coin"); // Usamos el audio correcto de la moneda
             it->active = false;
+
+            // Incrementamos según el tipo de ítem
+            if (it->type == GEM) {
+                p.gemsCollected++;
+            } else {
+                p.coinsCollected++;
+            }
         }
 
         if (!it->active) {
-            it = items.erase(it); // erase retorna el siguiente iterador válido automáticamente
+            it = items.erase(it);
         } else {
             ++it;
         }
