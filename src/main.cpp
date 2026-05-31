@@ -346,6 +346,14 @@ int main(int argc, char* argv[]) {
         std::cerr << "No se pudo inicializar SDL_ttf: " << TTF_GetError() << std::endl;
     }
 
+    // ============================================================================
+    // INICIALIZACIÓN CRÍTICA DE SDL_IMAGE PARA ANDROID (AÑADE ESTO)
+    // ============================================================================
+    int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG;
+    if ((IMG_Init(imgFlags) & imgFlags) != imgFlags) {
+        std::cerr << "Error crítico: No se pudo inicializar SDL_image: " << IMG_GetError() << std::endl;
+    }
+
     if (!gfx.LoadFont("pixel_font", "fonts/m5x7.ttf", 32)) {
         std::cerr << "Error: No se encontró la fuente en assets/fonts/m5x7.ttf" << std::endl;
     }
@@ -447,6 +455,7 @@ int main(int argc, char* argv[]) {
     }
 
     TTF_Quit();
+    IMG_Quit();
     ui.Clean();
 
     SDL_DestroyRenderer(renderer);
