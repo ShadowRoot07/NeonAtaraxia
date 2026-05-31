@@ -64,11 +64,10 @@ include_directories(
 
 # Escaneo de los archivos fuentes del MOTOR
 file(GLOB_RECURSE MOTOR_SOURCES "src/*.cpp")
-list(FILTER MOTOR_SOURCES EXCLUDE REGEX "src/main.cpp")
 list(FILTER MOTOR_SOURCES EXCLUDE REGEX "src/elements/EarthSkill.cpp")
 
 # Definición del JUEGO / EJEMPLO activo
-set(ACTIVE_GAME "examples/Limbo/LimboGame.cpp")
+# set(ACTIVE_GAME "examples/Limbo/LimboGame.cpp")
 set(ALL_SOURCES ${MOTOR_SOURCES} ${ACTIVE_GAME})
 
 # Creamos la librería compartida (.so)
