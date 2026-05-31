@@ -13,8 +13,9 @@ public class MysteryOfLimboActivity extends SDLActivity {
     protected String[] getLibraries() {
         return new String[] {
             "SDL2",
+            "SDL2_image",
             "SDL2_mixer",
-            "SDL2_ttf", // <<-- AGREGADO: Carga del módulo de fuentes para mapas JSON/UI
+            "SDL2_ttf",
             "main"
         };
     }

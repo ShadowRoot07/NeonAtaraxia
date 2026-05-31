@@ -20,6 +20,13 @@ FetchContent_Declare(
   GIT_TAG release-2.8.0
 )
 
+# === AGREGADO: SDL2_image para procesamiento de texturas PNG ===
+FetchContent_Declare(
+  SDL2_image
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
+  GIT_TAG release-2.8.2
+)
+
 # SDL2_ttf
 FetchContent_Declare(
   SDL2_ttf
@@ -27,7 +34,7 @@ FetchContent_Declare(
   GIT_TAG release-2.22.0
 )
 
-# NUEVO: nlohmann/json para el ecosistema de datos
+# nlohmann/json para el ecosistema de datos
 FetchContent_Declare(
   json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -38,18 +45,19 @@ set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 set(SDL2TTF_VENDORED ON CACHE BOOL "" FORCE)
+set(SDL2IMAGE_VENDORED ON CACHE BOOL "" FORCE) # Asegura que use las dependencias internas de SDL_image
 
-# Descargar y poner a disposición todas las dependencias
-FetchContent_MakeAvailable(SDL2 SDL2_mixer SDL2_ttf json)
+# Descargar y poner a disposición todas las dependencias (AÑADIDO SDL2_image aquí)
+FetchContent_MakeAvailable(SDL2 SDL2_mixer SDL2_image SDL2_ttf json)
 # ----------------------------------------------
 
 include_directories(
-    include 
-    include/gfx 
-    include/input 
-    include/physics 
-    include/player 
-    include/ui 
+    include
+    include/gfx
+    include/input
+    include/physics
+    include/player
+    include/ui
     include/world
     include/core
 )
@@ -66,13 +74,14 @@ set(ALL_SOURCES ${MOTOR_SOURCES} ${ACTIVE_GAME})
 # Creamos la librería compartida (.so)
 add_library(main SHARED ${ALL_SOURCES})
 
-# Vinculamos con las librerías, incluyendo ahora nlohmann_json
+# Vinculamos con las librerías nativas de Android y los módulos de SDL
 target_link_libraries(main
     android
     log
     SDL2::SDL2
     SDL2_mixer::SDL2_mixer
+    SDL2_image::SDL2_image # <--- VINCULACIÓN DE LA LIBRERÍA DE IMÁGENES
     SDL2_ttf::SDL2_ttf
-    nlohmann_json::nlohmann_json # <--- VINCULACIÓN DE LA LIBRERÍA JSON
+    nlohmann_json::nlohmann_json
 )
 
