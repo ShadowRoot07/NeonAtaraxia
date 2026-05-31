@@ -16,7 +16,8 @@ public:
     
     // Actualiza la animación del efecto de texto letra por letra
     void Update(float dt, class ShadowAudio& sfx, const std::string& sfxId = "click");
-    
+    void Update(float dt);
+
     // Dibuja la caja de fondo y el subconjunto de texto animado
     void Render(ShadowGFX& gfx, SDL_Renderer* renderer);
     

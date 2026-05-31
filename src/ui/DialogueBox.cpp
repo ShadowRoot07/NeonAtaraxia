@@ -17,7 +17,7 @@ void DialogueBox::StartDialogue(const std::vector<std::string>& lines, const std
     currentText = dialoguePages[currentPage];
 }
 
-void DialogueBox::Update(float dt) {
+void DialogueBox::Update(float dt, ShadowAudio& sfxRef, const std::string& customSfxId) {
     if (dialogueFinished) return;
 
     if (!IsPageFinished()) {
@@ -26,9 +26,22 @@ void DialogueBox::Update(float dt) {
             charTimer = 0.0f;
             charIndex++;
             if (charIndex < currentText.length() && currentText[charIndex] != ' ') {
-                // Reproduce el sonido configurado (ej: "click", "blipSelect")
-                sfx.Play(sfxId); 
+                // SOLUCIONADO: Usa la referencia externa de audio y el ID correspondiente
+                sfxRef.Play(customSfxId);
             }
+        }
+    }
+}
+
+// Implementamos también la sobrecarga simple por si acaso otra parte del motor la usa limpia
+void DialogueBox::Update(float dt) {
+    if (dialogueFinished) return;
+
+    if (!IsPageFinished()) {
+        charTimer += dt;
+        if (charTimer >= textSpeed) {
+            charTimer = 0.0f;
+            charIndex++;
         }
     }
 }
