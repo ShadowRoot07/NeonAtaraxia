@@ -9,11 +9,11 @@
 #include <SDL.h>
 
 void ProcessWorld(
-    Player& p, 
-    std::vector<Platform>& level, 
-    std::vector<Enemy>& enemies, 
-    std::vector<Projectile>& bullets, 
-    std::vector<Item>& items,
+    Player& p,
+    std::vector<Platform>& level,
+    std::vector<Enemy>& enemies,
+    std::vector<Projectile>& bullets,
+    std::vector<WorldItem>& items, // <<-- SOLUCIONADO: Cambiado de Item a WorldItem
     std::vector<InteractiveObject>& objects,
     InputManager& input,
     ShadowAudio& sfx,
@@ -44,10 +44,8 @@ void ProcessWorld(
                 sfx.Play("attack");
 
                 // PARCHE DE SEGURIDAD FÍSICA PARA LA LAVA:
-                // Si es lava, forzamos que vel.y no se dispare al infinito negativo
-                // para evitar que el jugador perfore el fondo del mapa.
                 if (it->type == LAVA) {
-                    p.vel.y = -150.0f; // Un pequeño salto de dolor, no el colosal -300
+                    p.vel.y = -150.0f; // Un pequeño salto de dolor
                     p.isGrounded = false;
                 }
             }
@@ -60,11 +58,11 @@ void ProcessWorld(
     // ============================================================================
     for (auto it = items.begin(); it != items.end(); ) {
         if (PhysicsEngine::AABB(p.hitbox, it->hitbox) && it->active) {
-            sfx.Play("pickup_coin"); // Usamos el audio correcto de la moneda
+            sfx.Play("pickup_coin");
             it->active = false;
 
-            // Incrementamos según el tipo de ítem
-            if (it->type == GEM) {
+            // <<-- SOLUCIONADO: Comparación usando el nuevo enum de clase WorldItemType
+            if (it->type == WorldItemType::GEM) {
                 p.gemsCollected++;
             } else {
                 p.coinsCollected++;
@@ -79,18 +77,15 @@ void ProcessWorld(
     }
 
     // ============================================================================
-    // 3. NUEVO: PROCESAMIENTO DE OBJETOS INTERACTIVOS (COFRES Y PUERTAS)
+    // 3. PROCESAMIENTO DE OBJETOS INTERACTIVOS (COFRES Y PUERTAS)
     // ============================================================================
     for (auto& obj : objects) {
         if (obj.type == DOOR) {
-            // Si la puerta está cerrada, actúa como una pared sólida infranqueable
             if (!obj.isOpen) {
                 if (PhysicsEngine::AABB(p.hitbox, obj.hitbox)) {
                     PhysicsEngine::ResolvePlatformCollision(p, obj.hitbox);
                 }
 
-                // Trigger de Apertura: Si está cerca y presiona 'X' (o la tecla de acción mapeada)
-                // Aquí usamos SDL_SCANCODE_X como botón de interacción por defecto
                 float dist = std::abs((p.pos.x + 32) - (obj.pos.x + 16));
                 if (dist < 64.0f && input.IsKeyPressed(SDL_SCANCODE_X)) {
                     obj.isOpen = true;
@@ -101,16 +96,15 @@ void ProcessWorld(
         else if (obj.type == CHEST) {
             if (!obj.isOpen) {
                 float dist = std::abs((p.pos.x + 32) - (obj.pos.x + 24));
-                // Si el jugador se para frente al cofre y presiona acción
                 if (dist < 48.0f && input.IsKeyPressed(SDL_SCANCODE_X)) {
                     obj.isOpen = true;
                     sfx.Play("click");
-                    
-                    // MECÁNICA QUANTUM: Spawnea una gema flotando sobre el cofre inmediatamente
-                    Item rewardG;
+
+                    // <<-- SOLUCIONADO: Recompensa generada usando la nueva estructura limpia de WorldItem
+                    WorldItem rewardG;
                     rewardG.pos = { obj.pos.x + 8, obj.pos.y - 32 };
                     rewardG.hitbox = { rewardG.pos.x, rewardG.pos.y, 32.0f, 32.0f };
-                    rewardG.type = GEM;
+                    rewardG.type = WorldItemType::GEM; // <<-- Enum corregido
                     rewardG.textureID = "gem";
                     rewardG.value = 100;
                     rewardG.active = true;
@@ -232,4 +226,3 @@ void ProcessWorld(
         else ++it;
     }
 }
-
