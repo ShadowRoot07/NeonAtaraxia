@@ -64,7 +64,7 @@ include_directories(
 
 # Escaneo de los archivos fuentes del MOTOR
 file(GLOB_RECURSE MOTOR_SOURCES "src/*.cpp")
-list(FILTER MOTOR_SOURCES EXCLUDE REGEX "src/elements/EarthSkill.cpp")
+# list(FILTER MOTOR_SOURCES EXCLUDE REGEX "src/elements/EarthSkill.cpp")
 
 # Definición del JUEGO / EJEMPLO activo
 # set(ACTIVE_GAME "examples/Limbo/LimboGame.cpp")
@@ -79,7 +79,7 @@ target_link_libraries(main
     log
     SDL2::SDL2
     SDL2_mixer::SDL2_mixer
-    SDL2_image::SDL2_image # <--- VINCULACIÓN DE LA LIBRERÍA DE IMÁGENES
+    SDL2_image::SDL2_image 
     SDL2_ttf::SDL2_ttf
     nlohmann_json::nlohmann_json
 )
