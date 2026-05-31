@@ -13,12 +13,13 @@ struct PaletteData {
     float damage;
 };
 
+// <<-- SOLUCIONADO: Firma sincronizada con LevelLoader.h usando WorldItem
 std::vector<Platform> LoadLevel(
     const std::string& jsonPath,
     const std::string& assetRoot,
     std::vector<Enemy>& enemies,
     Player& player,
-    std::vector<Item>& items,
+    std::vector<WorldItem>& items, // <<-- CAMBIADO: De Item a WorldItem
     std::vector<InteractiveObject>& objects
 ) {
     std::vector<Platform> level;
@@ -28,7 +29,8 @@ std::vector<Platform> LoadLevel(
     SDL_Log("[DIAGNÓSTICO-RAM] sizeof(Rect) = %zu bytes", sizeof(Rect));
     SDL_Log("[DIAGNÓSTICO-RAM] sizeof(Platform) = %zu bytes", sizeof(Platform));
     SDL_Log("[DIAGNÓSTICO-RAM] sizeof(Enemy) = %zu bytes", sizeof(Enemy));
-    SDL_Log("[DIAGNÓSTICO-RAM] sizeof(Item) = %zu bytes", sizeof(Item));
+    // <<-- SOLUCIONADO: Telemetría adaptada al peso real de WorldItem
+    SDL_Log("[DIAGNÓSTICO-RAM] sizeof(WorldItem) = %zu bytes", sizeof(WorldItem));
     SDL_Log("[DIAGNÓSTICO-RAM] sizeof(InteractiveObject) = %zu bytes", sizeof(InteractiveObject));
 
     try {
@@ -127,7 +129,6 @@ std::vector<Platform> LoadLevel(
                 float w = structObj.value("w", 32.0f);
                 float h = structObj.value("h", 32.0f);
 
-                // ASIGNACIÓN EXPLÍCITA (Segura, limpia y sin bugs de orden)
                 Platform plat;
                 plat.textureID = pData.texture;
                 plat.bounds = {x, y, w, h};
@@ -181,18 +182,17 @@ std::vector<Platform> LoadLevel(
         SDL_Log("[PERÍMETRO-ZONA-CRÍTICA] Verificando estado del vector 'items' recibido por referencia:");
         SDL_Log("[PERÍMETRO-ZONA-CRÍTICA] Dirección en RAM de 'items': %p", (void*)&items);
         SDL_Log("[PERÍMETRO-ZONA-CRÍTICA] ¿Está corrupto el JSON de ítems?: %s", mapData.contains("items") ? "SI" : "NO");
-
     }
 
-    // 5. Parsear Items Volátiles (VERSION CORREGIDA)
+    // 5. Parsear Items Volátiles (SOLUCIONADO COMPLETAMENTE)
     if (mapData.contains("items")) {
         SDL_Log("[DEBUG-RAM] Procesando 'items'...");
-        
-        int count = 0; // <<-- DECLARADA AQUÍ, AFUERA DEL TRY
+
+        int count = 0; 
 
         try {
             size_t totalItems = mapData["items"].size();
-            items.reserve(totalItems); 
+            items.reserve(totalItems);
             SDL_Log("[DEBUG-RAM] Memoria pre-reservada en el Heap para %zu ítems de forma contigua.", totalItems);
 
             for (auto& itemObj : mapData["items"]) {
@@ -200,22 +200,24 @@ std::vector<Platform> LoadLevel(
                 float x = itemObj.value("x", 0.0f);
                 float y = itemObj.value("y", 0.0f);
 
-                Item item;
+                // <<-- SOLUCIONADO: Cambiado tipo Item por el tipo correcto WorldItem
+                WorldItem item;
                 item.pos = {x, y};
 
+                // <<-- SOLUCIONADO: Uso explícito del enum de clase WorldItemType
                 if (typeStr == "COIN_GOLD") {
                     item.hitbox = {x, y, 24.0f, 24.0f};
-                    item.type = COIN_GOLD;
+                    item.type = WorldItemType::COIN_GOLD;
                     item.textureID = "coin_gold";
                     item.value = 10;
                 } else if (typeStr == "COIN_PLATA" || typeStr == "COIN_SILVER") {
                     item.hitbox = {x, y, 24.0f, 24.0f};
-                    item.type = COIN_SILVER;
+                    item.type = WorldItemType::COIN_SILVER;
                     item.textureID = "coin_plata";
                     item.value = 5;
                 } else if (typeStr == "GEM") {
                     item.hitbox = {x, y, 32.0f, 32.0f};
-                    item.type = GEM;
+                    item.type = WorldItemType::GEM;
                     item.textureID = "gem";
                     item.value = 50;
                 } else continue;
@@ -234,20 +236,19 @@ std::vector<Platform> LoadLevel(
                 count++;
             }
         } catch (const std::bad_alloc& e) {
-            // Ahora aquí count sí será perfectamente válido y compilará sin errores
             SDL_Log("[CRÍTICO-RAM] Explotó la RAM en item índice %d: %s", count, e.what());
             return level;
         }
     }
 
-    // 6. Parsear Objetos Interactivos (ORDEN CORREGIDO DE MEMORIA)
+    // 6. Parsear Objetos Interactivos
     if (mapData.contains("interactive_objects")) {
         SDL_Log("[DEBUG-RAM] Procesando 'interactive_objects'...");
 
         try {
             int count = 0;
             size_t totalObjects = mapData["interactive_objects"].size();
-            objects.reserve(totalObjects); // <<-- Evita realojamientos corruptos aquí también
+            objects.reserve(totalObjects);
             SDL_Log("[DEBUG-RAM] Memoria pre-reservada en el Heap para %zu objetos.", totalObjects);
 
             for (auto& objElement : mapData["interactive_objects"]) {
@@ -256,7 +257,6 @@ std::vector<Platform> LoadLevel(
                 float y = objElement.value("y", 0.0f);
 
                 InteractiveObject obj;
-                // Sigue exactamente el orden de Platform.h: pos -> hitbox -> type -> textureID -> isOpen
                 obj.pos = {x, y};
 
                 if (typeStr == "CHEST") {
@@ -269,7 +269,7 @@ std::vector<Platform> LoadLevel(
                     obj.textureID = "door_default";
                 } else continue;
 
-                obj.isOpen = false; // Asignado al final en orden secuencial
+                obj.isOpen = false;
 
                 objects.push_back(obj);
                 count++;
@@ -281,10 +281,8 @@ std::vector<Platform> LoadLevel(
         }
     }
 
-
     SDL_Log("[LevelLoader] Exito: %d Bloques, %d Items y %d Objetos cargados.",
             (int)level.size(), (int)items.size(), (int)objects.size());
 
     return level;
 }
-
