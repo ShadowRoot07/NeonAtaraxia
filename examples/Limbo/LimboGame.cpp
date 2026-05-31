@@ -5,13 +5,12 @@
 #include "world/LevelLoader.h"
 #include "world/Platform.h"
 #include "world/Enemy.h"
-#include "player/Player.h"  // <<-- INCLUIDO: Para que conozca la clase Player
+#include "player/Player.h"  
 #include <vector>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include "physics/CombatSystem.h"
 
-// Estructura auxiliar temporal para simular proyectiles si no se incluye Weapon.h
 struct MockProjectile {
     Rect hitbox;
     bool isActive;
@@ -38,7 +37,6 @@ public:
         SDL_Log("LimboGameplayState: Inicializando simulación de juego...");
         gfx->LoadFont("main_font", "fonts/m5x7.ttf", 32);
 
-        // Ajustado a la firma nueva de 6 parámetros requerida por el parser JSON
         platforms = LoadLevel("maps/test_level.json", baseAssetPath, enemies, player, worldItems, interactiveObjects);
     }
 
@@ -98,13 +96,13 @@ public:
         SDL_RenderDrawRect(renderer, &btnG);
         gfx->DrawText("G", "main_font", 45, 30, {0, 255, 150, 180}, true);
 
-        if (player.isShieldActive) {
+        // <<-- SOLUCIONADO: Acceso seguro al estado del escudo usando el método público expuesto de Player
+        if (player.IsShieldActive()) { 
             SDL_Rect shieldVisual = { (int)player.GetPos().x - 4, (int)player.GetPos().y - 4, 40, 56 };
             SDL_SetRenderDrawColor(renderer, 0, 180, 255, 100); 
             SDL_RenderDrawRect(renderer, &shieldVisual);
         }
 
-        // Renderizado seguro de proyectiles mockeados
         SDL_SetRenderDrawColor(renderer, 255, 200, 0, 255); 
         for (const auto& proj : activeProjectiles) {
             if (proj.isActive) {
@@ -121,12 +119,12 @@ private:
     ShadowAudio* audio;
     std::string baseAssetPath;
 
-    Player player; // <<-- SOLUCIONADO: Instanciación del objeto Jugador real
+    Player player; 
     std::vector<Platform> platforms;
     std::vector<Enemy> enemies;
-    std::vector<WorldItem> worldItems;                 // <<-- Agregado para cumplir con LoadLevel
-    std::vector<InteractiveObject> interactiveObjects; // <<-- Agregado para cumplir con LoadLevel
-    std::vector<MockProjectile> activeProjectiles;     // <<-- SOLUCIONADO: Contenedor local de proyectiles
+    std::vector<WorldItem> worldItems;                 
+    std::vector<InteractiveObject> interactiveObjects; 
+    std::vector<MockProjectile> activeProjectiles;     
     PlayerStats mockStats;
 
     void OpenTimeMachine() {
@@ -144,20 +142,19 @@ private:
     }
 };
 
-// 2. ORQUESTADOR PRINCIPAL IMPLEMENTANDO LAS FUNCIONES VIRTUALES OBLIGATORIAS
 class LimboGame : public NeonEngine {
 public:
     void OnStart() override {
         ShadowAudio* mockAudio = new ShadowAudio();
-        mockAudio->LoadWAV("click", "audio/click.wav");
-        mockAudio->LoadWAV("blipSelect", "audio/blipSelect.wav");
-        mockAudio->LoadWAV("powerUp", "audio/powerUp.wav"); 
+        // <<-- SOLUCIONADO: Modificado de LoadWAV a LoadSFX de acuerdo a la API nativa de ShadowAudio
+        mockAudio->LoadSFX("click", "audio/click.wav");
+        mockAudio->LoadSFX("blipSelect", "audio/blipSelect.wav");
+        mockAudio->LoadSFX("powerUp", "audio/powerUp.wav"); 
 
         auto gameplayState = std::make_shared<LimboGameplayState>(stateManager, gfx, this->renderer, mockAudio, baseAssetPath);
         stateManager.PushState(gameplayState);
     }
 
-    // <<-- SOLUCIONADO: Implementación obligatoria de los métodos puros de NeonEngine
     void OnUpdate(float dt) override {
         stateManager.Update(dt);
     }
@@ -176,4 +173,3 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
-

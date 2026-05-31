@@ -3,20 +3,18 @@
 
 #include <string>
 #include <vector>
-#include "Platform.h"
-#include "Enemy.h"
+#include "world/Platform.h"
+#include "world/Enemy.h"
+#include "player/Player.h"
 
-// Declaración adelantada para no generar dependencias circulares en las cabeceras
-class Player;
-
+// Firma del cargador de niveles actualizada a la nueva nomenclatura del mapa
 std::vector<Platform> LoadLevel(
     const std::string& jsonPath,
     const std::string& assetRoot,
     std::vector<Enemy>& enemies,
     Player& player,
-    std::vector<Item>& items,
+    std::vector<WorldItem>& items, // <<-- CAMBIADO: De Item a WorldItem
     std::vector<InteractiveObject>& objects
 );
 
-#endif // LEVEL_LOADER_H
-
+#endif
