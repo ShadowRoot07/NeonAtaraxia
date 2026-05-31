@@ -18,14 +18,14 @@ struct Platform {
 // NUEVAS ENTIDADES DEL MUNDO DE VECTORZERO (ALINEACIÓN REPARADA)
 // ============================================================================
 
-// 2. Sistema de Coleccionables (Monedas, Gemas)
-enum ItemType { COIN_GOLD, COIN_SILVER, GEM };
+// 2. Sistema de Coleccionables del Mundo (Monedas, Gemas en el Mapa)
+enum class WorldItemType { COIN_GOLD, COIN_SILVER, GEM };
 
-struct Item {
+struct WorldItem {
     std::string textureID; // Objeto complejo dinámico SIEMPRE AL INICIO
     Rect hitbox;           // 16 bytes
     Vector2 pos;           // 8 bytes
-    ItemType type;         // 4 bytes
+    WorldItemType type;    // 4 bytes
     int value;             // 4 bytes
     bool active;           // 1 byte (Primitivo al final)
 };

@@ -9,9 +9,9 @@
 
 class DialogueState : public EngineState {
 public:
-    DialogueState(StateManager& stack, ShadowGFX* gfx, ShadowAudio* sfx, 
+    DialogueState(StateManager& stack, ShadowGFX* graphics, ShadowAudio* sfx,
                   const std::vector<std::string>& lines, const std::string& textSfx = "click")
-        : stateManager(stack), gfx(graphics), audio(sfx), sfxId(textSfx) {
+        : stateManager(stack), gfx(graphics), audio(sfx), sfxId(textSfx) { // <<-- Cambiado 'graphics' por 'graphics' coordinado a gfx
         box.StartDialogue(lines, "main_font");
     }
 
