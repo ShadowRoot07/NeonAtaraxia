@@ -6,6 +6,7 @@
 #include <cmath>
 #include <memory>
 #include <SDL_ttf.h>
+#include <SDL_image.h>
 
 // Infraestructura del Motor
 #include "gfx/ShadowGFX.h"
