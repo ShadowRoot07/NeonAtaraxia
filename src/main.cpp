@@ -14,7 +14,7 @@
 #include "ui/MenuManager.h"
 #include "world/Camera.h"
 #include "world/Enemy.h"
-#include "world/Platform.h"
+#include "world/Platform.h"    
 #include "player/Player.h"
 #include "input/InputManager.h"
 #include "core/StateManager.h"
@@ -24,7 +24,8 @@
 // #include "elements/EarthSkill.cpp"
 
 // Declaraciones externas de los procesadores del mundo
-extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<Item>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt);
+// Declaraciones externas de los procesadores del mundo
+extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<WorldItem>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt);
 
 // ============================================================================
 // DECLARACIONES ADELANTADAS (FORWARD DECLARATIONS)
@@ -95,19 +96,18 @@ private:
     std::vector<Projectile> bullets;
     std::vector<Platform> level;
 
-    std::vector<Item> items;
+    std::vector<WorldItem> items; // <<-- CAMBIADO AQUÍ
     std::vector<InteractiveObject> objects;
 
 public:
     LimboGameplayState(SDL_Renderer* rend, ShadowGFX& g, ShadowAudio& s, InputManager& in, UIManager& u, StateManager& sm)
         : renderer(rend), gfx(g), sfx(s), input(in), ui(u), camera(800, 600), stateManager(sm) {}
 
-    void OnEnter() override {
+       void OnEnter() override {
         // Puestos al puro inicio para congelar el análisis de bytes antes del crash
         SDL_Log("[LOG-MAIN-SIZE] Control estricto de estructuras en main.cpp:");
-        SDL_Log("[LOG-MAIN-SIZE] sizeof(Item) en main: %zu bytes", sizeof(Item));
-        SDL_Log("[LOG-MAIN-SIZE] sizeof(std::string) en main: %zu bytes", sizeof(std::string));
-        
+        SDL_Log("[LOG-MAIN-SIZE] sizeof(WorldItem) en main: %zu bytes", sizeof(WorldItem));
+        SDL_Log("[LOG-MAIN-SIZE] sizeof(std::string) en main: %zu bytes", sizeof(std::string)); 
         player.SetElements(EARTH, DARKNESS);
         sfx.PlayMusic("gameplay_music");
 
@@ -190,10 +190,7 @@ public:
         for (const auto& item : items) {
             if (!item.active) continue;
             SDL_Rect iRect = {(int)(item.pos.x - camera.pos.x), (int)(item.pos.y - camera.pos.y), (int)item.hitbox.w, (int)item.hitbox.h};
-            
-            // Si tus monedas/gemas se ven cortadas con DrawAnimated, usamos DrawStatic.
-            // Al ser texturas estáticas de 1x1 (f=1, c=1), DrawStatic dibujará el PNG entero
-            // perfectamente escalado dentro del cuadrado de la hitbox sin peligro de cortes por frames.
+
             gfx.DrawStatic(item.textureID, iRect);
         }
 
