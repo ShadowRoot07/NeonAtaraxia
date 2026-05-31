@@ -60,8 +60,8 @@ include_directories(
     include/ui
     include/world
     include/core
+    include/elements 
 )
-
 # Escaneo de los archivos fuentes del MOTOR
 file(GLOB_RECURSE MOTOR_SOURCES "src/*.cpp")
 # list(FILTER MOTOR_SOURCES EXCLUDE REGEX "src/elements/EarthSkill.cpp")
