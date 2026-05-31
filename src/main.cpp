@@ -370,23 +370,27 @@ int main(int argc, char* argv[]) {
         std::cerr << "Advertencia: Fallo al precargar texturas del sistema de UI global." << std::endl;
     }
 
-    // Carga de Texturas
-    gfx.GetTexture("player_idle", "sprites/player/VectorZero_indle(f=2, c=4).png");
-    gfx.GetTexture("player_walk", "sprites/player/VectorZero_walk(f=2, c=6).png");
-    gfx.GetTexture("player_attack", "sprites/player/VectorZero_attack(f=2, c=3).png");
-    gfx.GetTexture("player_dash", "sprites/player/VectorZero_dash(f=2, c=4).png");
-    gfx.GetTexture("player_time_travel", "sprites/player/VectorZero_time_travel(f=2, c=5).png");
-    gfx.GetTexture("player_defense", "sprites/player/VectorZero_defense(f=2, c=3).png");
+    // Carga de Texturas del Jugador (Formato limpio para Android)
+    gfx.GetTexture("player_idle", "sprites/player/VectorZero_idle_f2_c4.png");
+    gfx.GetTexture("player_walk", "sprites/player/VectorZero_walk_f2_c6.png");
+    gfx.GetTexture("player_attack", "sprites/player/VectorZero_attack_f2_c3.png");
+    gfx.GetTexture("player_dash", "sprites/player/VectorZero_dash_f2_c4.png");
+    gfx.GetTexture("player_time_travel", "sprites/player/VectorZero_time_travel_f2_c5.png");
+    gfx.GetTexture("player_defense", "sprites/player/VectorZero_defense_f2_c3.png");
 
-    gfx.GetTexture("enemy_bug", "sprites/enemies/Bug(f=1, c=2).png");
-    gfx.GetTexture("bug_404", "sprites/enemies/Bug-404(f=1, c=2).png");
-    gfx.GetTexture("bug_500", "sprites/enemies/BugError500(f=1, c=2).png");
+    // Carga de Enemigos
+    gfx.GetTexture("enemy_bug", "sprites/enemies/Bug_f1_c2.png");
+    gfx.GetTexture("bug_404", "sprites/enemies/Bug-404_f1_c2.png");
+    gfx.GetTexture("bug_500", "sprites/enemies/BugError500_f1_c2.png");
 
-    gfx.GetTexture("coin_gold", "sprites/money/coinGold(f=1, c=1).png");
-    gfx.GetTexture("coin_plata", "sprites/money/coinPlata(f=1, c=1).png");
-    gfx.GetTexture("gem", "sprites/money/Gem(f=1, c=1).png");
+    // Carga de Coleccionables
+    gfx.GetTexture("coin_gold", "sprites/money/coinGold_f1_c1.png");
+    gfx.GetTexture("coin_plata", "sprites/money/coinPlata_f1_c1.png");
+    gfx.GetTexture("gem", "sprites/money/Gem_f1_c1.png");
 
-    gfx.GetTexture("chest_default", "sprites/objets/chest_default(f=1, c=2).png");
+    // Carga de Objetos Interactivos
+    gfx.GetTexture("chest_default", "sprites/objets/chest_default_f1_c2.png");
+    gfx.GetTexture("door_default", "sprites/objets/door_default_f1_c2.png");
     gfx.GetTexture("door_default", "sprites/objets/door_default(f=1, c=2).png");
 
     gfx.GetTexture("ground_stone", "sprites/platforms/floor_default.png");
