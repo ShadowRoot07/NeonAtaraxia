@@ -333,10 +333,12 @@ int main(int argc, char* argv[]) {
         SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI
     );
 
-    if (!window) return 1;
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer) return 1;
+
+    // 🔥 LA LÍNEA SAGRADA QUE CORRIGE EL RENDERIZADO Y EL MENÚ
+    SDL_RenderSetLogicalSize(renderer, 800, 600); 
 
     SDL_RenderSetIntegerScale(renderer, SDL_FALSE);
 

@@ -28,11 +28,14 @@ void InputManager::Update() {
 
 void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
     if (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION || ev.type == SDL_FINGERUP) {
-        
-        // OPCIÓN 3: Normalización Directa. 
-        // ev.tfinger.x siempre es 0.0 a 1.0, sin importar la resolución del ZTE.
-        int mx = (int)(ev.tfinger.x * 800.0f);
-        int my = (int)(ev.tfinger.y * 600.0f);
+
+        // En lugar de multiplicar a ciegas por 800 y 600,
+        // le pedimos a SDL que convierta los píxeles reales de la ventana a tus 800x600 lógicos.
+        int pixelX = (int)(ev.tfinger.x * SDL_GetWindowSurface(SDL_RenderGetWindow(renderer))->w);
+        int pixelY = (int)(ev.tfinger.y * SDL_GetWindowSurface(SDL_RenderGetWindow(renderer))->h);
+
+        int mx, my;
+        SDL_RenderWindowToLogical(renderer, pixelX, pixelY, &mx, &my);
 
         SDL_Point p = {mx, my};
         SDL_FingerID fid = ev.tfinger.fingerId;
