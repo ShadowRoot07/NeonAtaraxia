@@ -34,23 +34,33 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
     if (textureCache.count(id)) return textureCache[id];
 
     if (!p_path.empty()) {
-        std::string primaryPath = assetRootPath + p_path;
-        SDL_Log("ShadowGFX: Intentando Ruta Primaria: %s", primaryPath.c_str());
+        SDL_RWops* rw = nullptr;
 
-        SDL_RWops* rw = SDL_RWFromFile(primaryPath.c_str(), "rb");
+        // --- SOLUCIÓN DE RUTAS NATIVAS PARA ANDROID ---
+        // Si la ruta contiene "assets/", la limpiamos para que Android lea la raíz interna del APK
+        std::string cleanPath = p_path;
+        size_t pos = cleanPath.find("assets/");
+        if (pos != std::string::npos) {
+            cleanPath.erase(pos, 7); // Remueve "assets/" si viene incrustado
+        }
 
+        SDL_Log("ShadowGFX: Solicitando recurso purificado: %s", cleanPath.c_str());
+        rw = SDL_RWFromFile(cleanPath.c_str(), "rb");
+
+        // Fallback clásico por si corre en Termux X11 localmente
         if (!rw) {
-            std::string fallbackPath = "assets/" + p_path;
-            SDL_Log("ShadowGFX: Fallback a Ruta Global: %s", fallbackPath.c_str());
-            rw = SDL_RWFromFile(fallbackPath.c_str(), "rb");
+            std::string localPath = "assets/" + cleanPath;
+            SDL_Log("ShadowGFX: Fallback a entorno de desarrollo local: %s", localPath.c_str());
+            rw = SDL_RWFromFile(localPath.c_str(), "rb");
         }
 
         if (rw) {
+            // El parámetro '1' le indica a IMG_Load_RW que libere y cierre el RWops automáticamente
             SDL_Surface* surface = IMG_Load_RW(rw, 1);
             if (surface) {
                 SDL_Texture* tex = nullptr;
 
-                // BLINDAJE PARA ANDROID: Si el formato es PNG con Alpha, evitamos bloquear la superficie
+                // BLINDAJE PARA COLORKEY (Sprites sin canal Alpha nativo)
                 if (useColorKey && surface->format->BytesPerPixel < 4) {
                     Uint32 colorkey;
                     if (SDL_LockSurface(surface) == 0) {
@@ -69,37 +79,29 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
                     }
                 }
 
-                // Creamos la textura directamente desde la superficie optimizada
                 tex = SDL_CreateTextureFromSurface(renderer, surface);
-                if (tex) {
-                    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
-                } else {
-                    SDL_Log("ShadowGFX: [ANDROID ERROR] Falló CreateTextureFromSurface para %s: %s", id.c_str(), SDL_GetError());
-                }
-
                 SDL_FreeSurface(surface);
 
                 if (tex) {
-                    SDL_Log("ShadowGFX: CARGA REAL Y EXITOSA EN GPU [%s]", id.c_str());
+                    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+                    SDL_Log("ShadowGFX: ¡ÉXITO! %s cargada físicamente en la GPU", id.c_str());
                     textureCache[id] = tex;
                     return tex;
+                } else {
+                    SDL_Log("ShadowGFX: [GPU ERROR] Falló CreateTextureFromSurface para %s: %s", id.c_str(), SDL_GetError());
                 }
             } else {
-                SDL_Log("ShadowGFX: [ANDROID ERROR] IMG_Load_RW no pudo decodificar bytes: %s", IMG_GetError());
+                SDL_Log("ShadowGFX: [DECODER ERROR] IMG_Load_RW falló al procesar los bytes de %s: %s", cleanPath.c_str(), IMG_GetError());
             }
+        } else {
+            SDL_Log("ShadowGFX: [FILE NOT FOUND] Android no pudo mapear el archivo: %s", cleanPath.c_str());
         }
-        SDL_Log("ShadowGFX: ERROR fatal al cargar %s. Archivo ausente en juego y global.", p_path.c_str());
     }
 
-    std::cout << "[ShadowGFX] Advertencia: Usando fallback para " << id << std::endl;
+    SDL_Log("ShadowGFX: ADVERTENCIA: Usando textura de emergencia para ID: %s", id.c_str());
     SDL_Texture* fallback = CreateFallbackTexture();
     textureCache[id] = fallback;
     return fallback;
-}
-
-// DrawStatic y DrawAnimated se quedan exactamente igual...
-void ShadowGFX::DrawStatic(const std::string& id, SDL_Rect dest) {
-    SDL_RenderCopy(renderer, GetTexture(id), NULL, &dest);
 }
 
 void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip, int spriteW, int spriteH) {
