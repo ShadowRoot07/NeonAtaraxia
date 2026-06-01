@@ -104,6 +104,13 @@ SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_p
     return fallback;
 }
 
+void ShadowGFX::DrawStatic(const std::string& id, SDL_Rect dest) {
+    SDL_Texture* tex = GetTexture(id);
+    if (tex) {
+        SDL_RenderCopy(renderer, tex, NULL, &dest);
+    }
+}
+
 void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip, int spriteW, int spriteH) {
     // 1. El rectángulo de ORIGEN (src) corta estrictamente los píxeles nativos del archivo PNG
     SDL_Rect src = { frameC * spriteW, frameF * spriteH, spriteW, spriteH };
