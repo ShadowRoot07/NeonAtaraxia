@@ -27,20 +27,20 @@ void InputManager::Update() {
 }
 
 void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
+    if (!renderer) return;
+
     if (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION || ev.type == SDL_FINGERUP) {
 
-        // 1. Obtener dimensiones de la ventana real de Android
-        int winW = 800;
-        int winH = 600;
-        SDL_Window* window = SDL_RenderGetWindow(renderer);
-        if (window) {
-            SDL_GetWindowSize(window, &winW, &winH);
-        }
+        // 1. Obtener los píxeles reales del búfer del renderer (evita fallos de escala en Android)
+        int renderW = 800;
+        int renderH = 600;
+        SDL_GetRendererOutputSize(renderer, &renderW, &renderH);
 
-        // 2. Coordenadas lógicas unificadas (800x600)
-        int pixelX = (int)(ev.tfinger.x * winW);
-        int pixelY = (int)(ev.tfinger.y * winH);
+        // 2. Mapear el toque normalizado (0.0 a 1.0) al espacio real de píxeles
+        int pixelX = (int)(ev.tfinger.x * renderW);
+        int pixelY = (int)(ev.tfinger.y * renderH);
 
+        // 3. Transformar de píxeles reales a la coordenada lógica exacta (800x600)
         float logicalX = 0.0f;
         float logicalY = 0.0f;
         SDL_RenderWindowToLogical(renderer, pixelX, pixelY, &logicalX, &logicalY);
@@ -51,45 +51,37 @@ void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
         SDL_Point p = {mx, my};
         SDL_FingerID fid = ev.tfinger.fingerId;
 
-        // --- MANEJO DE FINGERDOWN (Momento exacto del impacto táctil) ---
+        // --- MANEJO DE FINGERDOWN ---
         if (ev.type == SDL_FINGERDOWN) {
-            // El joystick reclama el dedo si cae dentro de su área
             if (SDL_PointInRect(&p, &joystickArea)) {
                 joystick.isActive = true;
                 joystick.fingerID = fid;
             }
-            // Los botones reclaman el evento por impacto geométrico inicial
             if (SDL_PointInRect(&p, &btnZArea)) vJump = true;
             if (SDL_PointInRect(&p, &btnXArea)) vAttack = true;
             if (SDL_PointInRect(&p, &btnFArea)) vDash = true;
         }
 
-        // --- MANEJO DE FINGERMOTION (Arrastrar el dedo por la pantalla) ---
+        // --- MANEJO DE FINGERMOTION ---
         if (ev.type == SDL_FINGERMOTION) {
-            // Si este dedo es el dueño del joystick, calcula el vector sin importar si salió del área visual
             if (joystick.isActive && fid == joystick.fingerID) {
                 float centerX = joystickArea.x + (joystickArea.w / 2.0f);
                 float centerY = joystickArea.y + (joystickArea.h / 2.0f);
 
+                // Cálculo vectorial absoluto basado en el radio lógico
                 joystick.x = (mx - centerX) / (joystickArea.w / 2.0f);
                 joystick.y = (my - centerY) / (joystickArea.h / 2.0f);
 
-                // Clamping estricto vectorizado
+                // Clamping estricto
                 if (joystick.x > 1.0f)  joystick.x = 1.0f;
                 if (joystick.x < -1.0f) joystick.x = -1.0f;
                 if (joystick.y > 1.0f)  joystick.y = 1.0f;
                 if (joystick.y < -1.0f) joystick.y = -1.0f;
             }
-
-            // Deslizamiento dinámico sobre botones (Mejora la respuesta táctil)
-            if (SDL_PointInRect(&p, &btnZArea)) vJump = true;
-            if (SDL_PointInRect(&p, &btnXArea)) vAttack = true;
-            if (SDL_PointInRect(&p, &btnFArea)) vDash = true;
         }
 
-        // --- MANEJO DE FINGERUP (Liberar la pantalla) ---
+        // --- MANEJO DE FINGERUP ---
         if (ev.type == SDL_FINGERUP) {
-            // Si el dedo que se levanta es el del joystick, lo reseteamos por completo
             if (joystick.isActive && fid == joystick.fingerID) {
                 joystick.isActive = false;
                 joystick.fingerID = -1;
@@ -97,19 +89,13 @@ void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
                 joystick.y = 0.0f;
             }
 
-            // Liberación absoluta: si el dedo se levanta, el botón se apaga
-            // Quitamos el SDL_PointInRect para evitar que se queden trabados fuera del botón
-            if (SDL_PointInRect(&p, &btnZArea) || !SDL_PointInRect(&p, &joystickArea)) {
-                // Si levantamos cualquier dedo, validamos geométricamente o forzamos apagado limpio
-            }
+            // Detección geométrica limpia para apagar botones
+            if (SDL_PointInRect(&p, &btnZArea) || (mx > 650 && my > 400)) vJump = false;
+            if (SDL_PointInRect(&p, &btnXArea) || (mx > 550 && mx < 660 && my > 420)) vAttack = false;
+            if (SDL_PointInRect(&p, &btnFArea) || (mx > 650 && my > 320 && my < 450)) vDash = false;
             
-            // Corrección directa sin restricción de área para asegurar el ciclo del botón:
-            if (SDL_PointInRect(&p, &btnZArea) || (mx > 600 && my > 400)) { vJump = false; }
-            if (SDL_PointInRect(&p, &btnXArea) || (mx > 500 && my > 400)) { vAttack = false; }
-            if (SDL_PointInRect(&p, &btnFArea) || (mx > 600 && my > 300)) { vDash = false; }
-            
-            // Fallback total de seguridad: si no hay dedos en pantalla, limpiamos todo
-            if (ev.tfinger.x == 0 || (mx == 0 && my == 0)) {
+            // Fallback total de seguridad ante pérdidas de foco táctil
+            if (ev.tfinger.x < 0.01f && ev.tfinger.y < 0.01f) {
                 vJump = vAttack = vDash = false;
             }
         }

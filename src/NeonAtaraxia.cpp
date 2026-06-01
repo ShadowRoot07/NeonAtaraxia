@@ -27,7 +27,9 @@ bool NeonEngine::Init(const EngineConfig& config) {
     if (config.vsync) flags |= SDL_RENDERER_PRESENTVSYNC;
 
     renderer = SDL_CreateRenderer(window, -1, flags);
-    if (!renderer) return false;
+    if (renderer) {
+        SDL_RenderSetLogicalSize(renderer, 800, 600); // <- Fuerza la resolución virtual
+    }
 
     SDL_RenderSetLogicalSize(renderer, config.screenWidth, config.screenHeight);
 
