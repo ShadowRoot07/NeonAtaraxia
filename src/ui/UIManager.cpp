@@ -10,13 +10,12 @@ bool UIManager::LoadAssets(ShadowGFX& gfx) {
     if (!gfx.GetTexture("btnZ", Assets::BTN_Z_PATH)) return false;
     if (!gfx.GetTexture("joyBase", Assets::JOY_BASE_PATH)) return false;
     if (!gfx.GetTexture("joyKnob", Assets::JOY_KNOB_PATH)) return false;
-    
-    // CARGAR LOS HUDS DE MONEDAS Y GEMAS
+
     gfx.GetTexture("hud_coin", "sprites/huds/hud_coin.png");
     gfx.GetTexture("hud_gem", "sprites/huds/gem_hud.png");
-    
-    // Cargar fuente por defecto si no se ha hecho en otra parte
-    gfx.LoadFont("pixel_font", "fonts/m5x7.ttf", 24);
+
+    // 🔥 SOLO CARGAR SI NO EXISTE PARA EVITAR CORRUPCIÓN DE MEMORIA
+    // Removimos la línea invasiva que machacaba la fuente del menú principal
     return true;
 }
 

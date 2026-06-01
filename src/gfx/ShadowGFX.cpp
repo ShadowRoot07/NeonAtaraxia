@@ -126,20 +126,40 @@ void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, i
 bool ShadowGFX::LoadFont(const std::string& id, const std::string& path, int size) {
     if (TTF_WasInit() == 0 && TTF_Init() == -1) return false;
 
-    // 1. Buscar en la carpeta del juego
-    std::string primaryPath = assetRootPath + path;
-    TTF_Font* font = TTF_OpenFont(primaryPath.c_str(), size);
-    
-    // 2. Fallback a la carpeta general
-    if (!font) {
-        std::string fallbackPath = "assets/" + path;
-        font = TTF_OpenFont(fallbackPath.c_str(), size);
+    // Purificar la ruta quitando "assets/" si Android lo requiere
+    std::string cleanPath = path;
+    size_t pos = cleanPath.find("assets/");
+    if (pos != std::string::npos) {
+        cleanPath.erase(pos, 7);
     }
 
-    if (font) {
-        fontCache[id] = font;
-        return true;
+    SDL_Log("ShadowGFX: Cargando fuente purificada: %s", cleanPath.c_str());
+    SDL_RWops* rw = SDL_RWFromFile(cleanPath.c_str(), "rb");
+
+    // Fallback para Termux X11 local
+    if (!rw) {
+        std::string localPath = "assets/" + cleanPath;
+        rw = SDL_RWFromFile(localPath.c_str(), "rb");
     }
+
+    if (rw) {
+        // El parámetro '1' le dice a TTF_OpenFontRW que cierre el RWops automáticamente al terminar
+        TTF_Font* font = TTF_OpenFontRW(rw, 1, size);
+        if (font) {
+            // Si ya existía una fuente con ese ID, la cerramos para evitar memory leaks
+            if (fontCache.count(id)) {
+                TTF_CloseFont(fontCache[id]);
+            }
+            fontCache[id] = font;
+            SDL_Log("ShadowGFX: ¡Fuente '%s' cargada con éxito en Android!", id.c_str());
+            return true;
+        } else {
+            SDL_Log("ShadowGFX: [TTF ERROR] No se pudo parsear la fuente '%s': %s", cleanPath.c_str(), TTF_GetError());
+        }
+    } else {
+        SDL_Log("ShadowGFX: [FONT NOT FOUND] No se encontró el archivo de fuente: %s", cleanPath.c_str());
+    }
+
     return false;
 }
 
