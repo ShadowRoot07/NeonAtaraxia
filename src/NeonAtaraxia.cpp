@@ -28,10 +28,14 @@ bool NeonEngine::Init(const EngineConfig& config) {
 
     renderer = SDL_CreateRenderer(window, -1, flags);
     if (renderer) {
-        SDL_RenderSetLogicalSize(renderer, 800, 600); // <- Fuerza la resolución virtual
+        SDL_RenderSetLogicalSize(renderer, 800, 600); // <- Esta es la ÚNICA que debe quedar activa
     }
 
-    SDL_RenderSetLogicalSize(renderer, config.screenWidth, config.screenHeight);
+    // 🔥 ELIMINAR O COMENTAR ESTA LÍNEA DE ABAJO:
+    // SDL_RenderSetLogicalSize(renderer, config.screenWidth, config.screenHeight); 
+
+    baseAssetPath = config.assetRoot;
+    // SDL_RenderSetLogicalSize(renderer, config.screenWidth, config.screenHeight);
 
     baseAssetPath = config.assetRoot;
     gfx = new ShadowGFX(renderer, baseAssetPath); // Vinculado al sistema dinámico de rutas
