@@ -29,13 +29,26 @@ void InputManager::Update() {
 void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
     if (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION || ev.type == SDL_FINGERUP) {
 
-        // En lugar de multiplicar a ciegas por 800 y 600,
-        // le pedimos a SDL que convierta los píxeles reales de la ventana a tus 800x600 lógicos.
-        int pixelX = (int)(ev.tfinger.x * SDL_GetWindowSurface(SDL_RenderGetWindow(renderer))->w);
-        int pixelY = (int)(ev.tfinger.y * SDL_GetWindowSurface(SDL_RenderGetWindow(renderer))->h);
+        // 1. Obtener dimensiones de la superficie real de la ventana
+        int winW = 800;
+        int winH = 600;
+        SDL_Window* window = SDL_RenderGetWindow(renderer);
+        if (window) {
+            SDL_GetWindowSize(window, &winW, &winH);
+        }
 
-        int mx, my;
-        SDL_RenderWindowToLogical(renderer, pixelX, pixelY, &mx, &my);
+        // 2. Calcular los píxeles reales donde cayó el dedo
+        int pixelX = (int)(ev.tfinger.x * winW);
+        int pixelY = (int)(ev.tfinger.y * winH);
+
+        // 3. Crear variables flotantes para que calce con la API de SDL2
+        float logicalX = 0.0f;
+        float logicalY = 0.0f;
+        SDL_RenderWindowToLogical(renderer, pixelX, pixelY, &logicalX, &logicalY);
+
+        // 4. Transformar a enteros para tu lógica de colisiones basada en SDL_Point
+        int mx = (int)logicalX;
+        int my = (int)logicalY;
 
         SDL_Point p = {mx, my};
         SDL_FingerID fid = ev.tfinger.fingerId;
