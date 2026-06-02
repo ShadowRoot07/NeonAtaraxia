@@ -27,26 +27,14 @@ void InputManager::Update() {
 }
 
 void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
-    if (!renderer) return;
-
+    // Nota: Eliminamos la dependencia del renderer porque usaremos matemáticas puras
     if (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION || ev.type == SDL_FINGERUP) {
 
-        // 1. Obtener los píxeles reales del búfer del renderer (evita fallos de escala en Android)
-        int renderW = 800;
-        int renderH = 600;
-        SDL_GetRendererOutputSize(renderer, &renderW, &renderH);
-
-        // 2. Mapear el toque normalizado (0.0 a 1.0) al espacio real de píxeles
-        int pixelX = (int)(ev.tfinger.x * renderW);
-        int pixelY = (int)(ev.tfinger.y * renderH);
-
-        // 3. Transformar de píxeles reales a la coordenada lógica exacta (800x600)
-        float logicalX = 0.0f;
-        float logicalY = 0.0f;
-        SDL_RenderWindowToLogical(renderer, pixelX, pixelY, &logicalX, &logicalY);
-
-        int mx = (int)logicalX;
-        int my = (int)logicalY;
+        // 🔥 MAPEO PORCENTUAL ABSOLUTO:
+        // ev.tfinger.x y y van de 0.0 a 1.0. Al multiplicar directamente por 800 y 600
+        // obligamos a que el espacio táctil coincida exactamente con la matriz de dibujo.
+        int mx = (int)(ev.tfinger.x * 800.0f);
+        int my = (int)(ev.tfinger.y * 600.0f);
 
         SDL_Point p = {mx, my};
         SDL_FingerID fid = ev.tfinger.fingerId;
@@ -68,11 +56,11 @@ void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
                 float centerX = joystickArea.x + (joystickArea.w / 2.0f);
                 float centerY = joystickArea.y + (joystickArea.h / 2.0f);
 
-                // Cálculo vectorial absoluto basado en el radio lógico
+                // Cálculo vectorial normalizado en base a la resolución virtual de 800x600
                 joystick.x = (mx - centerX) / (joystickArea.w / 2.0f);
                 joystick.y = (my - centerY) / (joystickArea.h / 2.0f);
 
-                // Clamping estricto
+                // Clamping estricto de seguridad
                 if (joystick.x > 1.0f)  joystick.x = 1.0f;
                 if (joystick.x < -1.0f) joystick.x = -1.0f;
                 if (joystick.y > 1.0f)  joystick.y = 1.0f;
@@ -89,12 +77,12 @@ void InputManager::HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer) {
                 joystick.y = 0.0f;
             }
 
-            // Detección geométrica limpia para apagar botones
-            if (SDL_PointInRect(&p, &btnZArea) || (mx > 650 && my > 400)) vJump = false;
-            if (SDL_PointInRect(&p, &btnXArea) || (mx > 550 && mx < 660 && my > 420)) vAttack = false;
-            if (SDL_PointInRect(&p, &btnFArea) || (mx > 650 && my > 320 && my < 450)) vDash = false;
-            
-            // Fallback total de seguridad ante pérdidas de foco táctil
+            // Apagado reactivo de los botones usando las mismas coordenadas mapeadas
+            if (SDL_PointInRect(&p, &btnZArea)) vJump = false;
+            if (SDL_PointInRect(&p, &btnXArea)) vAttack = false;
+            if (SDL_PointInRect(&p, &btnFArea)) vDash = false;
+
+            // Fallback general de seguridad por si el dedo sale abruptamente de la pantalla
             if (ev.tfinger.x < 0.01f && ev.tfinger.y < 0.01f) {
                 vJump = vAttack = vDash = false;
             }
