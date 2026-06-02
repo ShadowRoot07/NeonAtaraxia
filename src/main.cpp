@@ -287,7 +287,6 @@ void MainMenuState::Update(float dt) {
 void LimboGameplayState::Update(float dt) {
     if (player.GetHealth() <= 0.0f) {
         sfx.StopMusic();
-        // Aquí funciona perfecto porque GameOverState ya está 100% definido arriba
         auto gameOver = std::make_shared<GameOverState>(renderer, gfx, sfx, input, ui, stateManager);
         stateManager.ChangeState(gameOver);
         return;
@@ -298,12 +297,28 @@ void LimboGameplayState::Update(float dt) {
     if (player.pendingPlatform) {
         Platform tempP = EarthSkill::CreateTempPlatform(player.GetPos(), player.GetFaceDir());
         tempP.textureID = "temp_platform_earth";
+        tempP.type = TEMPORARY; // Forzamos la consistencia con el enum de Platform.h
+        
         level.push_back(tempP);
         player.pendingPlatform = false;
     }
 
     player.Update(dt);
+    
+    // ProcessWorld actualiza el movimiento y reduce el 'lifetime' de las plataformas TEMPORARY
     ProcessWorld(player, level, enemies, bullets, items, objects, input, sfx, dt);
+
+    // ============================================================================
+    // RECOLECTOR DE BASURA: Limpieza automática de la RAM en el Vector de Niveles
+    // ============================================================================
+    level.erase(
+        std::remove_if(level.begin(), level.end(), [](const Platform& plat) {
+            // Si la plataforma es de tipo TEMPORARY y su tiempo de vida expiró, se elimina del vector
+            return (plat.type == TEMPORARY && plat.lifetime <= 0.0f);
+        }), 
+        level.end()
+    );
+
     camera.Follow(player.GetPos(), dt);
 }
 
@@ -393,7 +408,6 @@ int main(int argc, char* argv[]) {
     // Carga de Objetos Interactivos
     gfx.GetTexture("chest_default", "sprites/objets/chest_default_f1_c2.png");
     gfx.GetTexture("door_default", "sprites/objets/door_default_f1_c2.png");
-    gfx.GetTexture("door_default", "sprites/objets/door_default(f=1, c=2).png");
 
     gfx.GetTexture("ground_stone", "sprites/platforms/floor_default.png");
     gfx.GetTexture("spike_metal", "sprites/platforms/pincho_default.png");
@@ -461,9 +475,10 @@ int main(int argc, char* argv[]) {
         SDL_RenderPresent(renderer);
     }
 
+    ui.Clean();
+
     TTF_Quit();
     IMG_Quit();
-    ui.Clean();
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

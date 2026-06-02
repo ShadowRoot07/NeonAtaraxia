@@ -1,101 +1,71 @@
 #include "NeonAtaraxia.h"
 #include <SDL_ttf.h>
 #include <SDL_mixer.h>
+#include <SDL.h>
 
 NeonEngine::~NeonEngine() {
+    // 1. Limpiar estados del juego PRIMERO (para que destruyan sus fuentes, texturas y sonidos libres)
+    while (!stateManager.IsEmpty()) {
+        stateManager.PopState();
+    }
+
+    // 2. Destruir el motor gráfico secundario
     if (gfx) {
         delete gfx;
         gfx = nullptr;
     }
-    if (renderer) SDL_DestroyRenderer(renderer);
-    if (window) SDL_DestroyWindow(window);
-    
+
+    // 3. Destruir contextos de renderizado de SDL
+    if (renderer) {
+        SDL_DestroyRenderer(renderer);
+        renderer = nullptr;
+    }
+    if (window) {
+        SDL_DestroyWindow(window);
+        window = nullptr;
+    }
+
+    // 4. Cerrar las librerías de extensión en orden inverso a su carga
+    Mix_CloseAudio();
+    Mix_Quit();
     TTF_Quit();
     SDL_Quit();
 }
 
 bool NeonEngine::Init(const EngineConfig& config) {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) return false;
+    // Inicializar SDL con Video y Audio
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+        SDL_Log("Error SDL_Init: %s", SDL_GetError());
+        return false;
+    }
+
+    // Inicializar SDL_ttf de forma controlada
+    if (TTF_Init() == -1) {
+        SDL_Log("Error TTF_Init: %s", TTF_GetError());
+        return false;
+    }
+
+    // Inicializar SDL_mixer (Calidad estándar de audio para evitar latencia en móviles)
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        SDL_Log("Advertencia SDL_mixer no pudo inicializarse: %s", Mix_GetError());
+    }
 
     window = SDL_CreateWindow(config.windowTitle.c_str(),
-             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-             config.screenWidth, config.screenHeight, SDL_WINDOW_SHOWN);
-
+                             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                             config.screenWidth, config.screenHeight, SDL_WINDOW_SHOWN);
     if (!window) return false;
 
     Uint32 flags = SDL_RENDERER_ACCELERATED;
     if (config.vsync) flags |= SDL_RENDERER_PRESENTVSYNC;
 
     renderer = SDL_CreateRenderer(window, -1, flags);
-    if (renderer) {
-        SDL_RenderSetLogicalSize(renderer, 800, 600); // <- Esta es la ÚNICA que debe quedar activa
-    }
+    if (!renderer) return false;
 
-    // 🔥 ELIMINAR O COMENTAR ESTA LÍNEA DE ABAJO:
-    // SDL_RenderSetLogicalSize(renderer, config.screenWidth, config.screenHeight); 
+    // Resolución lógica Cyberpunk fija para el escalado automático de pantalla
+    SDL_RenderSetLogicalSize(renderer, 800, 600);
 
     baseAssetPath = config.assetRoot;
-    // SDL_RenderSetLogicalSize(renderer, config.screenWidth, config.screenHeight);
-
-    baseAssetPath = config.assetRoot;
-    gfx = new ShadowGFX(renderer, baseAssetPath); // Vinculado al sistema dinámico de rutas
-    TTF_Init();
+    gfx = new ShadowGFX(renderer, baseAssetPath); 
+    
     return true;
 }
-
-void NeonEngine::Run() {
-    // Llama al OnStart del juego (aquí es donde el ejemplo debe inyectar su primer estado)
-    OnStart();
-    
-    Uint32 lastTime = SDL_GetTicks();
-    SDL_Event ev;
-
-    // Si el juego no metió ningún estado en OnStart, no tiene sentido correr el bucle
-    if (stateManager.IsEmpty()) {
-        SDL_Log("NeonEngine: Advertencia - No hay estados iniciales en la pila. Saliendo.");
-        running = false;
-    }
-
-    while (running) {
-        Uint32 currentTime = SDL_GetTicks();
-        float dt = (currentTime - lastTime) / 1000.0f;
-        lastTime = currentTime;
-        
-        // Clamping del DeltaTime para evitar saltos bruscos si el dispositivo se ralentiza un instante
-        if (dt > 0.05f) dt = 0.05f;
-
-        // 1. GESTIÓN DE INPUTS
-        while (SDL_PollEvent(&ev)) {
-            if (ev.type == SDL_QUIT) {
-                running = false;
-            }
-            
-            // Primero pasamos el evento al gestor de inputs global
-            input.HandleRawEvent(ev, renderer);
-            
-            // Luego el estado activo actual procesa el evento de forma aislada
-            stateManager.HandleInput(ev);
-        }
-
-        input.Update();
-        
-        // 2. ACTUALIZACIÓN LÓGICA
-        stateManager.Update(dt);
-
-        // Si durante el Update un estado hace Pop y la pila queda vacía, cerramos el motor
-        if (stateManager.IsEmpty()) {
-            running = false;
-            break;
-        }
-
-        // 3. RENDERIZADO
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Fondo negro Cyberpunk por defecto
-        SDL_RenderClear(renderer);
-        
-        // Dibuja los estados activos en la pila (los de abajo primero, el activo arriba)
-        stateManager.Render();
-        
-        SDL_RenderPresent(renderer);
-    }
-}
-
