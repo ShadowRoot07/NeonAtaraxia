@@ -43,16 +43,24 @@ std::vector<Platform> LoadLevel(
     }
 
     std::string primaryPath = assetRoot + jsonPath;
-    SDL_Log("[LevelLoader] Cargando mapa completo: %s", primaryPath.c_str());
+    SDL_Log("[LevelLoader] Intentando ruta primaria: %s", primaryPath.c_str());
 
     SDL_RWops* rw = SDL_RWFromFile(primaryPath.c_str(), "rb");
+    
+    // Si falla, es porque estamos en Android y no requiere el prefijo "assets/"
     if (!rw) {
-        std::string fallbackPath = "assets/" + jsonPath;
-        rw = SDL_RWFromFile(fallbackPath.c_str(), "rb");
+        SDL_Log("[LevelLoader] Ruta primaria no encontrada. Probando formato nativo Android APK...");
+        rw = SDL_RWFromFile(jsonPath.c_str(), "rb"); // "maps/test_level.json"
+    }
+
+    // Tercer intento de seguridad extrema: remover "assets/" explícitamente si venía hardcodeado
+    if (!rw && jsonPath.rfind("assets/", 0) == 0) {
+        std::string strippedPath = jsonPath.substr(7);
+        rw = SDL_RWFromFile(strippedPath.c_str(), "rb");
     }
 
     if (!rw) {
-        SDL_Log("[LevelLoader] ERROR: No se encontro el archivo JSON del mapa.");
+        SDL_Log("[LevelLoader] ERROR CRÍTICO: No se encontró el archivo JSON del mapa en ninguna ruta mapeable.");
         return level;
     }
 
