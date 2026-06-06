@@ -1,13 +1,16 @@
+=== CONTEXTO DE ARQUITECTURA ===
+
+
+--- src/main.cpp ---
 #include <SDL.h>
-#include <SDL_ttf.h>
-#include <SDL_image.h>  // 🔥 COMPRUEBA QUE ESTA LÍNEA NO SE HAYA BORRADO
 
 #include <vector>
-#include <iostream>     // 🔥 COMPRUEBA QUE ESTA LÍNEA ESTÉ AQUÍ
+#include <iostream>
 #include <string>
 #include <cmath>
 #include <memory>
-#include <algorithm>    // Útil para el limpiador de RAM (remove_if)
+#include <SDL_ttf.h>
+#include <SDL_image.h>
 
 // Infraestructura del Motor
 #include "gfx/ShadowGFX.h"
@@ -22,9 +25,10 @@
 #include "core/StateManager.h"
 #include "world/LevelLoader.h"
 
-// Inclusión del sistema cinematográfico para el Debug Sandbox
-#include "core/CutsceneSystem.h"
+// Inclusión directa requerida por la configuración del Makefile
+// #include "elements/EarthSkill.cpp"
 
+// Declaraciones externas de los procesadores del mundo
 // Declaraciones externas de los procesadores del mundo
 extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<WorldItem>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt);
 
@@ -33,204 +37,8 @@ extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<En
 // ============================================================================
 class LimboGameplayState;
 class GameOverState;
-class DebugSandboxState; 
 
 #include "elements/EarthSkill.h"
-
-// ============================================================================
-// ESTADO DE DEBUG: SANDBOX PARA CINEMÁTICAS Y DIÁLOGOS (CORREGIDO PARA MÓVIL)
-// ============================================================================
-class DebugSandboxState : public EngineState {
-private:
-    StateManager& stateManager;
-    ShadowGFX& gfx;
-    ShadowAudio& sfx;
-    InputManager& input;
-    bool sceneTriggered;
-
-    // Control de debounce para evitar que un solo toque registre múltiples clicks seguidos
-    bool touchPressedLastFrame;
-
-public:
-    DebugSandboxState(StateManager& sm, ShadowGFX& g, ShadowAudio& s, InputManager& in)
-        : stateManager(sm), gfx(g), sfx(s), input(in), sceneTriggered(false), touchPressedLastFrame(false) {}
-
-    void OnEnter() override {
-        SDL_Log("[DEBUG] Entrando al Sandbox de Pruebas Tecnológicas.");
-        sceneTriggered = false;
-        touchPressedLastFrame = true; // Evita activar algo por arrastrar el toque desde el menú
-        sfx.PlayMusic("menu_music");
-    }
-
-    void OnExit() override {}
-
-    // Dejamos HandleInput vacío para el teclado y controlamos todo por coordenadas en el Update
-    void HandleInput(SDL_Event& ev) override {
-        if (ev.type == SDL_KEYDOWN && (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_BACKSPACE)) {
-            stateManager.PopState();
-        }
-    }
-
-    void Update(float dt) override {
-        int mouseX, mouseY;
-        Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-        bool isTouching = (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT));
-
-        // Solo actuamos en el instante exacto en que el dedo toca la pantalla (FRENTE DE ONDA)
-        if (isTouching && !touchPressedLastFrame) {
-            touchPressedLastFrame = true;
-
-            // --- 1. BOTÓN TÁCTIL: PROBAR CINEMÁTICA COMPLETA ---
-            // Rectángulo: X(150 a 650), Y(220 a 280)
-            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 220 && mouseY <= 280) {
-                if (!sceneTriggered) {
-                    sceneTriggered = true;
-                    sfx.Play("blipSelect");
-                    
-                    auto cutscene = std::make_shared<CutsceneState>(stateManager, gfx, sfx, input);
-
-                    CharacterProfile vectorZero;
-                    vectorZero.id = "vector_zero";
-                    vectorZero.name = "VectorZero";
-                    vectorZero.faceTexID = "face_test";
-                    vectorZero.fontID = "pixel_font";
-                    vectorZero.sfxID = "click";
-                    vectorZero.boxTexID = "box_border_1";
-                    cutscene->RegisterCharacter(vectorZero);
-
-                    CharacterProfile spicaOracle;
-                    spicaOracle.id = "spica_oracle";
-                    spicaOracle.name = "Oracle Spica";
-                    spicaOracle.faceTexID = "face_test";
-                    spicaOracle.fontID = "pixel_font";
-                    spicaOracle.sfxID = "blipSelect";
-                    spicaOracle.boxTexID = "box_border_2";
-                    cutscene->RegisterCharacter(spicaOracle);
-
-                    CutsceneAction a1;
-                    a1.type = CutsceneActionType::SHOW_DIALOGUE;
-                    a1.characterID = "vector_zero";
-                    a1.dialogueLines.push_back("¡Advertencia! Anomalía en el <shake>SECTOR 404</shake>.\nEcosistema compromised.");
-                    cutscene->AddAction(a1);
-
-                    CutsceneAction a2;
-                    a2.type = CutsceneActionType::SHOW_DIALOGUE;
-                    a2.characterID = "spica_oracle";
-                    a2.dialogueLines.push_back("Calma, ShadowRoot07... Las ondas <wave>están estables</wave>.\nEjecutando ráfaga de datos...");
-                    cutscene->AddAction(a2);
-
-                    CutsceneAction a3;
-                    a3.type = CutsceneActionType::WAIT;
-                    a3.duration = 1.5f;
-                    cutscene->AddAction(a3);
-
-                    CutsceneAction a4;
-                    a4.type = CutsceneActionType::PLAY_BURST_ANIM;
-                    a4.targetID = "burst_test";
-                    a4.duration = 0.12f;
-                    a4.targetFrame = 15;
-                    cutscene->AddAction(a4);
-
-                    stateManager.PushState(cutscene);
-                }
-            }
-
-            // --- 2. BOTÓN TÁCTIL: PROBAR DIÁLOGOS DE CONVERSACIÓN ---
-            // Rectángulo: X(150 a 650), Y(310 a 370)
-            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 310 && mouseY <= 370) {
-                sfx.Play("blipSelect");
-                
-                auto conversation = std::make_shared<CutsceneState>(stateManager, gfx, sfx, input);
-
-                CharacterProfile vectorZero;
-                vectorZero.id = "vector_zero";
-                vectorZero.name = "VectorZero";
-                vectorZero.faceTexID = "face_test";
-                vectorZero.fontID = "pixel_font";
-                vectorZero.sfxID = "click";
-                vectorZero.boxTexID = "box_border_1";
-                conversation->RegisterCharacter(vectorZero);
-
-                CharacterProfile spicaOracle;
-                spicaOracle.id = "spica_oracle";
-                spicaOracle.name = "Oracle Spica";
-                spicaOracle.faceTexID = "face_test";
-                spicaOracle.fontID = "pixel_font";
-                spicaOracle.sfxID = "blipSelect";
-                spicaOracle.boxTexID = "box_border_2";
-                conversation->RegisterCharacter(spicaOracle);
-
-                CutsceneAction d1;
-                d1.type = CutsceneActionType::SHOW_DIALOGUE;
-                d1.characterID = "vector_zero";
-                d1.dialogueLines.push_back("Iniciando canal de comunicación de pruebas.\n¿Me escuchas correctamente, Spica?");
-                conversation->AddAction(d1);
-
-                CutsceneAction d2;
-                d2.type = CutsceneActionType::SHOW_DIALOGUE;
-                d2.characterID = "spica_oracle";
-                d2.dialogueLines.push_back("Fuerte y claro. El búfer de texto responde.\nTipografía y retraso de bytes estables.");
-                conversation->AddAction(d2);
-
-                stateManager.PushState(conversation);
-            }
-
-            // --- 3. BOTÓN TÁCTIL RECTANGULAR PARA SALIR ("X") ---
-            // Rectángulo: X(660 a 760), Y(20 a 70) -> Zona del letrero [X] SALIR
-            if (mouseX >= 660 && mouseX <= 760 && mouseY >= 20 && mouseY <= 70) {
-                sfx.Play("blipSelect");
-                SDL_Log("[DEBUG-TACTIL] Saliendo del Laboratorio de Debug.");
-                stateManager.PopState();
-                return;
-            }
-        }
-
-        if (!isTouching) {
-            touchPressedLastFrame = false; // El usuario levantó el dedo, liberamos el botón
-        }
-    }
-
-    void Render() override {
-        SDL_Renderer* currentRenderer = SDL_GetRenderer(SDL_GL_GetCurrentWindow());
-        SDL_SetRenderDrawColor(currentRenderer, 10, 10, 15, 255);
-        SDL_RenderClear(currentRenderer);
-
-        SDL_Color green = {0, 255, 120, 255};
-        SDL_Color white = {255, 255, 255, 255};
-        SDL_Color cyan = {0, 255, 255, 255};
-        SDL_Color red = {255, 50, 50, 255};
-
-        gfx.DrawText("--- MODE: DEBUG SANDBOX ---", "pixel_font", 400, 100, green, true);
-
-        // --- DISEÑO DEL BOTÓN 1: CINEMÁTICA ---
-        SDL_Rect rectCine = { 150, 220, 500, 60 };
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 20, 20, 40, 255);
-        SDL_RenderFillRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectCine);
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 0, 255, 120, 255);
-        SDL_RenderDrawRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectCine);
-        gfx.DrawText("1. EJECUTAR CINEMATICA COMPLETA", "pixel_font", 400, 240, white, true);
-
-        // --- DISEÑO DEL BOTÓN 2: CONVERSACIÓN / DIÁLOGOS ---
-        SDL_Rect rectDiag = { 150, 310, 500, 60 };
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 20, 20, 40, 255);
-        SDL_RenderFillRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectDiag);
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 0, 255, 255, 255);
-        SDL_RenderDrawRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectDiag);
-        gfx.DrawText("2. PROBAR DIALOGOS DE CONVERSACION", "pixel_font", 400, 330, cyan, true);
-
-        // --- DISEÑO DEL BOTÓN DE SALIDA (ZONA DE PULSACIÓN EXACTA) ---
-        SDL_Rect rectSalir = { 660, 20, 100, 50 };
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 40, 10, 10, 255);
-        SDL_RenderFillRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectSalir);
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 255, 50, 50, 255);
-        SDL_RenderDrawRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectSalir);
-        gfx.DrawText("[X] SALIR", "pixel_font", 710, 35, red, true);
-
-        if (sceneTriggered) {
-            gfx.DrawText("Cinemática procesada. Recarga volviendo a entrar.", "pixel_font", 400, 450, green, true);
-        }
-    }
-};
 
 // ============================================================================
 // 1. ESTADO: MENÚ PRINCIPAL
@@ -269,32 +77,9 @@ public:
 
     void Render() override {
         SDL_Color titleColor = {0, 255, 150, 255};
-        SDL_Color debugTextColor = {0, 255, 255, 255}; // Cyan brillante para que resalte
-        
         gfx.DrawText("VECTORZERO: OverWrite", "pixel_font", 400, 100, titleColor, true);
-        
-        // Renderiza tus opciones normales (Play, Settings, etc.)
         menu.Render(gfx);
 
-        // --- CAJA VISUAL DEL BOTÓN TÁCTIL DE DEBUG ---
-        int btnX = 250;
-        int btnY = 460;
-        int btnW = 300;
-        int btnH = 50;
-
-        // Dibujamos un rectángulo de fondo para el botón
-        SDL_Rect rectDebug = { btnX, btnY, btnW, btnH };
-        SDL_SetRenderDrawColor(renderer, 20, 20, 40, 255); // Fondo oscuro
-        SDL_RenderFillRect(renderer, &rectDebug);
-        
-        // Dibujamos el borde del botón táctil
-        SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Borde cyan
-        SDL_RenderDrawRect(renderer, &rectDebug);
-
-        // Texto centrado dentro del botón táctil
-        gfx.DrawText("LABORATORIO DEBUG (TOUCH)", "pixel_font", 400, 475, debugTextColor, true);
-
-        // Render del UI del sistema
         ui.Render(renderer, gfx, input, dummyPlayer);
     }
 };
@@ -489,42 +274,17 @@ public:
 // ============================================================================
 
 void MainMenuState::Update(float dt) {
-    // Si ya inició la transición, congelamos para evitar clonar memoria
-    if (transitionStarted) return;
+    // Si ya iniciamos la transición, congelamos el update para no clonar memoria
+    if (transitionStarted) return; 
 
-    // 1. Lógica nativa de tu menú existente
     menu.Update(input, sfx);
     if (menu.GetState() == START_GAME) {
-        transitionStarted = true;
+        // Bloqueamos futuras ejecuciones de este bloque de código
+        transitionStarted = true; 
+
         SDL_Log("[ShadowEngine] Traba de seguridad activada. Cargando assets del mapa...");
         auto gameplayState = std::make_shared<LimboGameplayState>(renderer, gfx, sfx, input, ui, stateManager);
         stateManager.ChangeState(gameplayState);
-        return;
-    }
-
-    // 2. DETECTOR TÁCTIL EXCLUSIVO UTILIZANDO LA API NATIVA DE SDL2
-    int btnX = 250;
-    int btnY = 460;
-    int btnW = 300;
-    int btnH = 50;
-
-    int mouseX, mouseY;
-    // SDL_GetMouseState obtiene las coordenadas actuales del puntero/touch
-    // y devuelve una máscara de bits con los botones presionados.
-    Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-
-    // Verificamos si el botón izquierdo (que emula el toque en Android) está presionado
-    if (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-        // Verificamos si las coordenadas del toque cayeron dentro de la caja del botón de Debug
-        if (mouseX >= btnX && mouseX <= (btnX + btnW) &&
-            mouseY >= btnY && mouseY <= (btnY + btnH)) {
-
-            sfx.Play("blipSelect"); // Sonido de feedback táctil
-            SDL_Log("[DEBUG-TACTIL] ¡Botón presionado con el touch! Entrando al Sandbox...");
-
-            auto debugSandbox = std::make_shared<DebugSandboxState>(stateManager, gfx, sfx, input);
-            stateManager.PushState(debugSandbox);
-        }
     }
 }
 
@@ -660,13 +420,6 @@ int main(int argc, char* argv[]) {
     gfx.GetTexture("background_base", "sprites/funds/fondo_base_default.png");
     gfx.GetTexture("background_gameover", "sprites/funds/fondo_GameOver.png");
 
-    // Carga de Assets para Diálogos y Cinemáticas (Usa rutas relativas desde assets/)
-    gfx.GetTexture("face_test", "sprites/dialogues/Ejemplo_f1_c2.png");
-    gfx.GetTexture("box_border_1", "sprites/dialogues/Borde_1.png");
-    gfx.GetTexture("box_border_2", "sprites/dialogues/Borde_2.png");
-    gfx.GetTexture("bark_bubble", "sprites/dialogues/bark_bubble.png");
-    gfx.GetTexture("burst_test", "sprites/cinematics/escene_default_f3_c5.png");
-
     // Audio
     sfx.LoadSound("jump", "jump.wav");
     sfx.LoadSound("double_jump", "jump.wav");
@@ -737,3 +490,310 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+
+
+--- include/Common.h ---
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <SDL.h>
+#include <string>
+
+// Definiciones de botones para mapeo rápido
+const SDL_Scancode BTN_Z = SDL_SCANCODE_Z;
+const SDL_Scancode BTN_X = SDL_SCANCODE_X;
+const SDL_Scancode BTN_F = SDL_SCANCODE_F;
+
+struct Vector2 { float x, y; };
+struct Rect { float x, y, w, h; };
+
+enum ElementType { FIRE, AIR, LIGHT, EARTH, WATER, DARKNESS, NONE };
+
+struct Entity {
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool isGrounded;
+};
+
+enum EnemyType { WALKER, FLYER, TURRET };
+
+struct Projectile {
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool active;
+};
+
+namespace Assets {
+    const std::string BTN_F_PATH = "sprites/ui/botonF.bmp";
+    const std::string BTN_X_PATH = "sprites/ui/botonX.bmp";
+    const std::string BTN_Z_PATH = "sprites/ui/button_z.bmp"; // Ojo: en tu ls -R se llama button_z.bmp, no botonZ.bmp
+    const std::string JOY_BASE_PATH = "sprites/ui/joystick_base.bmp";
+    const std::string JOY_KNOB_PATH = "sprites/ui/joystick_knob.bmp";
+}
+
+#endif
+
+
+--- include/core/StateManager.h ---
+#ifndef STATE_MANAGER_H
+#define STATE_MANAGER_H
+
+#include <vector>
+#include <memory>
+#include <SDL.h>
+
+// Los estados fundamentales que planificamos para NeonAtaraxia
+enum class GameState {
+    MENU,
+    GAMEPLAY,
+    CUTSCENE,
+    DIALOGUE,
+    INVENTORY
+};
+
+// Clase base abstracta para cualquier estado del juego
+class EngineState {
+public:
+    virtual ~EngineState() = default;
+    
+    virtual void OnEnter() = 0;
+    virtual void OnExit() = 0;
+    virtual void HandleInput(SDL_Event& ev) = 0;
+    virtual void Update(float dt) = 0;
+    virtual void Render() = 0;
+};
+
+// El gestor que administra la pila de estados
+class StateManager {
+public:
+    StateManager() = default;
+    ~StateManager() { Clear(); }
+
+    void PushState(std::shared_ptr<EngineState> state);
+    void PopState();
+    void ChangeState(std::shared_ptr<EngineState> state); // Borra el actual y pone uno nuevo
+    void Clear();
+
+    void HandleInput(SDL_Event& ev);
+    void Update(float dt);
+    void Render();
+
+    bool IsEmpty() const { return states.empty(); }
+
+private:
+    std::vector<std::shared_ptr<EngineState>> states; // Pila de estados
+};
+
+#endif
+
+
+
+--- include/core/DialogueState.h ---
+#ifndef DIALOGUE_STATE_H
+#define DIALOGUE_STATE_H
+
+#include "core/StateManager.h"
+#include "ui/DialogueBox.h"
+#include "gfx/ShadowAudio.h"
+#include <string>
+#include <vector>
+
+class DialogueState : public EngineState {
+public:
+    DialogueState(StateManager& stack, ShadowGFX* graphics, ShadowAudio* sfx,
+                  const std::vector<std::string>& lines, const std::string& textSfx = "click")
+        : stateManager(stack), gfx(graphics), audio(sfx), sfxId(textSfx) { // <<-- Cambiado 'graphics' por 'graphics' coordinado a gfx
+        box.StartDialogue(lines, "main_font");
+    }
+
+    void OnEnter() override { SDL_Log("DialogueState: Diálogo iniciado."); }
+    void OnExit() override { SDL_Log("DialogueState: Diálogo terminado."); }
+
+    void HandleInput(SDL_Event& ev) override {
+        if (ev.type == SDL_KEYDOWN) {
+            // Avanzar con la tecla Z (o el botón Z de tu UI táctil)
+            if (ev.key.keysym.sym == SDLK_z) {
+                // AdvancePage devuelve true si ya no quedan más páginas de texto
+                if (box.AdvancePage()) {
+                    stateManager.PopState(); // Quitamos este estado y volvemos al gameplay
+                } else {
+                    audio->Play("blipSelect"); // Sonido sutil de pasar página
+                }
+            }
+        }
+    }
+
+    void Update(float dt) override {
+        // Le pasamos el audio y el ID del sonido para el efecto Undertale
+        box.Update(dt, *audio, sfxId);
+    }
+
+    void Render() override {
+        // Al no limpiar la pantalla aquí, lo que esté abajo en la pila (el mapa/jugador)
+        // se seguirá dibujando de fondo de forma automática.
+        box.Render(*gfx, nullptr); // Si el Render de la caja ocupa el renderizador de SDL, pásalo aquí
+    }
+
+private:
+    StateManager& stateManager;
+    ShadowGFX* gfx;
+    ShadowAudio* audio;
+    DialogueBox box;
+    std::string sfxId;
+};
+
+#endif
+
+
+
+--- include/core/TimeLine.h ---
+#ifndef TIMELINE_H
+#define TIMELINE_H
+
+#include <string>
+#include <vector>
+#include <SDL.h>
+#include <nlohmann/json.hpp>
+
+// Representa una ranura de guardado física dentro de un punto de la línea temporal
+struct SaveSlot {
+    std::string slotId;       // Cadenas aleatorias (ej: "ERR_0x45")
+    std::string worldName;    // Nombre del mapa/mundo actual
+    std::string timestamp;    // Fecha/Hora del guardado
+    nlohmann::json rawData;   // Datos puros de la Fase 3 (Stats, Karma, Inventario)
+};
+
+// Representa un nodo cuántico en el mapa de la máquina del tiempo
+struct TimeNode {
+    int id;
+    float x, y;
+    SDL_Color color;
+    std::string nodeHash;     // Nombre alfanumérico aleatorio (ej: "LINE_TZ_77")
+    std::vector<SaveSlot> slots;
+};
+
+// Generador de hashes y colores aleatorios cuánticos
+class TimeLineGenerator {
+public:
+    static std::string GenerateRandomHash(size_t length) {
+        auto randChar = []() -> char {
+            const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const size_t max_index = (sizeof(charset) - 1);
+            return charset[rand() % max_index];
+        };
+        std::string str(length, 0);
+        std::generate_n(str.begin(), length, randChar);
+        return str;
+    }
+
+    static SDL_Color GenerateRandomColor() {
+        // Colores vivos cyberpunk que contrasten con el fondo negro/morado
+        Uint8 r = (rand() % 155) + 100;
+        Uint8 g = (rand() % 155) + 100;
+        Uint8 b = (rand() % 155) + 100;
+        return SDL_Color{r, g, b, 255};
+    }
+};
+
+#endif
+
+
+
+--- include/ui/DialogueBox.h ---
+#ifndef DIALOGUE_BOX_H
+#define DIALOGUE_BOX_H
+
+#include <string>
+#include <vector>
+#include <SDL.h>
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+
+class DialogueBox {
+public:
+    DialogueBox();
+
+    // Configura la lista de diálogos a mostrar
+    void StartDialogue(const std::vector<std::string>& lines, const std::string& fontId);
+
+    // <<-- SOLUCIONADO: Las dos firmas que necesita el Linker puestas de forma única
+    // Actualiza la animación con audio dinámico
+    void Update(float dt, class ShadowAudio& sfx, const std::string& sfxId = "click");
+    
+    // Sobrecarga limpia estándar
+    void Update(float dt);
+
+    // Dibuja la caja de fondo y el subconjunto de texto animado
+    void Render(ShadowGFX& gfx, SDL_Renderer* renderer);
+
+    // Avanza a la siguiente línea de texto. Si terminó todas, retorna true
+    bool AdvancePage();
+
+    // Devuelve si el texto de la página actual terminó de deletrearse por completo
+    bool IsPageFinished() const { return charIndex >= currentText.length(); }
+
+    // Devuelve si el diálogo completo llegó a su fin
+    bool IsDialogueComplete() const { return dialogueFinished; }
+
+private:
+    std::vector<std::string> dialoguePages;
+    std::string currentText;
+    std::string activeFontId;
+    size_t currentPage;
+
+    float charTimer;
+    float textSpeed; // Segundos entre cada carácter (ej: 0.04s)
+    size_t charIndex;
+
+    bool dialogueFinished;
+};
+
+#endif
+
+
+--- include/ui/UIManager.h ---
+#ifndef UIMANAGER_H
+#define UIMANAGER_H
+
+#include <SDL.h>
+#include "input/InputManager.h"
+#include "gfx/ShadowGFX.h"
+
+class Player;
+
+class UIManager {
+public:
+    UIManager();
+    // Recibe la librería de texturas
+    bool LoadAssets(ShadowGFX& gfx);
+    void Render(SDL_Renderer* renderer, ShadowGFX& gfx, const InputManager& input, const Player& player);
+    void Clean();
+};
+
+#endif
+
+
+
+--- include/world/LevelLoader.h ---
+#ifndef LEVEL_LOADER_H
+#define LEVEL_LOADER_H
+
+#include <string>
+#include <vector>
+#include "world/Platform.h"
+#include "world/Enemy.h"
+#include "player/Player.h"
+
+// Firma del cargador de niveles actualizada a la nueva nomenclatura del mapa
+std::vector<Platform> LoadLevel(
+    const std::string& jsonPath,
+    const std::string& assetRoot,
+    std::vector<Enemy>& enemies,
+    Player& player,
+    std::vector<WorldItem>& items, // <<-- CAMBIADO: De Item a WorldItem
+    std::vector<InteractiveObject>& objects
+);
+
+#endif

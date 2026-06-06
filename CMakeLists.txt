@@ -60,7 +60,7 @@ include_directories(
     include/ui
     include/world
     include/core
-    src 
+    src
 )
 
 # Escaneo de los archivos fuentes del MOTOR

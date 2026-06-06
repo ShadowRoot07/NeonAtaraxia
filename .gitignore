@@ -1,0 +1,36 @@
+# ====================================================================
+# NEON ATARAXIA - OFFICIAL .GITIGNORE (ShadowRoot07 v1.0)
+# ====================================================================
+
+# --- Binarios y Archivos de Compilación C++ ---
+build/
+bin/
+*.o
+*.d
+*.out
+*.app
+*.exe
+
+# --- Artefactos de Generación Android y APKs ---
+*.apk
+*.idsig
+*.dex
+*.class
+shadowroot.keystore
+
+# --- Archivos temporales de Editores (NeoVim / Termux) ---
+*~
+*.swp
+*.swo
+.netrwhist
+.DS_Store
+
+# --- Sistema de Construcción (CMake y Make alternativos) ---
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile.cmake
+
+# --- Registros y Notas de Contexto Personales ---
+# (Descomenta la línea de abajo si prefieres mantener contexto_motor fuera de Git)
+# contexto_motor.txt

@@ -1,109 +1,125 @@
 #include "ui/DialogueBox.h"
-#include "gfx/ShadowAudio.h"
-#include <SDL_log.h>
+#include <cmath>
+#include <cstdlib>
 
-DialogueBox::DialogueBox() 
-    : currentPage(0), charTimer(0.0f), textSpeed(0.04f), charIndex(0), dialogueFinished(true), activeFontId("main_font") {}
+// Estructura de control interna para caracteres con efectos espaciales de renderizado
+struct RichChar {
+    char character;
+    bool shake;
+    bool wave;
+};
 
-void DialogueBox::StartDialogue(const std::vector<std::string>& lines, const std::string& fontId) {
-    if (lines.empty()) return;
-    
-    dialoguePages = lines;
-    activeFontId = fontId;
-    currentPage = 0;
-    charIndex = 0;
-    charTimer = 0.0f;
-    dialogueFinished = false;
-    currentText = dialoguePages[currentPage];
-}
+// Parsea un string estándar y extrae sus modificadores de estado estallando los tags <shake> y <wave>
+std::vector<RichChar> ParseDialogueTags(const std::string& rawText) {
+    std::vector<RichChar> parsed;
+    bool currentShake = false;
+    bool currentWave = false;
 
-void DialogueBox::Update(float dt, ShadowAudio& sfxRef, const std::string& customSfxId) {
-    if (dialogueFinished) return;
-
-    if (!IsPageFinished()) {
-        charTimer += dt;
-        if (charTimer >= textSpeed) {
-            charTimer = 0.0f;
-            charIndex++;
-            if (charIndex < currentText.length() && currentText[charIndex] != ' ') {
-                // SOLUCIONADO: Usa la referencia externa de audio y el ID correspondiente
-                sfxRef.Play(customSfxId);
+    for (size_t i = 0; i < rawText.length(); ++i) {
+        if (rawText[i] == '<') {
+            // Detección de tags de activación
+            if (rawText.substr(i, 7) == "<shake>") {
+                currentShake = true;
+                i += 6;
+                continue;
+            }
+            if (rawText.substr(i, 6) == "<wave>") {
+                currentWave = true;
+                i += 5;
+                continue;
+            }
+            // Detección de tags de cierre
+            if (rawText.substr(i, 8) == "</shake>") {
+                currentShake = false;
+                i += 7;
+                continue;
+            }
+            if (rawText.substr(i, 7) == "</wave>") {
+                currentWave = false;
+                i += 6;
+                continue;
             }
         }
+        
+        RichChar rc;
+        rc.character = rawText[i];
+        rc.shake = currentShake;
+        rc.wave = currentWave;
+        parsed.push_back(rc);
     }
+    return parsed;
 }
 
-// Implementamos también la sobrecarga simple por si acaso otra parte del motor la usa limpia
-void DialogueBox::Update(float dt) {
-    if (dialogueFinished) return;
+// Método de Renderizado avanzado con inyección de transformaciones trigonométricas
+void RenderRichDialogue(ShadowGFX& gfx, const std::string& fontId, const std::string& text, int startX, int startY, SDL_Color color) {
+    std::vector<RichChar> tokens = ParseDialogueTags(text);
+    int cursorX = startX;
+    int cursorY = startY;
+    float timeFactor = SDL_GetTicks() / 1000.0f;
 
-    if (!IsPageFinished()) {
-        charTimer += dt;
-        if (charTimer >= textSpeed) {
-            charTimer = 0.0f;
-            charIndex++;
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        int offsetX = 0;
+        int offsetY = 0;
+
+        // Efecto Shake: Desfase aleatorio ruidoso de ±2 píxeles
+        if (tokens[i].shake) {
+            offsetX += (rand() % 5) - 2;
+            offsetY += (rand() % 5) - 2;
+        }
+
+        // Efecto Wave: Movimiento armónico simple mediante onda del tiempo continuo
+        if (tokens[i].wave) {
+            offsetY += static_cast<int>(std::sin(timeFactor * 10.0f + i * 0.5f) * 6.0f);
+        }
+
+        // Convertimos el carácter único a un string imprimible para el motor de fuentes
+        std::string singleCharStr(1, tokens[i].character);
+        
+        // Dibujamos el carácter con su respectiva transformación de la matriz de la pantalla
+        gfx.DrawText(singleCharStr, fontId, cursorX + offsetX, cursorY + offsetY, color, false);
+
+        // Avanzar el cursor horizontal. Asumimos un espaciado de fuente fijo (Monoespaciado de 14px para pixel art)
+        cursorX += 14; 
+        if (tokens[i].character == '\n') {
+            cursorX = startX;
+            cursorY += 24; // Salto de línea
         }
     }
 }
 
-void DialogueBox::Render(ShadowGFX& gfx, SDL_Renderer* renderer) {
-    if (dialogueFinished) return;
+// ============================================================================
+// TECNOLOGÍA ADICIONAL: RENDERIZADO DE BARK FLOATING (BURBUJAS EN TIEMPO REAL)
+// ============================================================================
+void RenderFloatingBark(ShadowGFX& gfx, const std::string& fontId, const std::string& barkText, float entityWorldX, float entityWorldY, float cameraX, float cameraY, float lifetimeLeft) {
+    // Convertimos las coordenadas globales del mundo a coordenadas lógicas de pantalla
+    int screenX = static_cast<int>(entityWorldX - cameraX);
+    int screenY = static_cast<int>(entityWorldY - cameraY) - 45; // Posicionada arriba de la cabeza
 
-    // 1. Configurar las dimensiones de la caja de diálogo (Estilo clásico inferior de RPG)
-    // Asumiendo una resolución virtual de 800x600 establecida en la Fase 1
-    int boxX = 50;
-    int boxY = 420;
-    int boxW = 700;
-    int boxH = 140;
+    int padding = 10;
+    int textWidth = static_cast<int>(barkText.length() * 12); // Cálculo aproximado del ancho del globo
+    int textHeight = 16;
 
-    SDL_Rect backgroundRect = { boxX, boxY, boxW, boxH };
-    SDL_Rect borderRect = { boxX - 2, boxY - 2, boxW + 4, boxH + 4 };
+    SDL_Rect bubbleRect = {
+        screenX - (textWidth / 2) - padding,
+        screenY - padding,
+        textWidth + (padding * 2),
+        textHeight + (padding * 2)
+    };
 
-    // 2. Dibujar borde Verde Neón Cyberpunk
-    SDL_SetRenderDrawColor(renderer, 0, 255, 150, 255);
-    SDL_RenderDrawRect(renderer, &borderRect);
-
-    // 3. Dibujar fondo de la caja oscuro y translúcido
-    SDL_SetRenderDrawColor(renderer, 15, 15, 25, 230);
-    SDL_RenderFillRect(renderer, &backgroundRect);
-
-    // 4. Obtener la subcadena animada que simula el deletreo letra por letra
-    std::string visibleText = currentText.substr(0, charIndex);
-
-    // 5. Renderizar el texto dentro de la caja
-    SDL_Color textColor = { 255, 255, 255, 255 };
-    gfx.DrawText(visibleText, activeFontId, boxX + 25, boxY + 25, textColor, false);
-
-    // 6. Si la página terminó de escribirse, parpadear un indicador visual para avanzar
-    if (IsPageFinished()) {
-        SDL_Color indicatorColor = { 0, 255, 150, 255 };
-        // Un pequeño indicador ">" parpadeando usando los ticks de SDL
-        if ((SDL_GetTicks() / 400) % 2 == 0) {
-            gfx.DrawText(">", activeFontId, boxX + boxW - 35, boxY + boxH - 35, indicatorColor, false);
-        }
+    // Efecto Alpha Fading: Desvanecimiento suave en los últimos 0.5 segundos de vida
+    SDL_Color bubbleColor = {20, 20, 30, 255};
+    SDL_Color textColor = {255, 255, 255, 255};
+    
+    if (lifetimeLeft < 0.5f) {
+        Uint8 alpha = static_cast<Uint8>((lifetimeLeft / 0.5f) * 255);
+        bubbleColor.a = alpha;
+        textColor.r = alpha; // Simula atenuación tonal si el renderizador no tiene blendmode activo
     }
+
+    // Dibujamos el fondo del globo de texto flotante
+    // Nota: Reemplazar con una textura de 9-slice en el futuro si deseas bordes estilizados
+    SDL_Rect innerRect = { bubbleRect.x + 2, bubbleRect.y + 2, bubbleRect.w - 4, bubbleRect.h - 4 };
+    
+    // Procesamos el renderizado del texto dinámico con soporte de tags internos dentro de la burbuja
+    RenderRichDialogue(gfx, fontId, barkText, screenX - (textWidth / 2), screenY, textColor);
 }
-
-bool DialogueBox::AdvancePage() {
-    if (dialogueFinished) return true;
-
-    // Si el texto se está escribiendo y presionas el botón, forzar el autocompletado de la página
-    if (!IsPageFinished()) {
-        charIndex = currentText.length();
-        return false;
-    }
-
-    currentPage++;
-    if (currentPage < dialoguePages.size()) {
-        currentText = dialoguePages[currentPage];
-        charIndex = 0;
-        charTimer = 0.0f;
-        return false;
-    } else {
-        dialogueFinished = true;
-        dialoguePages.clear();
-        currentText = "";
-        return true; // Retorna true para indicarle al motor que el diálogo terminó por completo
-    }
-}
-
