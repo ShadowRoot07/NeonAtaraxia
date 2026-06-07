@@ -12,6 +12,13 @@
 #include "gfx/ShadowAudio.h"
 #include "input/InputManager.h"
 
+// Estructura interna para parsear efectos de texto enriquecido de forma segura
+struct RichChar {
+    char character;
+    bool shake;
+    bool wave;
+};
+
 // ============================================================================
 // 1. PERFIL DE PERSONAJE (CONFIGURACIÓN ESTILO UNDERTALE / CELESTE)
 // ============================================================================
@@ -28,30 +35,27 @@ struct CharacterProfile {
 // 2. ARQUITECTURA DE COMANDOS SECUENCIALES (ACTION QUEUE)
 // ============================================================================
 enum class CutsceneActionType {
-    MOVE_ENTITY,      // Mueve un personaje reciclado del mapa a coordenadas X, Y
-    PLAY_ANIM,        // Fuerza una animación específica en una entidad
-    WAIT,             // Pausa la cinemática por una cantidad de segundos fijos
-    SHOW_DIALOGUE,    // Despacha una caja de diálogo completa estilo Undertale
-    PLAY_AUDIO,       // Lanza un efecto de sonido o cambia el hilo musical
-    PLAY_BURST_ANIM,  // Modo Historieta/Animación en ráfaga a pantalla completa
-    TRIGGER_EVENT     // Ejecuta una función callback intermedia (Inyección de eventos)
+    MOVE_ENTITY,      
+    PLAY_ANIM,        
+    WAIT,             
+    SHOW_DIALOGUE,    
+    PLAY_AUDIO,       
+    PLAY_BURST_ANIM,  
+    TRIGGER_EVENT     
 };
 
 struct CutsceneAction {
     CutsceneActionType type;
-    
-    // Parámetros genéricos reutilizados por economía de memoria (Data Alignment)
-    std::string targetID;     // ID de entidad, ID de textura o ID de audio
-    float targetX = 0.0f;     // Coordenada destino X
-    float targetY = 0.0f;     // Coordenada destino Y
-    float duration = 0.0f;    // Temporizador (para WAIT, ráfagas o transiciones)
-    int targetFrame = 0;      // Frame de animación o índice específico
-    
-    // Datos de Diálogos estructurados para el despachador
+
+    std::string targetID;     
+    float targetX = 0.0f;     
+    float targetY = 0.0f;     
+    float duration = 0.0f;    
+    int targetFrame = 0;      
+
     std::vector<std::string> dialogueLines;
-    std::string characterID;   // Quién habla en esta acción específica
-    
-    // Callback para inyección lógica directa (Triggers dinámicos)
+    std::string characterID;   
+
     std::function<void()> eventCallback = nullptr;
 };
 
@@ -63,14 +67,12 @@ public:
     CutsceneState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in);
     ~CutsceneState() override = default;
 
-    // Métodos heredados obligatorios de EngineState [cite: 96, 97]
     void OnEnter() override;
     void OnExit() override;
     void HandleInput(SDL_Event& ev) override;
     void Update(float dt) override;
     void Render() override;
 
-    // Métodos de construcción de la cinemática
     void AddAction(const CutsceneAction& action);
     void RegisterCharacter(const CharacterProfile& profile);
     bool IsCinematicFinished() const { return actionQueue.empty() && !isActionActive; }
@@ -78,29 +80,34 @@ public:
 private:
     void ProcessNextAction();
     void UpdateCurrentAction(float dt);
+    
+    // Método auxiliar para construir líneas procesadas con saltos automáticos (Word Wrap)
+    void PrepareDialogueTokens(const std::string& rawText);
 
     StateManager& stateManager;
     ShadowGFX& gfx;
     ShadowAudio& audio;
     InputManager& input;
 
-    // Cola de acciones secuenciales (Asegura ejecución paso a paso)
     std::queue<CutsceneAction> actionQueue;
     CutsceneAction currentAction;
-    
-    // Diccionario plano de perfiles de personajes registrados para la escena
+
     std::vector<CharacterProfile> registeredCharacters;
 
-    // Variables de control del temporizador de la acción en curso
     float actionTimer;
     bool isActionActive;
     bool isDialogueActive;
-    
-    // Control interno para las cinemáticas tipo Historieta / Animación en ráfaga
+
+    // --- VARIABLES NUEVAS PARA EL EFECTO TELETIPO (MECÁNICAS 1, 2 Y 3) ---
+    std::vector<RichChar> parsedTokens; // Almacén indexado del diálogo actual
+    size_t visibleCharsCount;           // Cuántos caracteres se han mostrado de la lista
+    float textTimer;                    // Acumulador de tiempo para la siguiente letra
+    float currentLetterDelay;           // Retraso actual (dinámico por puntos/comas)
+    bool isTextComplete;                // Flag para bloquear el avance rápido accidental
+
     int currentBurstFrame;
     float burstFrameTimer;
 
-    // Perfil por defecto de respaldo (Seguridad en Runtime)
     CharacterProfile fallbackProfile;
     const CharacterProfile& GetCharacter(const std::string& id) const;
 };
