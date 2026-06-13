@@ -1,0 +1,1270 @@
+=== CONTEXTO DEL MOTOR NEONATARAXIA ===
+
+
+/* ==========================================
+   ARCHIVO: include/Common.h
+   ========================================== */
+
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <SDL.h>
+#include <string>
+
+// Definiciones de botones para mapeo rápido
+const SDL_Scancode BTN_Z = SDL_SCANCODE_Z;
+const SDL_Scancode BTN_X = SDL_SCANCODE_X;
+const SDL_Scancode BTN_F = SDL_SCANCODE_F;
+
+struct Vector2 { float x, y; };
+struct Rect { float x, y, w, h; };
+
+enum ElementType { FIRE, AIR, LIGHT, EARTH, WATER, DARKNESS, NONE };
+
+enum EquipmentSlotType {
+    EQUIP_HELMET,   // 0: Casco
+    EQUIP_CHEST,    // 1: Peto
+    EQUIP_PANTS,    // 2: Mallas
+    EQUIP_BOOTS,    // 3: Botas
+    EQUIP_WEAPON_1, // 4: Arma Principal
+    EQUIP_WEAPON_2, // 5: Arma Secundaria
+    EQUIP_COUNT     // 6 slots en total
+};
+
+struct Entity {
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool isGrounded;
+};
+
+enum EnemyType { WALKER, FLYER, TURRET };
+
+struct Projectile {
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool active;
+};
+
+namespace Assets {
+    const std::string BTN_F_PATH = "sprites/ui/botonF.bmp";
+    const std::string BTN_X_PATH = "sprites/ui/botonX.bmp";
+    const std::string BTN_Z_PATH = "sprites/ui/button_z.bmp"; // Ojo: en tu ls -R se llama button_z.bmp, no botonZ.bmp
+    const std::string JOY_BASE_PATH = "sprites/ui/joystick_base.bmp";
+    const std::string JOY_KNOB_PATH = "sprites/ui/joystick_knob.bmp";
+}
+
+#endif
+
+
+/* ==========================================
+   ARCHIVO: include/core/InventoryState.h
+   ========================================== */
+
+#ifndef INVENTORY_STATE_H
+#define INVENTORY_STATE_H
+
+#include "core/StateManager.h"
+#include "player/Player.h"
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include <SDL.h>
+#include <iostream>
+
+enum class MenuTab { ITEMS, STATS, EQUIPMENT };
+
+class InventoryState : public EngineState {
+
+private:
+    void RenderItemsPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon);
+    void RenderStatsPage(SDL_Renderer* renderer);
+    void RenderEquipmentPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon);   
+
+    Player& player;
+    StateManager& stateManager;
+    ShadowGFX& gfx;
+    ShadowAudio& audio;
+
+    MenuTab activeTab = MenuTab::ITEMS;
+    int cursorIndex = 0;
+
+    // --- VARIABLES DE INTERFAZ INTEGRALES ---
+    SDL_Rect closeButtonRect = { 680, 70, 30, 30 };
+
+    // Control de Gestos (Swipe)
+    float touchStartX = 0.0f;
+    bool potentialSwipe = false;
+
+    // Control de Drag & Drop
+    int draggedSlotIndex = -1;
+    bool isDragging = false;
+    int mouseX = 0, mouseY = 0;
+
+    // Menú Contextual
+    bool isContextMenuOpen = false;
+    int contextSlotIndex = -1;
+    SDL_Rect btnUseRect = { 0, 0, 0, 0 };
+    SDL_Rect btnDropRect = { 0, 0, 0, 0 };
+
+    // Tooltip Dinámico
+    std::string tooltipText = "";
+    float tooltipTimer = 0.0f;
+
+    const std::string fontID = "main";
+
+    // Regiones de Pestañas
+    SDL_Rect tabRects[3] = {
+        { 100, 75, 120, 35 },
+        { 240, 75, 120, 35 },
+        { 380, 75, 120, 35 }
+    };
+
+    // Dimensiones de Grilla
+    const int startX = 120;
+    const int startY = 150;
+    const int slotSize = 48;
+    const int padding = 12;
+    const int columnas = 5;
+
+    int GetSlotIndexAt(int mx, int my);
+    
+    // Métodos privados auxiliares para simplificar el Render principal
+
+public:
+    InventoryState(Player& p, StateManager& sm, ShadowGFX& g, ShadowAudio& a);
+
+    void OnEnter() override;
+    void OnExit() override;
+    void HandleInput(SDL_Event& ev) override;
+    void Update(float dt) override;
+    void Render() override;
+};
+
+#endif // INVENTORY_STATE_H
+
+
+/* ==========================================
+   ARCHIVO: src/core/InventoryState.cpp
+   ========================================== */
+
+#include "core/InventoryState.h"
+#include <cmath>
+
+// Constructor
+InventoryState::InventoryState(Player& p, StateManager& sm, ShadowGFX& g, ShadowAudio& a)
+    : player(p), stateManager(sm), gfx(g), audio(a) {}
+
+// Buscador matemático de slots
+int InventoryState::GetSlotIndexAt(int mx, int my) {
+    for (int i = 0; i < 20; i++) {
+        int col = i % columnas;
+        int fil = i / columnas;
+        int slotX = startX + (col * (slotSize + padding));
+        int slotY = startY + (fil * (slotSize + padding));
+
+        if (mx >= slotX && mx <= slotX + slotSize && my >= slotY && my <= slotY + slotSize) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void InventoryState::OnEnter() {
+    SDL_Log("[InventoryState] Cargando buffers de audio del inventario.");
+    isDragging = false;
+    draggedSlotIndex = -1;
+    isContextMenuOpen = false;
+    tooltipTimer = 0.0f;
+
+    gfx.LoadFont(fontID, "assets/fonts/m5x7.ttf", 16);
+    audio.LoadSound("inv_click", "assets/audio/inventory_click.wav");
+    audio.LoadSound("inv_move", "assets/audio/inventory_move.wav");
+    audio.LoadSound("inv_blip", "assets/audio/inventory_blipSelect.wav");
+
+    audio.Play("inv_click");
+}
+
+void InventoryState::OnExit() {
+    SDL_Log("[InventoryState] Saliendo del Inventario.");
+    audio.Play("inv_click");
+}
+
+void InventoryState::HandleInput(SDL_Event& ev) {
+    // --- 1. TECLADO ---
+    if (ev.type == SDL_KEYDOWN) {
+        if (ev.key.keysym.sym == SDLK_ESCAPE || (ev.key.keysym.sym == SDLK_q && (ev.key.keysym.mod & KMOD_CTRL))) {
+            stateManager.PopState();
+            return;
+        }                                                                                           
+        if (activeTab == MenuTab::ITEMS && !isContextMenuOpen) {
+            int oldIndex = cursorIndex;
+            if (ev.key.keysym.sym == SDLK_RIGHT) cursorIndex = (cursorIndex + 1) % 20;
+            if (ev.key.keysym.sym == SDLK_LEFT)  cursorIndex = (cursorIndex - 1 + 20) % 20;
+            if (ev.key.keysym.sym == SDLK_DOWN)  cursorIndex = (cursorIndex + 5) % 20;
+            if (ev.key.keysym.sym == SDLK_UP)    cursorIndex = (cursorIndex - 5 + 20) % 20;
+
+            if (cursorIndex != oldIndex) audio.Play("inv_blip");
+
+            auto& slots = player.inventory.GetSlots();
+            if ((ev.key.keysym.sym == SDLK_SPACE || ev.key.keysym.sym == SDLK_RETURN) && slots[cursorIndex].itemID != "VACIO") {
+                tooltipText = slots[cursorIndex].itemName;
+                tooltipTimer = (tooltipText.length() > 25) ? 3.5f : 2.0f;
+                audio.Play("inv_click");
+            }
+        }
+
+        if (!(ev.key.keysym.mod & KMOD_CTRL)) {
+            if (ev.key.keysym.sym == SDLK_e || ev.key.keysym.sym == SDLK_q) {
+                if (ev.key.keysym.sym == SDLK_e) activeTab = static_cast<MenuTab>((static_cast<int>(activeTab) + 1) % 3);
+                if (ev.key.keysym.sym == SDLK_q) activeTab = static_cast<MenuTab>((static_cast<int>(activeTab) - 1 + 3) % 3);
+                audio.Play("inv_blip");
+            }
+        }
+    }
+
+    // --- 2. GESTIÓN TÁCTIL ---
+    if (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION || ev.type == SDL_FINGERUP) {
+        mouseX = (int)(ev.tfinger.x * 800.0f);
+        mouseY = (int)(ev.tfinger.y * 600.0f);
+        SDL_Point clickPoint = { mouseX, mouseY };
+
+        if (ev.type == SDL_FINGERDOWN) {
+            potentialSwipe = true;
+            touchStartX = ev.tfinger.x * 800.0f;
+
+            if (SDL_PointInRect(&clickPoint, &closeButtonRect)) {
+                stateManager.PopState();
+                return;
+            }
+
+            for (int i = 0; i < 3; i++) {
+                if (SDL_PointInRect(&clickPoint, &tabRects[i])) {
+                    activeTab = static_cast<MenuTab>(i);
+                    isContextMenuOpen = false;
+                    audio.Play("inv_blip");
+                    return;
+                }
+            }
+
+            if (isContextMenuOpen) {
+                if (SDL_PointInRect(&clickPoint, &btnUseRect)) {
+                    if (activeTab == MenuTab::ITEMS) {
+                        auto& slots = player.inventory.GetSlots();
+                        std::string id = slots[contextSlotIndex].itemID;
+
+                        // Lógica de auto-equipamiento según prefijo de ID
+                        int targetSlot = -1;
+                        if (id.rfind("helm_", 0) == 0) targetSlot = 0;      // EQUIP_HELMET
+                        else if (id.rfind("chest_", 0) == 0) targetSlot = 1; // EQUIP_CHEST
+                        else if (id.rfind("pants_", 0) == 0) targetSlot = 2; // EQUIP_PANTS
+                        else if (id.rfind("boots_", 0) == 0) targetSlot = 3; // EQUIP_BOOTS
+                        else if (id.rfind("sword_", 0) == 0 || id.rfind("weapon_", 0) == 0) targetSlot = 4; // Arma Principal
+
+                        if (targetSlot != -1) {
+                            player.inventory.EquipItem(contextSlotIndex, targetSlot);
+                            audio.Play("inv_move");
+                        } else {
+                            // Si es una poción normal, se consume
+                            player.inventory.ClearSlot(contextSlotIndex);
+                            audio.Play("inv_click");
+                        }
+                    }
+                    else if (activeTab == MenuTab::EQUIPMENT) {
+                        // Acción "QUITAR" en la página de equipamiento
+                        player.inventory.UnequipItem(contextSlotIndex);
+                        audio.Play("inv_move");
+                    }
+                    isContextMenuOpen = false;
+                    return;
+                }
+                
+                if (SDL_PointInRect(&clickPoint, &btnDropRect)) {
+                    if (activeTab == MenuTab::ITEMS) {
+                        player.inventory.ClearSlot(contextSlotIndex);
+                        audio.Play("inv_move");
+                    }
+                    isContextMenuOpen = false;
+                    return;
+                }
+                isContextMenuOpen = false;
+            }
+
+            int clickedSlot = GetSlotIndexAt(mouseX, mouseY);
+            if (clickedSlot != -1) {
+                cursorIndex = clickedSlot;
+                auto& slots = player.inventory.GetSlots();
+                if (slots[clickedSlot].itemID != "VACIO") {
+                    tooltipText = slots[clickedSlot].itemName;
+                    tooltipTimer = (tooltipText.length() > 25) ? 3.5f : 2.0f;
+                    draggedSlotIndex = clickedSlot;
+                    isDragging = true;
+                }
+            }
+        }
+
+        if (ev.type == SDL_FINGERUP) {
+            float deltaX = (ev.tfinger.x * 800.0f) - touchStartX;
+            if (potentialSwipe && std::abs(deltaX) > 150.0f) {
+                if (deltaX > 0.0f) {
+                    activeTab = static_cast<MenuTab>((static_cast<int>(activeTab) - 1 + 3) % 3);
+                } else {
+                    activeTab = static_cast<MenuTab>((static_cast<int>(activeTab) + 1) % 3);
+                }
+                audio.Play("inv_blip");
+                isDragging = false;
+                draggedSlotIndex = -1;
+                isContextMenuOpen = false;
+                potentialSwipe = false;
+                return;
+            }
+
+            if (isDragging) {
+                int targetSlot = GetSlotIndexAt(mouseX, mouseY);
+                if (targetSlot != -1 && targetSlot != draggedSlotIndex) {
+                    player.inventory.SwapSlots(draggedSlotIndex, targetSlot);
+                    audio.Play("inv_move");
+                }
+                else if (targetSlot == draggedSlotIndex && targetSlot != -1) {
+                    isContextMenuOpen = true;
+                    contextSlotIndex = targetSlot;
+                    audio.Play("inv_click");
+
+                    int col = targetSlot % columnas;
+                    int fil = targetSlot / columnas;
+                    int slotX = startX + (col * (slotSize + padding));
+                    int slotY = startY + (fil * (slotSize + padding));
+
+                    btnUseRect  = { slotX + slotSize + 5, slotY, 120, 22 };
+                    btnDropRect = { slotX + slotSize + 5, slotY + 25, 120, 22 };
+                }
+                isDragging = false;
+                draggedSlotIndex = -1;
+            }
+            potentialSwipe = false;
+        }
+    }
+}
+
+void InventoryState::Update(float dt) {
+    if (tooltipTimer > 0.0f) {
+        tooltipTimer -= dt;
+    }
+}
+
+// Renderizado General Orquestador
+void InventoryState::Render() {
+    SDL_Renderer* renderer = SDL_GetRenderer(SDL_GL_GetCurrentWindow());
+    if (!renderer) return;
+
+    SDL_Color colorVerdeNeon = { 0, 255, 128, 255 };
+    SDL_Color colorBlanco    = { 255, 255, 255, 255 };
+    SDL_Color colorGrisTexto = { 180, 180, 200, 255 };
+
+    // Fondo Base Cyberpunk
+    SDL_Rect menuRect = { 80, 60, 640, 480 };
+    SDL_SetRenderDrawColor(renderer, 8, 8, 12, 240);
+    SDL_RenderFillRect(renderer, &menuRect);
+    SDL_SetRenderDrawColor(renderer, 0, 255, 128, 255);
+    SDL_RenderDrawRect(renderer, &menuRect);
+
+    gfx.DrawText("NEON ARBITER INVENTORY SYSTEM v1.0", fontID, 100, 10, colorVerdeNeon, false);
+
+    // Botón de Cierre
+    SDL_SetRenderDrawColor(renderer, 220, 50, 50, 255);
+    SDL_RenderFillRect(renderer, &closeButtonRect);
+    gfx.DrawText("X", fontID, closeButtonRect.x + 10, closeButtonRect.y + 8, colorBlanco, false);
+    gfx.DrawText("Ctrl+Q - Cerrar", fontID, 560, 75, colorGrisTexto, false);
+
+    // Renderizar Pestañas
+    std::string tabNames[3] = { "ITEMS", "ESTADISTICAS", "EQUIPAMIENTO" };
+    for (int i = 0; i < 3; i++) {
+        if (static_cast<int>(activeTab) == i) {
+            SDL_SetRenderDrawColor(renderer, 128, 0, 255, 255);
+        } else {
+            SDL_SetRenderDrawColor(renderer, 35, 35, 45, 255);
+        }
+        SDL_RenderFillRect(renderer, &tabRects[i]);
+        SDL_SetRenderDrawColor(renderer, 100, 100, 120, 255);
+        SDL_RenderDrawRect(renderer, &tabRects[i]);
+
+        gfx.DrawText(tabNames[i], fontID, tabRects[i].x + (tabRects[i].w / 2), tabRects[i].y + 10, colorBlanco, true);
+    }
+
+    // Swapping de páginas internas
+    if (activeTab == MenuTab::ITEMS) {
+        RenderItemsPage(renderer, colorBlanco, colorVerdeNeon);
+    }
+    else if (activeTab == MenuTab::STATS) {
+        RenderStatsPage(renderer);
+    }
+    else if (activeTab == MenuTab::EQUIPMENT) {
+        RenderEquipmentPage(renderer, colorBlanco, colorVerdeNeon);
+    }
+}
+
+// Sub-módulo aislado de ITEMS
+void InventoryState::RenderItemsPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon) {
+    auto& slots = player.inventory.GetSlots();
+
+    for (int i = 0; i < 20; i++) {
+        int col = i % columnas;
+        int fil = i / columnas;
+        // 🔥 CORREGIDO: De startStartX a startX
+        int slotX = startX + (col * (slotSize + padding)); 
+        int slotY = startY + (fil * (slotSize + padding));
+
+        SDL_Rect drawSlotRect = { slotX, slotY, slotSize, slotSize };
+        SDL_SetRenderDrawColor(renderer, 20, 20, 28, 255);
+        SDL_RenderFillRect(renderer, &drawSlotRect);
+        SDL_SetRenderDrawColor(renderer, 0, 255, 128, 60);
+        SDL_RenderDrawRect(renderer, &drawSlotRect);
+
+        if (slots[i].itemID != "VACIO" && (!isDragging || i != draggedSlotIndex)) {
+            SDL_Rect itemRect = { slotX + 8, slotY + 8, 32, 32 };
+            if (slots[i].itemID == "potion_red") {
+                SDL_SetRenderDrawColor(renderer, 255, 50, 50, 255);
+            } else {
+                SDL_SetRenderDrawColor(renderer, 160, 32, 240, 255);
+            }
+            SDL_RenderFillRect(renderer, &itemRect); // O itemRect según tu engine
+
+            if (slots[i].count > 1) {
+                gfx.DrawText(std::to_string(slots[i].count), fontID, slotX + slotSize - 12, slotY + slotSize - 16, colorBlanco, false);
+            }
+        }
+
+        if (cursorIndex == i && !isContextMenuOpen) {
+            SDL_Rect selectorRect = { slotX - 3, slotY - 3, slotSize + 6, slotSize + 6 };
+            SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+            SDL_RenderDrawRect(renderer, &selectorRect);
+        }
+    }
+
+    if (isDragging && draggedSlotIndex != -1) {
+        SDL_Rect floatingRect = { mouseX - 16, mouseY - 16, 32, 32 };
+        if (slots[draggedSlotIndex].itemID == "potion_red") {
+            SDL_SetRenderDrawColor(renderer, 255, 50, 50, 180);
+        } else {
+            SDL_SetRenderDrawColor(renderer, 160, 32, 240, 180);
+        }
+        SDL_RenderFillRect(renderer, &floatingRect);
+
+        if (slots[draggedSlotIndex].count > 1) {
+            gfx.DrawText(std::to_string(slots[draggedSlotIndex].count), fontID, mouseX + 4, mouseY + 4, colorBlanco, false);
+        }
+    }
+
+    if (isContextMenuOpen && contextSlotIndex != -1) {
+        SDL_SetRenderDrawColor(renderer, 0, 120, 200, 255);
+        SDL_RenderFillRect(renderer, &btnUseRect);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawRect(renderer, &btnUseRect);
+        gfx.DrawText("USAR/EQUIPAR", fontID, btnUseRect.x + 6, btnUseRect.y + 4, colorBlanco, false);
+
+        SDL_SetRenderDrawColor(renderer, 180, 80, 0, 255);
+        SDL_RenderFillRect(renderer, &btnDropRect);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawRect(renderer, &btnDropRect);
+        gfx.DrawText("TIRAR ITEM", fontID, btnDropRect.x + 12, btnDropRect.y + 4, colorBlanco, false);
+    }
+
+    if (tooltipTimer > 0.0f && !tooltipText.empty()) {
+        SDL_Rect tooltipBox = { 120, 480, 560, 35 };
+        SDL_SetRenderDrawColor(renderer, 12, 16, 24, 230);
+        SDL_RenderFillRect(renderer, &tooltipBox);
+        SDL_SetRenderDrawColor(renderer, 0, 255, 128, 255);
+        SDL_RenderDrawRect(renderer, &tooltipBox);
+
+        gfx.DrawText(tooltipText, fontID, tooltipBox.x + (tooltipBox.w / 2), tooltipBox.y + 10, colorVerdeNeon, true);
+
+        SDL_Rect visualBar = { 125, 510, (int)(550 * (tooltipTimer / 2.0f)), 2 };
+        if (visualBar.w > 550) visualBar.w = 550;
+        SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+        SDL_RenderFillRect(renderer, &visualBar);
+    }
+}
+
+void InventoryState::RenderStatsPage(SDL_Renderer* renderer) {
+    SDL_Color white        = {255, 255, 255, 255};
+    SDL_Color cyan         = {0, 255, 255, 255};
+    SDL_Color lightBlue    = {0, 191, 255, 255}; 
+    SDL_Color green        = {0, 255, 128, 255}; 
+    SDL_Color red          = {255, 50, 50, 255};   
+    SDL_Color gold         = {255, 215, 0, 255};  
+
+    int currentY = startY;
+    int barWidth = 450;
+    int barHeight = 16;
+
+    std::string nameText = "JUGADOR: " + player.GetName();
+    std::string levelText = "NIVEL: " + std::to_string(player.GetLevel());
+    gfx.DrawText(nameText, fontID, startX, currentY, cyan, false);
+    gfx.DrawText(levelText, fontID, startX + 300, currentY, white, false);
+
+    currentY += 45;
+
+    int currentExp = player.GetExp();
+    int nextLevelExp = player.GetNextLevelExp();
+    float expPct = (nextLevelExp > 0) ? (float)currentExp / nextLevelExp : 0.0f;
+    if (expPct > 1.0f) expPct = 1.0f;
+
+    std::string expStr = "EXP: " + std::to_string(currentExp) + " / " + std::to_string(nextLevelExp);
+    gfx.DrawText(expStr, fontID, startX, currentY, white, false);
+
+    currentY += 20;
+    SDL_Rect expBg = { startX, currentY, barWidth, barHeight };
+    SDL_SetRenderDrawColor(renderer, 30, 30, 35, 255);
+    SDL_RenderFillRect(renderer, &expBg);
+    SDL_Rect expFill = { startX, currentY, (int)(barWidth * expPct), barHeight };
+    SDL_SetRenderDrawColor(renderer, lightBlue.r, lightBlue.g, lightBlue.b, lightBlue.a);
+    SDL_RenderFillRect(renderer, &expFill);
+    SDL_SetRenderDrawColor(renderer, 80, 80, 90, 255);
+    SDL_RenderDrawRect(renderer, &expBg);
+
+    currentY += 40;
+
+    int currentHp = player.GetHp();
+    int maxHp = player.GetMaxHp();
+    float hpPct = (maxHp > 0) ? (float)currentHp / maxHp : 0.0f;
+    if (hpPct > 1.0f) hpPct = 1.0f;
+    if (hpPct < 0.0f) hpPct = 0.0f;
+
+    std::string hpStr = "HP: " + std::to_string(currentHp) + " / " + std::to_string(maxHp);
+    gfx.DrawText(hpStr, fontID, startX, currentY, green, false);
+
+    currentY += 20;
+    SDL_Rect hpBg = { startX, currentY, barWidth, barHeight };
+    SDL_SetRenderDrawColor(renderer, 30, 30, 35, 255);
+    SDL_RenderFillRect(renderer, &hpBg);
+    SDL_Rect hpFill = { startX, currentY, (int)(barWidth * hpPct), barHeight };
+    SDL_SetRenderDrawColor(renderer, green.r, green.g, green.b, green.a);
+    SDL_RenderFillRect(renderer, &hpFill);
+    SDL_SetRenderDrawColor(renderer, 80, 80, 90, 255);
+    SDL_RenderDrawRect(renderer, &hpBg);
+
+    currentY += 40;
+
+    int currentMp = player.GetMp();
+    int maxMp = player.GetMaxMp();
+    float mpPct = (maxMp > 0) ? (float)currentMp / maxMp : 0.0f;
+    if (mpPct > 1.0f) mpPct = 1.0f;
+    if (mpPct < 0.0f) mpPct = 0.0f;
+
+    std::string mpStr = "MP: " + std::to_string(currentMp) + " / " + std::to_string(maxMp);
+    gfx.DrawText(mpStr, fontID, startX, currentY, red, false);
+
+    currentY += 20;
+    SDL_Rect mpBg = { startX, currentY, barWidth, barHeight };
+    SDL_SetRenderDrawColor(renderer, 30, 30, 35, 255);
+    SDL_RenderFillRect(renderer, &mpBg);
+    SDL_Rect mpFill = { startX, currentY, (int)(barWidth * mpPct), barHeight };
+    SDL_SetRenderDrawColor(renderer, red.r, red.g, red.b, red.a);
+    SDL_RenderFillRect(renderer, &mpFill);
+    SDL_SetRenderDrawColor(renderer, 80, 80, 90, 255);
+    SDL_RenderDrawRect(renderer, &mpBg);
+
+    currentY += 50;
+
+    SDL_Rect lineDiv = { startX, currentY - 10, barWidth, 1 };
+    SDL_SetRenderDrawColor(renderer, 0, 255, 128, 80);
+    SDL_RenderFillRect(renderer, &lineDiv);
+
+    std::string atkStr = "ATAQUE:  " + std::to_string(player.GetAttack());
+    std::string defStr = "DEFENSA: " + std::to_string(player.GetDefense());
+    gfx.DrawText(atkStr, fontID, startX, currentY, gold, false);
+    gfx.DrawText(defStr, fontID, startX + 240, currentY, gold, false);
+}
+
+void InventoryState::RenderEquipmentPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon) {
+    auto& eqSlots = player.inventory.GetEquipmentSlots();
+    SDL_Color colorGris = { 100, 100, 110, 255 };
+
+    int eqSize = 48;
+    int eqStartX = 200;
+    int eqStartY = 160;
+
+    std::string eqLabels[4] = { "CASCO", "PETO", "PANT", "BOTAS" };
+
+    for (int i = 0; i < 4; i++) {
+        SDL_Rect drawBox = { eqStartX, eqStartY + (i * 55), eqSize, eqSize };
+
+        SDL_SetRenderDrawColor(renderer, 22, 22, 30, 255);
+        SDL_RenderFillRect(renderer, &drawBox);
+        SDL_SetRenderDrawColor(renderer, 0, 255, 128, 70);
+        SDL_RenderDrawRect(renderer, &drawBox);
+
+        if (eqSlots[i].itemID == "VACIO") {
+            gfx.DrawText(eqLabels[i], fontID, drawBox.x + 6, drawBox.y + 18, colorGris, false);
+        } else {
+            SDL_Rect itemBox = { drawBox.x + 8, drawBox.y + 8, 32, 32 };
+            SDL_SetRenderDrawColor(renderer, 40, 120, 220, 255); 
+            SDL_RenderFillRect(renderer, &itemBox);
+        }
+    }
+
+    gfx.DrawText("SHADOW-CORE", fontID, eqStartX + 110, eqStartY + 90, colorVerdeNeon, true);
+    SDL_Rect avatarDummy = { eqStartX + 85, eqStartY + 120, 50, 80 };
+    SDL_SetRenderDrawColor(renderer, 15, 40, 30, 255);
+    SDL_RenderFillRect(renderer, &avatarDummy);
+    SDL_SetRenderDrawColor(renderer, 0, 255, 128, 100);
+    SDL_RenderDrawRect(renderer, &avatarDummy);
+
+    std::string weaponLabels[2] = { "W_PRI", "W_SEC" };
+    for (int i = 0; i < 2; i++) {
+        SDL_Rect drawBox = { eqStartX + 180, eqStartY + 30 + (i * 70), eqSize, eqSize };
+
+        SDL_SetRenderDrawColor(renderer, 22, 22, 30, 255);
+        SDL_RenderFillRect(renderer, &drawBox);
+        SDL_SetRenderDrawColor(renderer, 128, 0, 255, 100);
+        SDL_RenderDrawRect(renderer, &drawBox);
+
+        if (eqSlots[4 + i].itemID == "VACIO") {
+            gfx.DrawText(weaponLabels[i], fontID, drawBox.x + 8, drawBox.y + 18, colorGris, false);
+        } else {
+            SDL_Rect itemBox = { drawBox.x + 8, drawBox.y + 8, 32, 32 };
+            SDL_SetRenderDrawColor(renderer, 200, 30, 30, 255); 
+            SDL_RenderFillRect(renderer, &itemBox);
+        }
+    }
+
+    if (isContextMenuOpen && activeTab == MenuTab::EQUIPMENT) {
+        SDL_SetRenderDrawColor(renderer, 200, 35, 35, 255); 
+        SDL_RenderFillRect(renderer, &btnUseRect);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawRect(renderer, &btnUseRect);
+        gfx.DrawText("QUITAR", fontID, btnUseRect.x + 24, btnUseRect.y + 4, colorBlanco, false);
+    }
+
+    if (tooltipTimer > 0.0f && !tooltipText.empty()) {
+        SDL_Rect tooltipBox = { 120, 480, 560, 35 };
+        SDL_SetRenderDrawColor(renderer, 10, 10, 15, 245);
+        SDL_RenderFillRect(renderer, &tooltipBox);
+        SDL_SetRenderDrawColor(renderer, 128, 0, 255, 255); 
+        SDL_RenderDrawRect(renderer, &tooltipBox);
+
+        gfx.DrawText(tooltipText, fontID, tooltipBox.x + (tooltipBox.w / 2), tooltipBox.y + 10, colorBlanco, true);
+    }
+}
+
+
+/* ==========================================
+   ARCHIVO: include/player/Player.h
+   ========================================== */
+
+#ifndef PLAYER_H
+#define PLAYER_H
+
+#include <vector>
+#include <string>
+#include <SDL.h>
+#include "Common.h" // Sincronización cuántica con Vector2 y ElementType globales
+#include "input/InputManager.h"
+#include "gfx/ShadowAudio.h"
+
+// En los includes de include/player/Player.h:
+#include "player/InventorySystem.h"
+
+
+// Definición directa de la estructura para resolver el tipo de arma
+struct Weapon {
+    int rangeBonus = 0; 
+};
+
+class Player {
+public:
+    std::string GetCurrentAnimID() const { return currentAnimID; }
+    int GetCurrentFrameC() const { return currentFrameC; }
+    int GetCurrentFrameF() const { return currentFrameF; }
+    int GetFaceDir() const { return faceDir; }
+
+    Player();
+    void HandleInput(InputManager& input, ShadowAudio& sfx);
+    void Update(float dt);
+    void TakeDamage(float amount, float sourceX);
+    void ApplyDash(float dir);
+    void ApplyAttack();
+
+    // --- GETTERS Y SETTERS COMPATIBLES CON COMMON.H ---
+    Vector2 GetPos() const { return pos; }
+    Vector2 GetShadowMark() const { return shadowMark; }
+    Rect GetHitbox() const { return hitbox; }
+    Rect GetAttackRect() const;
+    float GetInvulTimer() const { return invulTimer; }
+    float GetHealth() const { return health; }
+    bool IsAttacking() const { return attackTimer > 0.0f; }
+    bool IsShieldActive() const { return isShieldActive; }
+
+    // --- GETTERS DE ESTADÍSTICAS PARA INTERFACES (NATIVOS) ---
+    std::string GetName() const { return "ShadowRoot07"; } // Nombre fijo por código o string si lo creas después
+    int GetLevel() const { return 1; }                    // Retorna nivel base provisorio
+    int GetExp() const { return 350; }                    // Datos Mock interactivos para las barras
+    int GetNextLevelExp() const { return 1000; }
+    
+    // Vinculamos tu variable health real casteada a entero
+    int GetHp() const { return static_cast<int>(health); } 
+    int GetMaxHp() const { return 100; }                  // Tu vida máxima por ahora
+    
+    // Atributos de Maná y Combate vinculados a los nuevos campos privados
+    int GetMp() const { return mp; }
+    int GetMaxMp() const { return maxMp; }
+    int GetAttack() const { return attack; }
+    int GetDefense() const { return defense; }
+
+    // Mecánicas Quantum (Marca de Sombra)
+    bool GetHasMark() const { return hasMark; }
+
+    // --- MÉTODOS ELEMENTALES REQUERIDOS ---
+    void SetElements(ElementType primary, ElementType secondary) {
+        elementSlot1 = primary;
+        elementSlot2 = secondary;
+    }
+
+    bool HasElement(ElementType element) const {
+        return (elementSlot1 == element || elementSlot2 == element);
+    }
+
+    // Getters/Setters de Armas
+    void SetWeapon(const Weapon& newWeapon) { currentWeapon = newWeapon; }
+    Weapon GetCurrentWeapon() const { return currentWeapon; }
+
+    // --- VARIABLES PÚBLICAS REQUERIDAS POR PROCESADORES Y FÍSICAS ---
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool isGrounded;
+    bool pendingPlatform;
+    int coinsCollected;
+    int gemsCollected;
+
+    InventorySystem inventory;
+
+
+
+private:
+    float speed;
+    float jumpForce;
+    float health;
+
+    int jumpCount;
+    int maxJumps;
+    int faceDir;
+
+    std::string currentAnimID;
+    int currentFrameC;
+    int currentFrameF;
+    float animTimer;
+    
+    // Gestión de estados elementales
+    ElementType elementSlot1;
+    ElementType elementSlot2;
+
+    bool isLiquid;
+    float liquidTimer;
+
+    // Marca de Sombra
+    bool hasMark;
+    Vector2 shadowMark;
+
+    // Tiempos y Cooldowns
+    float dashCooldown;
+    float dashTimer;
+    bool isDashing;
+    float invulTimer;
+    float attackTimer;
+    float attackCooldown;
+
+    // Variables de Armas y Escudo
+    Weapon currentWeapon;
+    bool isShieldActive;
+
+    // Variables de estadísticas añadidas para el inventario
+    int mp = 50;
+    int maxMp = 80;
+    int attack = 25;
+    int defense = 14;
+};
+
+#endif // PLAYER_H
+
+
+
+/* ==========================================
+   ARCHIVO: src/player/Player.cpp
+   ========================================== */
+
+#include "player/Player.h"
+#include "gfx/ShadowAudio.h" // Necesario para llamar a sfx.Play()
+#include <cmath>
+
+Player::Player() {
+    pos = {100.0f, 100.0f};
+    vel = {0.0f, 0.0f};
+    hitbox = {0, 0, 32.0f, 32.0f};
+    isGrounded = false;
+    health = 100.0f;
+    speed = 320.0f;
+    jumpForce = -700.0f;
+
+    elementSlot1 = NONE;
+    elementSlot2 = NONE;
+    jumpCount = 0;
+    maxJumps = 2;
+    isLiquid = false;
+    liquidTimer = 0.0f;
+    hasMark = false;
+    pendingPlatform = false;
+    coinsCollected = 0;
+    gemsCollected = 0;
+
+    dashCooldown = dashTimer = 0.0f;
+    isDashing = false;
+    invulTimer = attackTimer = attackCooldown = 0.0f;
+    faceDir = 1;
+    isShieldActive = false;
+
+    // --- NUEVAS ESTADÍSTICAS INICIALIZADAS PARA EL INVENTARIO ---
+    mp = 50;
+    maxMp = 80;
+    attack = 25;
+    defense = 14;
+
+    // CORRECCIÓN: Eliminamos la 'n' fantasma para sincronizar con main.cpp
+    currentAnimID = "player_idle";
+    currentFrameC = 0;
+    currentFrameF = 0;
+    animTimer = 0.0f;
+}
+
+void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
+    if (isDashing) return;
+
+    // Control de inercia horizontal: Solo forzamos cero si está tocando el suelo
+    if (isGrounded) {
+        vel.x = 0;
+    }
+
+    if (input.IsKeyDown(SDL_SCANCODE_LEFT)) { 
+        vel.x = -speed; 
+        faceDir = -1; 
+    }
+    else if (input.IsKeyDown(SDL_SCANCODE_RIGHT)) { 
+        vel.x = speed; 
+        faceDir = 1; 
+    }
+    else if (isGrounded) {
+        vel.x = 0; // Detenerse en seco solo si pisa el suelo
+    }
+
+    // --- SISTEMA DE SALTO / DOBLE SALTO REPARADO ---
+    if (input.IsKeyPressed(SDL_SCANCODE_Z)) {
+        if (isGrounded) {
+            vel.y = jumpForce;    // Impulso completo (-700.0f)
+            isGrounded = false;
+            jumpCount = 1;        // Primer salto registrado
+            sfx.Play("jump");
+        } 
+        else if (jumpCount < maxJumps) { // Ahora evalúa 1 < 2 de forma CORRECTA
+            vel.y = jumpForce * 0.95f;   // El segundo impulso conserva el 95% de la fuerza
+            jumpCount++;                 // Sube a 2, bloqueando saltos infinitos
+            sfx.Play("double_jump");
+        }
+    }
+
+    // Extracción de estados del D-Pad / Joystick virtual para combos
+    bool isDown = (input.GetJoystick().y > 0.5f || input.IsKeyDown(SDL_SCANCODE_DOWN));
+    bool isUp = (input.GetJoystick().y < -0.5f || input.IsKeyDown(SDL_SCANCODE_UP));
+
+    // --- ASIGNACIÓN DEL BOTÓN X (OFENSIVO: ESPADA Y MAGIAS) ---
+    if (input.IsKeyPressed(SDL_SCANCODE_X)) {
+        if (isDown && HasElement(EARTH)) {
+            pendingPlatform = true;
+            sfx.Play("earth_skill");
+        }
+        else if (isUp && HasElement(DARKNESS)) {
+            if (!hasMark) {
+                shadowMark = pos;
+                hasMark = true;
+                sfx.Play("mark_set");
+            } else {
+                pos = shadowMark;
+                hasMark = false;
+                vel = {0, 0};
+                sfx.Play("teleport");
+            }
+        }
+        else if (attackCooldown <= 0) {
+            ApplyAttack();
+            sfx.Play("attack");
+            
+            // Si el arma actual es de rango (ej: báculo o runa), podrías disparar el proyectil aquí
+            // SkillManager::CastProjectile(*this, projectiles, sfx);
+        }
+    }
+
+    // --- ASIGNACIÓN DEL BOTÓN F (MOVILIDAD Y DEFENSA ABSOLUTA) ---
+    if (input.IsKeyPressed(SDL_SCANCODE_F)) {
+        // COMBO NUEVO: Arriba + F -> ESCUDO DE ENERGÍA
+        if (isUp) {
+            isShieldActive = !isShieldActive; // Alternar estado del escudo
+            sfx.Play("blipSelect");
+            SDL_Log("Player: Estado del Escudo alterado cuanticamente.");
+        }
+        // Combo Existente: Abajo + F -> Forma Líquida de Agua
+        else if (isDown && HasElement(WATER) && !isLiquid) {
+            isLiquid = true;
+            liquidTimer = 1.0f;
+            dashCooldown = 1.5f;
+            sfx.Play("liquid_form");
+        } 
+        // Acción Neutra: Dash estándar
+        else if (dashCooldown <= 0 && !isShieldActive) {
+            ApplyDash((float)faceDir);
+            sfx.Play("dash");
+        }
+    }
+}
+
+void Player::Update(float dt) {
+    if (invulTimer > 0) invulTimer -= dt;
+    if (dashCooldown > 0) dashCooldown -= dt;
+    if (attackTimer > 0)  attackTimer -= dt;
+    if (attackCooldown > 0) attackCooldown -= dt;
+
+    if (liquidTimer > 0) {
+        liquidTimer -= dt;
+        if (liquidTimer <= 0) isLiquid = false;
+    }
+
+    // ============================================================================
+    // MÁQUINA DE ESTADOS DE ANIMACIÓN CORREGIDA (VECTORZERO NATIVO)
+    // ============================================================================
+    std::string nextAnim = "player_idle";
+    int maxCols = 4;
+
+    if (isDashing) {
+        nextAnim = "player_dash";
+        maxCols = 4;
+    }
+    else if (!isGrounded) {
+        nextAnim = "player_dash";
+        maxCols = 4;
+    }
+    else if (attackTimer > 0) {
+        nextAnim = "player_attack";
+        maxCols = 3;
+    }
+    else if (isShieldActive) {
+        nextAnim = "player_defense";
+        maxCols = 3;
+    }
+    else if (vel.x != 0) {
+        nextAnim = "player_walk";
+        maxCols = 6;
+    }
+
+    if (currentAnimID != nextAnim) {
+        currentAnimID = nextAnim;
+        currentFrameC = 0;
+        animTimer = 0.0f;
+    }
+
+    animTimer += dt;
+    if (animTimer >= 0.1f) {
+        animTimer = 0.0f;
+        currentFrameC = (currentFrameC + 1) % maxCols;
+    }
+
+    if (faceDir > 0) {
+        currentFrameF = 0;
+    } else {
+        currentFrameF = 1;
+    }
+
+    // ============================================================================
+    // FÍSICAS REFACTORIZADAS: SISTEMA DE DESACELERACIÓN Y FRICCIÓN (FIX PEGAJOSO)
+    // ============================================================================
+    if (isDashing) {
+        dashTimer -= dt;
+        if (dashTimer <= 0) isDashing = false;
+    } else {
+        // Gravedad normalizada
+        vel.y += 1800.0f * dt;
+
+        // PARCHE: Solo aplicamos fricción de frenado si el jugador NO se está moviendo con los controles
+        bool isMovingInput = (vel.x > 300.0f || vel.x < -300.0f); 
+        
+        if (!isMovingInput && vel.x != 0) {
+            float friction = isGrounded ? 22.0f : 5.0f; // Fricción rápida para frenados en seco limpios
+            if (std::abs(vel.x) > 0.1f) {
+                vel.x -= vel.x * friction * dt;
+                if (std::abs(vel.x) < 15.0f) vel.x = 0.0f;
+            } else {
+                vel.x = 0.0f;
+            }
+        }
+    }
+
+    pos.x += vel.x * dt;
+    pos.y += vel.y * dt;
+
+    hitbox.x = pos.x;
+    hitbox.y = pos.y;
+    hitbox.w = 32.0f;
+    hitbox.h = 32.0f;
+
+    if (isGrounded) jumpCount = 0;
+}
+
+void Player::TakeDamage(float amount, float sourceX) {
+    if (isLiquid) return; // Inmunidad del elemento Agua
+    
+    if (invulTimer <= 0 && !isDashing) {
+        // MITIGACIÓN POR ESCUDO ELEMENTAL
+        if (isShieldActive) {
+            amount *= 0.5f; // Absorbe el 50% del impacto
+            invulTimer = 0.4f; // Menos frames de aturdimiento
+            SDL_Log("Player: ¡Escudo absorbio parte del impacto! Daño real: %.1f", amount);
+        } else {
+            invulTimer = 1.0f;
+            // Solo hay empuje físico si el escudo no bloqueó el impacto
+            float knockDir = (pos.x + hitbox.w/2 > sourceX) ? 1.0f : -1.0f;
+            vel.x = knockDir * 400.0f;
+            vel.y = -300.0f;
+            isGrounded = false;
+        }
+        
+        health -= amount;
+    }
+}
+
+void Player::ApplyDash(float dir) {
+    isDashing = true;
+    dashTimer = 0.15f;
+    dashCooldown = 0.6f;
+    vel.x = dir * speed * 3.5f;
+    vel.y = 0;
+}
+
+void Player::ApplyAttack() {
+    attackTimer = 0.25f;
+    attackCooldown = 0.4f;
+}
+
+Rect Player::GetAttackRect() const {
+    Rect attackBox;
+    // El ancho base de tu espadazo hereda el bono del arma equipada
+    attackBox.w = 40 + currentWeapon.rangeBonus; 
+    attackBox.h = 32;
+    attackBox.y = hitbox.y + (hitbox.h / 2) - (attackBox.h / 2);
+
+    if (faceDir > 0) {
+        attackBox.x = hitbox.x + hitbox.w;
+    } else {
+        attackBox.x = hitbox.x - attackBox.w;
+    }
+
+    return attackBox;
+}
+
+
+
+/* ==========================================
+   ARCHIVO: include/player/InventorySystem.h
+   ========================================== */
+
+#ifndef INVENTORY_SYSTEM_H
+#define INVENTORY_SYSTEM_H
+
+#include <string>
+#include <vector>
+
+// Estructura de ranura individual estilo Minecraft
+struct InventorySlot {
+    std::string itemID = "VACIO"; // "VACIO" significa slot libre
+    std::string itemName = "";     // Nombre legible para el Tooltip
+    int count = 0;                 // Cantidad actual en el stack
+    int maxStack = 64;             // Límite estricto solicitado
+};
+
+class InventorySystem {
+private:
+    std::vector<InventorySlot> slots;          // Grilla normal (20 slots)
+    std::vector<InventorySlot> equipmentSlots; // Equipamiento fijo (6 slots)
+
+public:
+    InventorySystem() {
+        slots.resize(20);
+        equipmentSlots.resize(6); // Redimensionar para Casco, Peto, Pantalones, Botas, Arma 1, Arma 2
+
+        // Inicializar slots de equipamiento por defecto como VACÍOS
+        for(int i = 0; i < 6; i++) {
+            equipmentSlots[i] = InventorySlot();
+        }
+
+        // Ítems de prueba iniciales
+        slots[0] = { "potion_red", "Pocion de Vida Roja", 10, 64 };
+        slots[1] = { "ore_shadow", "Fragmento de Mineral de Sombra Oscura", 64, 64 };
+        
+        // Agreguemos piezas de prueba equipables al inventario normal para testeo
+        slots[3] = { "helm_neon", "Casco de Fibra de Neon (+5 Def)", 1, 1 };
+        slots[4] = { "sword_cyber", "Espada Bifurcada Cyberpunk (+15 Atk)", 1, 1 };
+    }
+
+    std::vector<InventorySlot>& GetSlots() { return slots; }
+    std::vector<InventorySlot>& GetEquipmentSlots() { return equipmentSlots; }
+
+    // Intercambio normal entre slots de la mochila
+    void SwapSlots(int indexA, int indexB) {
+        if (indexA >= 0 && indexA < 20 && indexB >= 0 && indexB < 20) {
+            std::swap(slots[indexA], slots[indexB]);
+        }
+    }
+
+    // Intenta equipar un ítem desde la mochila a una ranura de equipamiento específica
+    bool EquipItem(int inventoryIndex, int equipSlotIndex) {
+        if (inventoryIndex < 0 || inventoryIndex >= 20 || equipSlotIndex < 0 || equipSlotIndex >= 6) return false;
+        
+        // Sincronización cuántica de slots por copia/intercambio seguro
+        std::swap(slots[inventoryIndex], equipmentSlots[equipSlotIndex]);
+        return true;
+    }
+
+    // Desequipar: Mueve el equipamiento de vuelta al inventario en el primer espacio vacío libre
+    bool UnequipItem(int equipSlotIndex) {
+        if (equipSlotIndex < 0 || equipSlotIndex >= 6) return false;
+        if (equipmentSlots[equipSlotIndex].itemID == "VACIO") return false;
+
+        // Buscar el primer slot vacío en el inventario común
+        for (int i = 0; i < 20; i++) {
+            if (slots[i].itemID == "VACIO") {
+                slots[i] = equipmentSlots[equipSlotIndex];
+                equipmentSlots[equipSlotIndex] = InventorySlot(); // Limpiar ranura corporal
+                return true;
+            }
+        }
+        return false; // Inventario lleno
+    }
+
+    void ClearSlot(int index) {
+        if (index >= 0 && index < 20) {
+            slots[index] = InventorySlot();
+        }
+    }
+};
+
+#endif // INVENTORY_SYSTEM_H
+
+
+/* ==========================================
+   ARCHIVO: include/physics/CombatSystem.h
+   ========================================== */
+
+#ifndef COMBAT_SYSTEM_H
+#define COMBAT_SYSTEM_H
+
+#include "player/Player.h"
+#include "world/Enemy.h"
+#include "physics/Collision.h"
+#include "gfx/ShadowAudio.h"
+#include <vector>
+#include <SDL_log.h>
+
+class CombatSystem {
+public:
+    static void ProcessCombat(Player& player, std::vector<Enemy>& enemies, ShadowAudio& sfx) {
+        // --- 1. ATAQUE DEL JUGADOR A ENEMIGOS ---
+        if (player.IsAttacking()) {
+            Rect attackBox = player.GetAttackRect();
+
+            for (auto& enemy : enemies) {
+                if (enemy.health > 0 && PhysicsEngine::AABB(attackBox, enemy.hitbox)) {
+                    // Si el enemigo no estaba ya muerto, recibe el impacto de la ShadowSword
+                    float damage = 20.0f; // Daño base
+                    enemy.health -= damage;
+                    
+                    // Aplicar Knockback orgánico usando el faceDir del jugador
+                    float knockbackForce = 150.0f;
+                    enemy.vel.x = player.GetFaceDir() * knockbackForce;
+                    
+                    // Reproducir el sonido de impacto cargado en tus assets
+                    sfx.Play("hitHurt");
+                    
+                    SDL_Log("CombatSystem: Enemigo impactado! HP restante: %.1f", enemy.health);
+                }
+            }
+        }
+
+        // --- 2. COLISIÓN / ATAQUE DE ENEMIGOS AL JUGADOR ---
+        // Limpiamos los enemigos caídos del vector para optimizar Termux
+        enemies.erase(
+            std::remove_if(enemies.begin(), enemies.end(), [](const Enemy& e) { return e.health <= 0; }),
+            enemies.end()
+        );
+
+        for (auto& enemy : enemies) {
+            // Si el enemigo toca el cuerpo del jugador y el jugador no tiene i-frames (invulnerabilidad)
+            if (player.GetInvulTimer() <= 0 && PhysicsEngine::AABB(player.hitbox, enemy.hitbox)) {
+                float damageToPlayer = 10.0f;
+                // Le pasamos el daño y la posición X del enemigo para que el jugador se empuje en dirección opuesta
+                player.TakeDamage(damageToPlayer, enemy.pos.x);
+                sfx.Play("hitHurt"); // Reutilizamos el sonido de daño
+            }
+        }
+    }
+};
+
+#endif
+
+
+/* ==========================================
+   ARCHIVO: include/core/StoryEventManager.h
+   ========================================== */
+
+#ifndef STORY_EVENT_MANAGER_H
+#define STORY_EVENT_MANAGER_H
+
+#include <unordered_map>
+#include <string>
+
+class StoryEventManager {
+public:
+    static StoryEventManager& GetInstance() {
+        static StoryEventManager instance;
+        return instance;
+    }
+
+    // Registrar o cambiar el estado de un evento/flag de la historia
+    void SetFlag(const std::string& flagName, bool value) {
+        storyFlags[flagName] = value;
+    }
+
+    // Verificar si un evento ya ocurrió
+    bool GetFlag(const std::string& flagName) const {
+        auto it = storyFlags.find(flagName);
+        if (it != storyFlags.end()) {
+            return it->second;
+        }
+        return false; // Por defecto el evento no ha ocurrido
+    }
+
+    // Limpiar banderas (útil para reiniciar partida o saltar de línea temporal)
+    void ClearFlags() {
+        storyFlags.clear();
+    }
+
+    // El KanaraLink usará esto directamente para serializar a JSON en el futuro
+    const std::unordered_map<std::string, bool>& GetAllFlags() const {
+        return storyFlags;
+    }
+
+    void LoadAllFlags(const std::unordered_map<std::string, bool>& loadedFlags) {
+        storyFlags = loadedFlags;
+    }
+
+private:
+    StoryEventManager() = default;
+    std::unordered_map<std::string, bool> storyFlags;
+};
+
+#endif // STORY_EVENT_MANAGER_H

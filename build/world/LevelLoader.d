@@ -52,4 +52,6 @@ build/world/LevelLoader.o: src/world/LevelLoader.cpp \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
   include/world/Enemy.h include/player/Player.h \
   include/input/InputManager.h include/gfx/ShadowAudio.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h
+  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
+  include/player/InventorySystem.h include/core/GameplayEventBus.h \
+  include/core/KanaraLink.h

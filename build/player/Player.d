@@ -51,4 +51,6 @@ build/player/Player.o: src/player/Player.cpp include/player/Player.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
   include/Common.h include/input/InputManager.h \
   include/gfx/ShadowAudio.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h
+  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
+  include/player/InventorySystem.h include/core/GameplayEventBus.h \
+  include/core/KanaraLink.h

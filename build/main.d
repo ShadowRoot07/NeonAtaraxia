@@ -56,5 +56,8 @@ build/main.o: src/main.cpp \
   include/ui/UIManager.h include/input/InputManager.h include/Common.h \
   include/ui/MenuManager.h include/world/Camera.h include/world/Enemy.h \
   include/world/Platform.h include/player/Player.h \
-  include/core/StateManager.h include/world/LevelLoader.h \
-  include/core/CutsceneSystem.h src/elements/EarthSkill.h
+  include/player/InventorySystem.h include/core/GameplayEventBus.h \
+  include/core/KanaraLink.h include/core/StateManager.h \
+  include/world/LevelLoader.h include/ui/DialogueBox.h \
+  include/core/CutsceneSystem.h include/core/InventoryState.h \
+  include/ui/KanaraPanel.h src/elements/EarthSkill.h

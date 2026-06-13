@@ -1,16 +1,13 @@
-=== CONTEXTO DE ARQUITECTURA ===
-
-
---- src/main.cpp ---
 #include <SDL.h>
+#include <SDL_ttf.h>
+#include <SDL_image.h>  // 🔥 COMPRUEBA QUE ESTA LÍNEA NO SE HAYA BORRADO
 
 #include <vector>
-#include <iostream>
+#include <iostream>     // 🔥 COMPRUEBA QUE ESTA LÍNEA ESTÉ AQUÍ
 #include <string>
 #include <cmath>
 #include <memory>
-#include <SDL_ttf.h>
-#include <SDL_image.h>
+#include <algorithm>    // Útil para el limpiador de RAM (remove_if)
 
 // Infraestructura del Motor
 #include "gfx/ShadowGFX.h"
@@ -24,21 +21,280 @@
 #include "input/InputManager.h"
 #include "core/StateManager.h"
 #include "world/LevelLoader.h"
+#include "ui/DialogueBox.h"
 
-// Inclusión directa requerida por la configuración del Makefile
-// #include "elements/EarthSkill.cpp"
+// Inclusión del sistema cinematográfico para el Debug Sandbox
+#include "core/CutsceneSystem.h"
+#include "core/InventoryState.h" //  AÑADE ESTA LÍNEA AQUÍ
+
+// Nuevas inclusiones del KanaraLink 
+#include "core/KanaraLink.h"
+#include "ui/KanaraPanel.h"
 
 // Declaraciones externas de los procesadores del mundo
-// Declaraciones externas de los procesadores del mundo
-extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<WorldItem>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt);
+extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<WorldItem>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt, bool& outDialogueActive, DialogueBox& outDialogueBox);
 
 // ============================================================================
 // DECLARACIONES ADELANTADAS (FORWARD DECLARATIONS)
 // ============================================================================
 class LimboGameplayState;
 class GameOverState;
+class DebugSandboxState; 
 
 #include "elements/EarthSkill.h"
+
+// ============================================================================
+// ESTADO DE DEBUG: SANDBOX PARA CINEMÁTICAS, DIÁLOGOS Y KANARALINK (MODIFICADO)
+// ============================================================================
+class DebugSandboxState : public EngineState {
+private:
+    StateManager& stateManager;
+    ShadowGFX& gfx;
+    ShadowAudio& sfx;
+    InputManager& input;
+    bool sceneTriggered;
+    bool touchPressedLastFrame;
+    Player dummyPlayer;
+
+    // 🔥 Instancias del Sistema de Líneas de Tiempo
+    KanaraLink kLink;
+    KanaraPanel kPanel;
+
+public:
+    DebugSandboxState(StateManager& sm, ShadowGFX& g, ShadowAudio& s, InputManager& in)
+        : stateManager(sm), gfx(g), sfx(s), input(in), sceneTriggered(false), touchPressedLastFrame(false) {}
+
+    void OnEnter() override {
+        SDL_Log("[DEBUG] Entrando al Sandbox de Pruebas Tecnológicas.");
+        sceneTriggered = false;
+        touchPressedLastFrame = true;
+        sfx.PlayMusic("menu_music");
+        dummyPlayer.SetElements(EARTH, DARKNESS);
+
+        // 🔥 Inicializar la semilla de prueba con las bifurcaciones y muertes simuladas
+        kLink.InitializeSandboxSeed();
+        kPanel.SetActive(false); // Inicia cerrado por defecto
+    }
+
+    void OnExit() override {
+        kPanel.SetActive(false);
+    }
+
+    void HandleInput(SDL_Event& ev) override {
+        // Si el panel de KanaraLink está activo, él absorbe por completo los eventos táctiles
+        if (kPanel.IsActive()) {
+            // 🔥 CORREGIDO: Enviamos el evento al gestor táctil del panel, NO al render
+            kPanel.HandleTouchInput(ev, kLink);
+
+            // Permitir salir del panel con el botón "Atrás" de Android o ESC en PC
+            if (ev.type == SDL_KEYDOWN) {
+                if (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_BACKSPACE) {
+                    sfx.Play("click");
+                    kPanel.SetActive(false);
+                }
+            }
+            return; // Bloquea los inputs del menú de abajo
+        }
+
+        if (ev.type == SDL_KEYDOWN) {
+            if (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_BACKSPACE) {
+                stateManager.PopState();
+            }
+            if (ev.key.keysym.sym == SDLK_i) {
+                sfx.Play("blipSelect");
+                stateManager.PushState(std::make_shared<InventoryState>(dummyPlayer, stateManager, gfx, sfx));
+            }
+            // Tecla de acceso rápido física para NeoVim/PC Sandbox
+            if (ev.key.keysym.sym == SDLK_k) {
+                sfx.Play("blipSelect");
+                kPanel.SetActive(!kPanel.IsActive());
+            }
+        }
+    }
+
+    void Update(float dt) override {
+        if (kPanel.IsActive()) {
+            kPanel.Update(dt, kLink);
+            return; // Congela la lógica de fondo del Sandbox
+        }
+
+        int mouseX, mouseY;
+        Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
+        bool isTouching = (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT));
+
+        if (isTouching && !touchPressedLastFrame) {
+            touchPressedLastFrame = true;
+
+            // 1. Botón Cinemática
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 180 && mouseY <= 240) {
+                if (!sceneTriggered) {
+                    sceneTriggered = true;
+                    sfx.Play("blipSelect");
+                    auto cutscene = std::make_shared<CutsceneState>(stateManager, gfx, sfx, input);
+
+                    CharacterProfile vectorZero;
+                    vectorZero.id = "vector_zero";
+                    vectorZero.name = "VectorZero";
+                    vectorZero.faceTexID = "face_test";
+                    vectorZero.fontID = "pixel_font";
+                    vectorZero.sfxID = "click";
+                    vectorZero.boxTexID = "box_border_1";
+                    cutscene->RegisterCharacter(vectorZero);
+
+                    CharacterProfile spicaOracle;
+                    spicaOracle.id = "spica_oracle";
+                    spicaOracle.name = "Oracle Spica";
+                    spicaOracle.faceTexID = "face_test";
+                    spicaOracle.fontID = "pixel_font";
+                    spicaOracle.sfxID = "blipSelect";
+                    spicaOracle.boxTexID = "box_border_2";
+                    cutscene->RegisterCharacter(spicaOracle);
+
+                    CutsceneAction a1;
+                    a1.type = CutsceneActionType::SHOW_DIALOGUE;
+                    a1.characterID = "vector_zero";
+                    a1.dialogueLines.push_back("¡Advertencia! Anomalia en el <shake>SECTOR 404</shake>.\nEcosistema compromised.");
+                    cutscene->AddAction(a1);
+
+                    CutsceneAction a2;
+                    a2.type = CutsceneActionType::SHOW_DIALOGUE;
+                    a2.characterID = "spica_oracle";
+                    a2.dialogueLines.push_back("Calma, ShadowRoot07... Las ondas <wave>estan estables</wave>.\nEjecutando rafaga de datos...");
+                    cutscene->AddAction(a2);
+
+                    stateManager.PushState(cutscene);
+                }
+            }
+
+            // 2. Botón Diálogos
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 270 && mouseY <= 330) {
+                sfx.Play("blipSelect");
+                auto conversation = std::make_shared<CutsceneState>(stateManager, gfx, sfx, input);
+
+                CharacterProfile vectorZero;
+                vectorZero.id = "vector_zero";
+                vectorZero.name = "VectorZero";
+                vectorZero.faceTexID = "face_test";
+                vectorZero.fontID = "pixel_font";
+                vectorZero.sfxID = "click";
+                vectorZero.boxTexID = "box_border_1";
+                conversation->RegisterCharacter(vectorZero);
+
+                CharacterProfile spicaOracle;
+                spicaOracle.id = "spica_oracle";
+                spicaOracle.name = "Oracle Spica";
+                spicaOracle.faceTexID = "face_test";
+                spicaOracle.fontID = "pixel_font";
+                spicaOracle.sfxID = "blipSelect";
+                spicaOracle.boxTexID = "box_border_2";
+                conversation->RegisterCharacter(spicaOracle);
+
+                CutsceneAction d1;
+                d1.type = CutsceneActionType::SHOW_DIALOGUE;
+                d1.characterID = "vector_zero";
+                d1.dialogueLines.push_back("Iniciando canal de comunicacion de pruebas.\n¿Me escuchas correctamente, Spica?");
+                conversation->AddAction(d1);
+
+                CutsceneAction d2;
+                d2.type = CutsceneActionType::SHOW_DIALOGUE;
+                d2.characterID = "spica_oracle";
+                d2.dialogueLines.push_back("Fuerte y claro. El bufer de texto responde.\nTipografia y retraso de bytes estables.");
+                conversation->AddAction(d2);
+
+                stateManager.PushState(conversation);
+            }
+
+            // 3. Botón Inventario
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 360 && mouseY <= 420) {
+                sfx.Play("blipSelect");
+                SDL_Log("[DEBUG-TACTIL] Desplegando Inventario Nativo OverWrite...");
+                auto invState = std::make_shared<InventoryState>(dummyPlayer, stateManager, gfx, sfx);
+                stateManager.PushState(invState);
+            }
+
+            // 🔥 4. NUEVO BOTÓN TÁCTIL: DESPLEGAR ARBOL KANARALINK
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 450 && mouseY <= 510) {
+                sfx.Play("blipSelect");
+                SDL_Log("[DEBUG-TACTIL] Interceptando viewport: Abriendo KanaraLink...");
+                kPanel.SetActive(true);
+            }
+
+            // 5. Botón Salir
+            if (mouseX >= 660 && mouseX <= 760 && mouseY >= 20 && mouseY <= 70) {
+                sfx.Play("blipSelect");
+                SDL_Log("[DEBUG-TACTIL] Saliendo del Laboratorio de Debug.");
+                stateManager.PopState();
+                return;
+            }
+        }
+
+        if (!isTouching) {
+            touchPressedLastFrame = false;
+        }
+    }
+
+    void Render() override {
+        SDL_Renderer* currentRenderer = SDL_GetRenderer(SDL_GL_GetCurrentWindow());
+        
+        // Si el panel de líneas de tiempo está activo, se renderiza encima de todo y cortamos el flujo ordinario
+        if (kPanel.IsActive()) {
+            kPanel.Render(currentRenderer, &gfx, kLink);
+            return; 
+        }
+
+        SDL_SetRenderDrawColor(currentRenderer, 10, 10, 15, 255);
+        SDL_RenderClear(currentRenderer);
+
+        SDL_Color green = {0, 255, 120, 255};
+        SDL_Color white = {255, 255, 255, 255};
+        SDL_Color cyan = {0, 255, 255, 255};
+        SDL_Color purple = {170, 0, 255, 255};
+        SDL_Color neonGreen = {0, 255, 150, 255};
+        SDL_Color red = {255, 50, 50, 255};
+
+        gfx.DrawText("--- MODE: DEBUG SANDBOX ---", "pixel_font", 400, 40, green, true);
+
+        SDL_Rect rectCine = { 150, 150, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 20, 20, 40, 255);
+        SDL_RenderFillRect(currentRenderer, &rectCine);
+        SDL_SetRenderDrawColor(currentRenderer, 0, 255, 120, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectCine);
+        gfx.DrawText("1. EJECUTAR CINEMATICA COMPLETA", "pixel_font", 400, 165, white, true);
+
+        SDL_Rect rectDiag = { 150, 225, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 20, 20, 40, 255);
+        SDL_RenderFillRect(currentRenderer, &rectDiag);
+        SDL_SetRenderDrawColor(currentRenderer, 0, 255, 255, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectDiag);
+        gfx.DrawText("2. PROBAR DIALOGOS DE CONVERSACION", "pixel_font", 400, 240, cyan, true);
+
+        SDL_Rect rectInv = { 150, 300, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 20, 20, 40, 255);
+        SDL_RenderFillRect(currentRenderer, &rectInv);
+        SDL_SetRenderDrawColor(currentRenderer, 170, 0, 255, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectInv);
+        gfx.DrawText("3. ABRIR INVENTARIO MATEMÁTICO [I]", "pixel_font", 400, 315, purple, true);
+
+        // 🔥 CAJA VISUAL DEL NUEVO BOTÓN DE KANARALINK
+        SDL_Rect rectKanara = { 150, 375, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 10, 30, 25, 255);
+        SDL_RenderFillRect(currentRenderer, &rectKanara);
+        SDL_SetRenderDrawColor(currentRenderer, 0, 255, 150, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectKanara);
+        gfx.DrawText("4. VER GRAFICO DE LINEAS DE TIEMPO [K]", "pixel_font", 400, 390, neonGreen, true);
+
+        SDL_Rect rectSalir = { 660, 20, 100, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 40, 10, 10, 255);
+        SDL_RenderFillRect(currentRenderer, &rectSalir);
+        SDL_SetRenderDrawColor(currentRenderer, 255, 50, 50, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectSalir);
+        gfx.DrawText("[X] SALIR", "pixel_font", 710, 35, red, true);
+
+        if (sceneTriggered) {
+            gfx.DrawText("Cinemática procesada. Recarga volviendo a entrar.", "pixel_font", 400, 500, green, true);
+        }
+    }
+};
 
 // ============================================================================
 // 1. ESTADO: MENÚ PRINCIPAL
@@ -77,9 +333,32 @@ public:
 
     void Render() override {
         SDL_Color titleColor = {0, 255, 150, 255};
+        SDL_Color debugTextColor = {0, 255, 255, 255}; // Cyan brillante para que resalte
+        
         gfx.DrawText("VECTORZERO: OverWrite", "pixel_font", 400, 100, titleColor, true);
+        
+        // Renderiza tus opciones normales (Play, Settings, etc.)
         menu.Render(gfx);
 
+        // --- CAJA VISUAL DEL BOTÓN TÁCTIL DE DEBUG ---
+        int btnX = 250;
+        int btnY = 460;
+        int btnW = 300;
+        int btnH = 50;
+
+        // Dibujamos un rectángulo de fondo para el botón
+        SDL_Rect rectDebug = { btnX, btnY, btnW, btnH };
+        SDL_SetRenderDrawColor(renderer, 20, 20, 40, 255); // Fondo oscuro
+        SDL_RenderFillRect(renderer, &rectDebug);
+        
+        // Dibujamos el borde del botón táctil
+        SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Borde cyan
+        SDL_RenderDrawRect(renderer, &rectDebug);
+
+        // Texto centrado dentro del botón táctil
+        gfx.DrawText("LABORATORIO DEBUG (TOUCH)", "pixel_font", 400, 475, debugTextColor, true);
+
+        // Render del UI del sistema
         ui.Render(renderer, gfx, input, dummyPlayer);
     }
 };
@@ -101,12 +380,15 @@ private:
     std::vector<Projectile> bullets;
     std::vector<Platform> level;
 
-    std::vector<WorldItem> items; // <<-- CAMBIADO AQUÍ
+    std::vector<WorldItem> items;
     std::vector<InteractiveObject> objects;
+
+    DialogueBox activeDialogueBox;
+    bool isDialogueActive = false;
 
 public:
     LimboGameplayState(SDL_Renderer* rend, ShadowGFX& g, ShadowAudio& s, InputManager& in, UIManager& u, StateManager& sm)
-        : renderer(rend), gfx(g), sfx(s), input(in), ui(u), camera(800, 600), stateManager(sm) {}
+        : renderer(rend), gfx(g), sfx(s), input(in), ui(u), camera(800, 600), stateManager(sm), isDialogueActive(false) {}
 
        void OnEnter() override {
         // Puestos al puro inicio para congelar el análisis de bytes antes del crash
@@ -141,10 +423,23 @@ public:
         camera.mapMaxHeight = (int)lowestPoint;
 
         SDL_Log("[ShadowCamera] Ajuste de scroll extendido a 3000px. Suelo MaxHeight: %d", camera.mapMaxHeight);
+
+        isDialogueActive = false;
     }
 
     void OnExit() override {}
-    void HandleInput(SDL_Event& ev) override {}
+    void HandleInput(SDL_Event& ev) override {
+        // Si hay un diálogo activo, capturamos el botón 'X' para avanzar páginas
+        if (isDialogueActive && ev.type == SDL_KEYDOWN) {
+            if (ev.key.keysym.sym == SDLK_x || ev.key.keysym.sym == SDLK_RETURN) {
+                sfx.Play("click");
+                if (activeDialogueBox.AdvancePage()) {
+                    // Si AdvancePage() devuelve true, significa que no quedan más páginas de texto
+                    isDialogueActive = false;
+                }
+            }
+        }
+    }
 
     // Solo declaramos Update aquí, lo implementamos abajo del todo
     void Update(float dt) override;
@@ -229,6 +524,10 @@ public:
         }
 
         ui.Render(renderer, gfx, input, player);
+
+        if (isDialogueActive) {
+            activeDialogueBox.Render(gfx, renderer);
+        }
     }
 
 };
@@ -274,17 +573,42 @@ public:
 // ============================================================================
 
 void MainMenuState::Update(float dt) {
-    // Si ya iniciamos la transición, congelamos el update para no clonar memoria
-    if (transitionStarted) return; 
+    // Si ya inició la transición, congelamos para evitar clonar memoria
+    if (transitionStarted) return;
 
+    // 1. Lógica nativa de tu menú existente
     menu.Update(input, sfx);
     if (menu.GetState() == START_GAME) {
-        // Bloqueamos futuras ejecuciones de este bloque de código
-        transitionStarted = true; 
-
+        transitionStarted = true;
         SDL_Log("[ShadowEngine] Traba de seguridad activada. Cargando assets del mapa...");
         auto gameplayState = std::make_shared<LimboGameplayState>(renderer, gfx, sfx, input, ui, stateManager);
         stateManager.ChangeState(gameplayState);
+        return;
+    }
+
+    // 2. DETECTOR TÁCTIL EXCLUSIVO UTILIZANDO LA API NATIVA DE SDL2
+    int btnX = 250;
+    int btnY = 460;
+    int btnW = 300;
+    int btnH = 50;
+
+    int mouseX, mouseY;
+    // SDL_GetMouseState obtiene las coordenadas actuales del puntero/touch
+    // y devuelve una máscara de bits con los botones presionados.
+    Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
+
+    // Verificamos si el botón izquierdo (que emula el toque en Android) está presionado
+    if (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+        // Verificamos si las coordenadas del toque cayeron dentro de la caja del botón de Debug
+        if (mouseX >= btnX && mouseX <= (btnX + btnW) &&
+            mouseY >= btnY && mouseY <= (btnY + btnH)) {
+
+            sfx.Play("blipSelect"); // Sonido de feedback táctil
+            SDL_Log("[DEBUG-TACTIL] ¡Botón presionado con el touch! Entrando al Sandbox...");
+
+            auto debugSandbox = std::make_shared<DebugSandboxState>(stateManager, gfx, sfx, input);
+            stateManager.PushState(debugSandbox);
+        }
     }
 }
 
@@ -294,6 +618,12 @@ void LimboGameplayState::Update(float dt) {
         auto gameOver = std::make_shared<GameOverState>(renderer, gfx, sfx, input, ui, stateManager);
         stateManager.ChangeState(gameOver);
         return;
+    }
+
+    if (isDialogueActive) {
+        // Actualiza el efecto typewriter (animación de letras de la caja base)
+        activeDialogueBox.Update(dt);
+        return; // Retornamos inmediatamente bloqueando enemigos, proyectiles y gravedad
     }
 
     player.HandleInput(input, sfx);
@@ -310,7 +640,8 @@ void LimboGameplayState::Update(float dt) {
     player.Update(dt);
     
     // ProcessWorld actualiza el movimiento y reduce el 'lifetime' de las plataformas TEMPORARY
-    ProcessWorld(player, level, enemies, bullets, items, objects, input, sfx, dt);
+    // BUSCA DONDE SE LLAMA A PROCESSWORLD EN TU UPDATE (Línea ~581) Y DÉJALO ASÍ:
+    ProcessWorld(player, level, enemies, bullets, items, objects, input, sfx, dt, isDialogueActive, activeDialogueBox);
 
     // ============================================================================
     // RECOLECTOR DE BASURA: Limpieza automática de la RAM en el Vector de Niveles
@@ -420,6 +751,13 @@ int main(int argc, char* argv[]) {
     gfx.GetTexture("background_base", "sprites/funds/fondo_base_default.png");
     gfx.GetTexture("background_gameover", "sprites/funds/fondo_GameOver.png");
 
+    // Carga de Assets para Diálogos y Cinemáticas (Usa rutas relativas desde assets/)
+    gfx.GetTexture("face_test", "sprites/dialogues/Ejemplo_f1_c2.png");
+    gfx.GetTexture("box_border_1", "sprites/dialogues/Borde_1.png");
+    gfx.GetTexture("box_border_2", "sprites/dialogues/Borde_2.png");
+    gfx.GetTexture("bark_bubble", "sprites/dialogues/bark_bubble.png");
+    gfx.GetTexture("burst_test", "sprites/cinematics/escene_default_f3_c5.png");
+
     // Audio
     sfx.LoadSound("jump", "jump.wav");
     sfx.LoadSound("double_jump", "jump.wav");
@@ -490,107 +828,121 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+#ifndef CUTSCENE_SYSTEM_H
+#define CUTSCENE_SYSTEM_H
 
-
---- include/Common.h ---
-#ifndef COMMON_H
-#define COMMON_H
-
-#include <SDL.h>
 #include <string>
-
-// Definiciones de botones para mapeo rápido
-const SDL_Scancode BTN_Z = SDL_SCANCODE_Z;
-const SDL_Scancode BTN_X = SDL_SCANCODE_X;
-const SDL_Scancode BTN_F = SDL_SCANCODE_F;
-
-struct Vector2 { float x, y; };
-struct Rect { float x, y, w, h; };
-
-enum ElementType { FIRE, AIR, LIGHT, EARTH, WATER, DARKNESS, NONE };
-
-struct Entity {
-    Vector2 pos;
-    Vector2 vel;
-    Rect hitbox;
-    bool isGrounded;
-};
-
-enum EnemyType { WALKER, FLYER, TURRET };
-
-struct Projectile {
-    Vector2 pos;
-    Vector2 vel;
-    Rect hitbox;
-    bool active;
-};
-
-namespace Assets {
-    const std::string BTN_F_PATH = "sprites/ui/botonF.bmp";
-    const std::string BTN_X_PATH = "sprites/ui/botonX.bmp";
-    const std::string BTN_Z_PATH = "sprites/ui/button_z.bmp"; // Ojo: en tu ls -R se llama button_z.bmp, no botonZ.bmp
-    const std::string JOY_BASE_PATH = "sprites/ui/joystick_base.bmp";
-    const std::string JOY_KNOB_PATH = "sprites/ui/joystick_knob.bmp";
-}
-
-#endif
-
-
---- include/core/StateManager.h ---
-#ifndef STATE_MANAGER_H
-#define STATE_MANAGER_H
-
 #include <vector>
+#include <queue>
 #include <memory>
+#include <functional>
 #include <SDL.h>
+#include "core/StateManager.h"
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include "input/InputManager.h"
 
-// Los estados fundamentales que planificamos para NeonAtaraxia
-enum class GameState {
-    MENU,
-    GAMEPLAY,
-    CUTSCENE,
-    DIALOGUE,
-    INVENTORY
+// Estructura interna para parsear efectos de texto enriquecido de forma segura
+struct RichChar {
+    char character;
+    bool shake;
+    bool wave;
 };
 
-// Clase base abstracta para cualquier estado del juego
-class EngineState {
-public:
-    virtual ~EngineState() = default;
-    
-    virtual void OnEnter() = 0;
-    virtual void OnExit() = 0;
-    virtual void HandleInput(SDL_Event& ev) = 0;
-    virtual void Update(float dt) = 0;
-    virtual void Render() = 0;
+// ============================================================================
+// 1. PERFIL DE PERSONAJE (CONFIGURACIÓN ESTILO UNDERTALE / CELESTE)
+// ============================================================================
+struct CharacterProfile {
+    std::string id;          // Ej: "vector_zero", "oracle_spica"
+    std::string name;        // Nombre legible que se dibujará en la caja
+    std::string faceTexID;   // ID de la textura del portrait cargada en ShadowGFX
+    std::string fontID;      // ID de la fuente cargada (por defecto "pixel_font")
+    std::string sfxID;       // Sonido tipo "chirp" o "click" exclusivo al hablar
+    std::string boxTexID;    // Sprite personalizado para el borde de su caja
 };
 
-// El gestor que administra la pila de estados
-class StateManager {
+// ============================================================================
+// 2. ARQUITECTURA DE COMANDOS SECUENCIALES (ACTION QUEUE)
+// ============================================================================
+enum class CutsceneActionType {
+    MOVE_ENTITY,      
+    PLAY_ANIM,        
+    WAIT,             
+    SHOW_DIALOGUE,    
+    PLAY_AUDIO,       
+    PLAY_BURST_ANIM,  
+    TRIGGER_EVENT     
+};
+
+struct CutsceneAction {
+    CutsceneActionType type;
+
+    std::string targetID;     
+    float targetX = 0.0f;     
+    float targetY = 0.0f;     
+    float duration = 0.0f;    
+    int targetFrame = 0;      
+
+    std::vector<std::string> dialogueLines;
+    std::string characterID;   
+
+    std::function<void()> eventCallback = nullptr;
+};
+
+// ============================================================================
+// 3. ESTADO DE CINEMÁTICA: CONTROL CENTRALIZADO DEL MOTOR
+// ============================================================================
+class CutsceneState : public EngineState {
 public:
-    StateManager() = default;
-    ~StateManager() { Clear(); }
+    CutsceneState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in);
+    ~CutsceneState() override = default;
 
-    void PushState(std::shared_ptr<EngineState> state);
-    void PopState();
-    void ChangeState(std::shared_ptr<EngineState> state); // Borra el actual y pone uno nuevo
-    void Clear();
+    void OnEnter() override;
+    void OnExit() override;
+    void HandleInput(SDL_Event& ev) override;
+    void Update(float dt) override;
+    void Render() override;
 
-    void HandleInput(SDL_Event& ev);
-    void Update(float dt);
-    void Render();
-
-    bool IsEmpty() const { return states.empty(); }
+    void AddAction(const CutsceneAction& action);
+    void RegisterCharacter(const CharacterProfile& profile);
+    bool IsCinematicFinished() const { return actionQueue.empty() && !isActionActive; }
 
 private:
-    std::vector<std::shared_ptr<EngineState>> states; // Pila de estados
+    void ProcessNextAction();
+    void UpdateCurrentAction(float dt);
+    
+    // Método auxiliar para construir líneas procesadas con saltos automáticos (Word Wrap)
+    void PrepareDialogueTokens(const std::string& rawText);
+
+    StateManager& stateManager;
+    ShadowGFX& gfx;
+    ShadowAudio& audio;
+    InputManager& input;
+
+    std::queue<CutsceneAction> actionQueue;
+    CutsceneAction currentAction;
+
+    std::vector<CharacterProfile> registeredCharacters;
+
+    float actionTimer;
+    bool isActionActive;
+    bool isDialogueActive;
+
+    // --- VARIABLES NUEVAS PARA EL EFECTO TELETIPO (MECÁNICAS 1, 2 Y 3) ---
+    std::vector<RichChar> parsedTokens; // Almacén indexado del diálogo actual
+    size_t visibleCharsCount;           // Cuántos caracteres se han mostrado de la lista
+    float textTimer;                    // Acumulador de tiempo para la siguiente letra
+    float currentLetterDelay;           // Retraso actual (dinámico por puntos/comas)
+    bool isTextComplete;                // Flag para bloquear el avance rápido accidental
+
+    int currentBurstFrame;
+    float burstFrameTimer;
+
+    CharacterProfile fallbackProfile;
+    const CharacterProfile& GetCharacter(const std::string& id) const;
 };
 
-#endif
-
-
-
---- include/core/DialogueState.h ---
+#endif // CUTSCENE_SYSTEM_H
 #ifndef DIALOGUE_STATE_H
 #define DIALOGUE_STATE_H
 
@@ -646,9 +998,344 @@ private:
 
 #endif
 
+#ifndef GAMEPLAY_BACKEND_H
+#define GAMEPLAY_BACKEND_H
 
+#include "Common.h"
+#include <unordered_map>
+#include <vector>
 
---- include/core/TimeLine.h ---
+class Player; // Forward declaration para interactuar con las stats del jugador
+
+class GameplayBackend {
+private:
+    std::vector<StatusEffect> activeEffects;
+    std::unordered_map<std::string, bool> worldFlags; // Banderas de la historia
+
+    // Parámetros de progresión matemática
+    const float expBase = 100.0f;
+    const float expExponent = 1.5f;
+
+public:
+    GameplayBackend();
+    ~GameplayBackend() = default;
+
+    // --- SISTEMA MATEMÁTICO Y COMBATE ---
+    float CalculateMitigatedDamage(float incomingDamage, float defense);
+    int CalculateRequiredEXP(int currentLevel);
+    
+    // --- GESTOR DE EFECTOS TEMPORALES (MINECRAFT STYLE) ---
+    void AddEffect(StatusEffectType type, float duration, float intensity);
+    void UpdateEffects(float dt, Player& player);
+    bool HasEffect(StatusEffectType type) const;
+
+    // --- DEGRADACIÓN DINÁMICA (ZELDA BOTW STYLE) ---
+    // Retorna la cantidad de durabilidad exacta a restar
+    float ProcessDurabilityLoss(float baseCost, ItemUsageContext context, float materialFragility);
+
+    // --- MEMORIA DE SUCESOS (STORY FLAGS) ---
+    void SetFlag(const std::string& flagID, bool value);
+    bool GetFlag(const std::string& flagID);
+    
+    // Inicializa las suscripciones al Bus de Eventos
+    void InitEventBindings();
+};
+
+#endif
+#ifndef GAMEPLAY_EVENT_BUS_H
+#define GAMEPLAY_EVENT_BUS_H
+
+#include "Common.h"
+#include <vector>
+#include <functional>
+
+class GameplayEventBus {
+public:
+    using EventCallback = std::function<void(const GameplayEvent&)>;
+
+    // Singleton táctico para acceder desde cualquier parte del motor
+    static GameplayEventBus& Instance() {
+        static GameplayEventBus instance;
+        return instance;
+    }
+
+    // Registrar un oyente (Observer) para un tipo de evento específico
+    void Subscribe(GameplayEventType type, EventCallback callback) {
+        listeners[type].push_back(callback);
+    }
+
+    // Publicar un evento en el bus para notificar a todos los interesados
+    void Publish(const GameplayEvent& ev) {
+        for (auto& callback : listeners[ev.type]) {
+            callback(ev);
+        }
+    }
+
+    void Clear() {
+        listeners.clear();
+    }
+
+private:
+    GameplayEventBus() = default;
+    std::unordered_map<GameplayEventType, std::vector<EventCallback>> listeners;
+};
+
+#endif
+#ifndef INVENTORY_STATE_H
+#define INVENTORY_STATE_H
+
+#include "core/StateManager.h"
+#include "player/Player.h"
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include <SDL.h>
+#include <iostream>
+
+enum class MenuTab { ITEMS, STATS, EQUIPMENT };
+
+class InventoryState : public EngineState {
+
+private:
+    void RenderItemsPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon);
+    void RenderStatsPage(SDL_Renderer* renderer);
+    void RenderEquipmentPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon);   
+
+    Player& player;
+    StateManager& stateManager;
+    ShadowGFX& gfx;
+    ShadowAudio& audio;
+
+    MenuTab activeTab = MenuTab::ITEMS;
+    int cursorIndex = 0;
+
+    // --- VARIABLES DE INTERFAZ INTEGRALES ---
+    SDL_Rect closeButtonRect = { 680, 70, 30, 30 };
+
+    // Control de Gestos (Swipe)
+    float touchStartX = 0.0f;
+    bool potentialSwipe = false;
+
+    // Control de Drag & Drop
+    int draggedSlotIndex = -1;
+    bool isDragging = false;
+    int mouseX = 0, mouseY = 0;
+
+    // Menú Contextual
+    bool isContextMenuOpen = false;
+    int contextSlotIndex = -1;
+    SDL_Rect btnUseRect = { 0, 0, 0, 0 };
+    SDL_Rect btnDropRect = { 0, 0, 0, 0 };
+
+    // Tooltip Dinámico
+    std::string tooltipText = "";
+    float tooltipTimer = 0.0f;
+
+    const std::string fontID = "main";
+
+    // Regiones de Pestañas
+    SDL_Rect tabRects[3] = {
+        { 100, 75, 120, 35 },
+        { 240, 75, 120, 35 },
+        { 380, 75, 120, 35 }
+    };
+
+    // Dimensiones de Grilla
+    const int startX = 120;
+    const int startY = 150;
+    const int slotSize = 48;
+    const int padding = 12;
+    const int columnas = 5;
+
+    int GetSlotIndexAt(int mx, int my);
+    
+    // Métodos privados auxiliares para simplificar el Render principal
+
+public:
+    InventoryState(Player& p, StateManager& sm, ShadowGFX& g, ShadowAudio& a);
+
+    void OnEnter() override;
+    void OnExit() override;
+    void HandleInput(SDL_Event& ev) override;
+    void Update(float dt) override;
+    void Render() override;
+};
+
+#endif // INVENTORY_STATE_H
+#ifndef KANARALINK_H
+#define KANARALINK_H
+
+#include <vector>
+#include <string>
+#include "Common.h"
+#include <map>
+
+// Estructura que congela el estado exacto de ShadowRoot07 en un punto del tiempo
+struct PlayerSnapshot {
+    Vector2 pos;
+    float health;
+    int coins;
+    int gems;
+    int nivel;
+    int expActual;
+    int mp;
+};
+
+// Estructura de cada Nodo Temporal (Vértice del árbol gráfico)
+struct TemporalNode {
+    uint32_t id;
+    uint32_t parentId;
+    std::vector<uint32_t> childrenIds;
+
+    int treeX;
+    int treeY;
+
+    float currentAngle = 0.0f;
+    float rotationSpeed = 0.0f;
+    float rotationDirection = 1.0f;
+    SDL_Color color = { 255, 255, 255, 255 };
+
+    int deathCount;
+    bool isEstablished;
+
+    int mapID;
+    PlayerSnapshot playerState;
+    
+    // Cambiado para clonar fielmente el estado de tu GameplayBackend
+    std::map<std::string, bool> worldEventFlags; 
+};
+
+class KanaraLink {
+public:
+    KanaraLink();
+    ~KanaraLink();
+
+    // Inicializa un árbol con nodos de prueba para nuestro Sandbox (Fase 1)
+    void InitializeSandboxSeed();
+
+    // Gestión del Árbol Lógico
+    // include/core/KanaraLink.h
+// Añadimos parentOverrideId al final con un valor por defecto
+    void CreateSavePoint(const PlayerSnapshot& playerState, int currentMapID, const std::vector<bool>& currentEvents, int64_t parentOverrideId = -1);
+    bool LoadSavePoint(uint32_t nodeId, PlayerSnapshot& outPlayerState, int& outMapID);
+    
+    // Incrementa muertes en el nodo activo (Lógica de líneas corruptas)
+    void RegisterPlayerDeath();
+
+    // Getters para el renderizado del árbol
+    const std::vector<TemporalNode>& GetTemporalNodes() const { return nodes; }
+    uint32_t GetActiveNodeID() const { return activeNodeId; }
+    
+    // Encuentra un nodo específico por su ID
+    const TemporalNode* FindNode(uint32_t id) const;
+
+private:
+    std::vector<TemporalNode> nodes;
+    uint32_t activeNodeId;
+    uint32_t nextNodeId;
+
+    // Genera coordenadas ordenadas de forma automática para el árbol de prueba
+    void PositionNodeInTree(TemporalNode& node, int level, int branchOffset);
+};
+
+#endif // KANARALINK_H
+#ifndef STATE_MANAGER_H
+#define STATE_MANAGER_H
+
+#include <vector>
+#include <memory>
+#include <SDL.h>
+
+// Los estados fundamentales que planificamos para NeonAtaraxia
+enum class GameState {
+    MENU,
+    GAMEPLAY,
+    CUTSCENE,
+    DIALOGUE,
+    INVENTORY
+};
+
+// Clase base abstracta para cualquier estado del juego
+class EngineState {
+public:
+    virtual ~EngineState() = default;
+    
+    virtual void OnEnter() = 0;
+    virtual void OnExit() = 0;
+    virtual void HandleInput(SDL_Event& ev) = 0;
+    virtual void Update(float dt) = 0;
+    virtual void Render() = 0;
+};
+
+// El gestor que administra la pila de estados
+class StateManager {
+public:
+    StateManager() = default;
+    ~StateManager() { Clear(); }
+
+    void PushState(std::shared_ptr<EngineState> state);
+    void PopState();
+    void ChangeState(std::shared_ptr<EngineState> state); // Borra el actual y pone uno nuevo
+    void Clear();
+
+    void HandleInput(SDL_Event& ev);
+    void Update(float dt);
+    void Render();
+
+    bool IsEmpty() const { return states.empty(); }
+
+private:
+    std::vector<std::shared_ptr<EngineState>> states; // Pila de estados
+};
+
+#endif
+
+#ifndef STORY_EVENT_MANAGER_H
+#define STORY_EVENT_MANAGER_H
+
+#include <unordered_map>
+#include <string>
+
+class StoryEventManager {
+public:
+    static StoryEventManager& GetInstance() {
+        static StoryEventManager instance;
+        return instance;
+    }
+
+    // Registrar o cambiar el estado de un evento/flag de la historia
+    void SetFlag(const std::string& flagName, bool value) {
+        storyFlags[flagName] = value;
+    }
+
+    // Verificar si un evento ya ocurrió
+    bool GetFlag(const std::string& flagName) const {
+        auto it = storyFlags.find(flagName);
+        if (it != storyFlags.end()) {
+            return it->second;
+        }
+        return false; // Por defecto el evento no ha ocurrido
+    }
+
+    // Limpiar banderas (útil para reiniciar partida o saltar de línea temporal)
+    void ClearFlags() {
+        storyFlags.clear();
+    }
+
+    // El KanaraLink usará esto directamente para serializar a JSON en el futuro
+    const std::unordered_map<std::string, bool>& GetAllFlags() const {
+        return storyFlags;
+    }
+
+    void LoadAllFlags(const std::unordered_map<std::string, bool>& loadedFlags) {
+        storyFlags = loadedFlags;
+    }
+
+private:
+    StoryEventManager() = default;
+    std::unordered_map<std::string, bool> storyFlags;
+};
+
+#endif // STORY_EVENT_MANAGER_H
 #ifndef TIMELINE_H
 #define TIMELINE_H
 
@@ -699,101 +1386,637 @@ public:
 
 #endif
 
+#ifndef TIMEMACHINE_STATE_H
+#define TIMEMACHINE_STATE_H
 
-
---- include/ui/DialogueBox.h ---
-#ifndef DIALOGUE_BOX_H
-#define DIALOGUE_BOX_H
-
-#include <string>
-#include <vector>
-#include <SDL.h>
+#include "core/StateManager.h"
+#include "core/TimeLine.h"
 #include "gfx/ShadowGFX.h"
 #include "gfx/ShadowAudio.h"
+#include "ui/DialogueBox.h"
+#include <vector>
+#include <cmath>
+#include <algorithm>
 
-class DialogueBox {
+class TimeMachineState : public EngineState {
 public:
-    DialogueBox();
+    TimeMachineState(StateManager& stack, ShadowGFX* graphics, SDL_Renderer* rawRenderer, ShadowAudio* sfx, nlohmann::json currentGameState)
+        : stateManager(stack), gfx(graphics), renderer(rawRenderer), audio(sfx), activeSaveData(currentGameState), selectedNodeIndex(0) {
+        srand(static_cast<unsigned int>(SDL_GetTicks()));
+        InitializeTimeLine();
+    }
 
-    // Configura la lista de diálogos a mostrar
-    void StartDialogue(const std::vector<std::string>& lines, const std::string& fontId);
+    void OnEnter() override {
+        audio->Play("blipSelect");
+        // Inicializamos burbuja temporal de diálogo
+        std::vector<std::string> intro = {"DISPOSITIVO CRONOLOGICO ACTIVO: Seleccione un nodo temporal o salte al vacio."};
+        dialogueBubble.StartDialogue(intro, "main_font");
+    }
 
-    // <<-- SOLUCIONADO: Las dos firmas que necesita el Linker puestas de forma única
-    // Actualiza la animación con audio dinámico
-    void Update(float dt, class ShadowAudio& sfx, const std::string& sfxId = "click");
-    
-    // Sobrecarga limpia estándar
-    void Update(float dt);
+    void OnExit() override {
+        audio->Play("blipSelect");
+    }
 
-    // Dibuja la caja de fondo y el subconjunto de texto animado
-    void Render(ShadowGFX& gfx, SDL_Renderer* renderer);
+    void HandleInput(SDL_Event& ev) override {
+        if (ev.type == SDL_KEYDOWN) {
+            if (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_g) {
+                stateManager.PopState(); // Cerrar máquina del tiempo
+                return;
+            }
 
-    // Avanza a la siguiente línea de texto. Si terminó todas, retorna true
-    bool AdvancePage();
+            // Navegación horizontal por la línea temporal (Flechas)
+            if (ev.key.keysym.sym == SDLK_RIGHT) {
+                if (selectedNodeIndex < nodes.size()) {
+                    selectedNodeIndex++;
+                    audio->Play("click");
+                    UpdateBubbleText();
+                }
+            }
+            else if (ev.key.keysym.sym == SDLK_LEFT) {
+                if (selectedNodeIndex > 0) {
+                    selectedNodeIndex--;
+                    audio->Play("click");
+                    UpdateBubbleText();
+                }
+            }
 
-    // Devuelve si el texto de la página actual terminó de deletrearse por completo
-    bool IsPageFinished() const { return charIndex >= currentText.length(); }
+            // Confirmar Acción (Tecla Z para Guardar / Cargar)
+            if (ev.key.keysym.sym == SDLK_z) {
+                if (selectedNodeIndex == nodes.size()) {
+                    // --- SALTO AL VACÍO: CREAR NUEVO PUNTO DE GUARDADO ---
+                    CreateNewTimelineNode();
+                } else {
+                    // Cargar o sobreescribir en nodo existente
+                    audio->Play("blipSelect");
+                    SDL_Log("TimeMachine: Nodo %s seleccionado para procesamiento.", nodes[selectedNodeIndex].nodeHash.c_str());
+                }
+            }
+        }
+    }
 
-    // Devuelve si el diálogo completo llegó a su fin
-    bool IsDialogueComplete() const { return dialogueFinished; }
+    void Update(float dt) override {
+        dialogueBubble.Update(dt, *audio, "click");
+    }
+
+    void Render() override {
+        // 1. EFECTO DE OLAS MATEMÁTICAS (Fondo Negro/Morado)
+        Uint32 ticks = SDL_GetTicks();
+        SDL_SetRenderDrawColor(renderer, 10, 5, 15, 255); // Fondo casi negro
+        SDL_RenderClear(renderer);
+
+        // Renderizado de las olas moradas usando líneas senoidales reactivas al tiempo
+        SDL_SetRenderDrawColor(renderer, 100, 30, 140, 50); // Morado translúcido
+        for (int i = 0; i < 800; i += 4) {
+            float wave1 = std::sin(ticks * 0.001f + i * 0.005f) * 40.0f;
+            float wave2 = std::cos(ticks * 0.002f + i * 0.01f) * 20.0f;
+            int yPos = static_cast<int>(300 + wave1 + wave2);
+            SDL_RenderDrawLine(renderer, i, yPos - 50, i, yPos + 150);
+        }
+
+        // 2. RENDERIZADO DE LAS CONEXIONES COHERENTES (Líneas de colores aleatorios estables)
+        for (size_t i = 0; i < nodes.size() - 1; ++i) {
+            SDL_SetRenderDrawColor(renderer, connectionColors[i].r, connectionColors[i].g, connectionColors[i].b, 255);
+            SDL_RenderDrawLine(renderer, (int)nodes[i].x, (int)nodes[i].y, (int)nodes[i+1].x, (int)nodes[i+1].y);
+        }
+
+        // Conexión ficticia hacia el "Vacío"
+        if (!nodes.empty()) {
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 100); // Línea discontinua/tenue al vacío
+            SDL_RenderDrawLine(renderer, (int)nodes.back().x, (int)nodes.back().y, 680, 300);
+        }
+
+        // 3. RENDERIZADO DE LOS NODOS (Bolas de colores)
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            SDL_Rect r = { (int)nodes[i].x - 12, (int)nodes[i].y - 12, 24, 24 };
+            SDL_SetRenderDrawColor(renderer, nodes[i].color.r, nodes[i].color.g, nodes[i].color.b, 255);
+            SDL_RenderFillRect(renderer, &r); // Representación geométrica compacta del nodo
+        }
+
+        // Nodo del "Vacío" (Representa la opción de crear un nuevo punto futuro)
+        SDL_Rect voidRect = { 680 - 10, 300 - 10, 20, 20 };
+        SDL_SetRenderDrawColor(renderer, 30, 30, 40, 255);
+        SDL_RenderDrawRect(renderer, &voidRect);
+
+        // 4. PINTAR LA FLECHA VERDE DE SELECCIÓN DE LA MÁQUINA DEL TIEMPO
+        int arrowX = (selectedNodeIndex == nodes.size()) ? 680 : (int)nodes[selectedNodeIndex].x;
+        int arrowY = (selectedNodeIndex == nodes.size()) ? 300 - 35 : (int)nodes[selectedNodeIndex].y - 35;
+        
+        SDL_Color greenArrow = { 0, 255, 100, 255 };
+        gfx->DrawText("V", "main_font", arrowX, arrowY, greenArrow, true);
+
+        // 5. RENDER DE LA BURBUJA DE CONTEXTO TEMPORAL
+        dialogueBubble.Render(*gfx, renderer);
+    }
 
 private:
-    std::vector<std::string> dialoguePages;
-    std::string currentText;
-    std::string activeFontId;
-    size_t currentPage;
+    StateManager& stateManager;
+    ShadowGFX* gfx;
+    SDL_Renderer* renderer;
+    ShadowAudio* audio;
+    nlohmann::json activeSaveData;
 
-    float charTimer;
-    float textSpeed; // Segundos entre cada carácter (ej: 0.04s)
-    size_t charIndex;
+    std::vector<TimeNode> nodes;
+    std::vector<SDL_Color> connectionColors;
+    size_t selectedNodeIndex;
+    DialogueBox dialogueBubble;
 
-    bool dialogueFinished;
+    void InitializeTimeLine() {
+        nodes.clear();
+        connectionColors.clear();
+
+        // Generamos dinámicamente 4 nodos de ejemplo en la línea temporal para poblar el mapa
+        int startX = 150;
+        for (int i = 0; i < 4; ++i) {
+            TimeNode n;
+            n.id = i;
+            n.x = static_cast<float>(startX + (i * 130));
+            n.y = static_cast<float>(280 + (rand() % 60 - 30)); // Desviación vertical mística
+            n.color = TimeLineGenerator::GenerateRandomColor();
+            n.nodeHash = "NODE_0x" + TimeLineGenerator::GenerateRandomHash(4);
+            
+            // Slot interno ficticio de prueba
+            n.slots.push_back({ "SLOT_" + TimeLineGenerator::GenerateRandomHash(3), "Limbo Lab", "18:00", activeSaveData });
+            nodes.push_back(n);
+
+            if (i > 0) {
+                connectionColors.push_back(TimeLineGenerator::GenerateRandomColor());
+            }
+        }
+    }
+
+    void UpdateBubbleText() {
+        std::vector<std::string> lines;
+        if (selectedNodeIndex == nodes.size()) {
+            lines = {"[ EL VACIO QUANTICO ] - Selecciona para ramificar una nueva linea de tiempo."};
+        } else {
+            auto& n = nodes[selectedNodeIndex];
+            lines = {"LINEA: " + n.nodeHash + " | MUNDO: " + n.slots[0].worldName + " (" + n.slots[0].slotId + ")"};
+        }
+        dialogueBubble.StartDialogue(lines, "main_font");
+    }
+
+    void CreateNewTimelineNode() {
+        audio->Play("powerUp"); // Sonido épico de distorsión temporal
+        TimeNode n;
+        n.id = static_cast<int>(nodes.size());
+        n.x = static_cast<float>(150 + (nodes.size() * 130));
+        n.y = static_cast<float>(280 + (rand() % 60 - 30));
+        n.color = TimeLineGenerator::GenerateRandomColor();
+        n.nodeHash = "NEW_0x" + TimeLineGenerator::GenerateRandomHash(4);
+        n.slots.push_back({ "SLOT_" + TimeLineGenerator::GenerateRandomHash(3), "Mystery of Limbo", "18:05", activeSaveData });
+        
+        nodes.push_back(n);
+        connectionColors.push_back(TimeLineGenerator::GenerateRandomColor());
+        
+        // El motor escribe físicamente los datos en el storage a través del ecosistema JSON
+        std::string filename = "examples/Limbo/assets/maps/save_timeline.json";
+        std::string dataString = activeSaveData.dump(4);
+        
+        SDL_RWops* rw = SDL_RWFromFile(filename.c_str(), "wb");
+        if (rw) {
+            SDL_RWwrite(rw, dataString.c_str(), 1, dataString.length());
+            SDL_RWclose(rw);
+            SDL_Log("TimeMachine: Registro cronologico salvado exitosamente en storage local.");
+        }
+        
+        UpdateBubbleText();
+    }
 };
 
 #endif
 
+#include "ui/KanaraPanel.h"
 
---- include/ui/UIManager.h ---
-#ifndef UIMANAGER_H
-#define UIMANAGER_H
+#include "player/Player.h"  
+#include "core/GameplayEventBus.h"
 
-#include <SDL.h>
-#include "input/InputManager.h"
-#include "gfx/ShadowGFX.h"
+#include <sstream>
+#include <iomanip>
 
-class Player;
+KanaraPanel::KanaraPanel() {
+    InitializeMenuOptions();
+}
 
-class UIManager {
-public:
-    UIManager();
-    // Recibe la librería de texturas
-    bool LoadAssets(ShadowGFX& gfx);
-    void Render(SDL_Renderer* renderer, ShadowGFX& gfx, const InputManager& input, const Player& player);
-    void Clean();
-};
+void KanaraPanel::InitializeMenuOptions() {
+    menuOptions.clear();
 
-#endif
+    std::vector<std::string> names = { "SAVE", "LOAD", "CONFIG", "BIGFILE", "RESET", "CLOSE" };
+    
+    // 🔥 EMPUJE SEGURO: Movemos el origen X bien a la derecha para saltarnos la franja negra
+    int startX = 110;       // Antes estaba muy bajo, ahora se desplaza a la derecha con seguridad
+    int startY = 40;        // Un poco más de aire en el eje Y
+    int buttonWidth = 140;  // Ancho generoso para que quepan palabras largas como BIGFILE
+    int buttonHeight = 35;  // Altura cómoda para la pulsación táctil
+    int spacingY = 12;      // Separación uniforme entre cajas
 
+    for (size_t i = 0; i < names.size(); ++i) {
+        MenuOption option;
+        option.name = names[i];
+        option.bounds.x = startX;
+        option.bounds.y = startY + static_cast<int>(i) * (buttonHeight + spacingY);
+        option.bounds.w = buttonWidth;
+        option.bounds.h = buttonHeight;
 
+        menuOptions.push_back(option);
+    }
+}
 
---- include/world/LevelLoader.h ---
-#ifndef LEVEL_LOADER_H
-#define LEVEL_LOADER_H
+void KanaraPanel::Render(SDL_Renderer* renderer, ShadowGFX* gfx, KanaraLink& core) {
+    if (!isActive) return;
 
-#include <string>
-#include <vector>
-#include "world/Platform.h"
-#include "world/Enemy.h"
-#include "player/Player.h"
+    // 1. Dibujar Rejilla de Fondo Cyberpunk
+    DrawGrid(renderer);
 
-// Firma del cargador de niveles actualizada a la nueva nomenclatura del mapa
-std::vector<Platform> LoadLevel(
-    const std::string& jsonPath,
-    const std::string& assetRoot,
-    std::vector<Enemy>& enemies,
-    Player& player,
-    std::vector<WorldItem>& items, // <<-- CAMBIADO: De Item a WorldItem
-    std::vector<InteractiveObject>& objects
-);
+    // 2. Renderizar aristas y nodos del grafo (Se saltan los detalles matemáticos de ayer para ahorrar espacio)
+    const auto& nodes = core.GetTemporalNodes();
+    // ... (Parte inicial de Render con DrawGrid y las líneas/aristas) ...
 
-#endif
+    // ====================================================================
+    // 1. DIBUJAR ARISTAS / LÍNEAS DE CONEXIÓN (Siempre Primero)
+    // ====================================================================
+    SDL_SetRenderDrawColor(renderer, 100, 120, 140, 150); // Gris azulado semi-transparente
+    for (const auto& node : nodes) {
+        for (uint32_t childId : node.childrenIds) {
+            const TemporalNode* child = core.FindNode(childId);
+            if (child) {
+                float startX = node.treeX * zoomScale + offsetX;
+                float startY = node.treeY * zoomScale + offsetY;
+                float endX = child->treeX * zoomScale + offsetX;
+                float endY = child->treeY * zoomScale + offsetY;
+                SDL_RenderDrawLine(renderer, static_cast<int>(startX), static_cast<int>(startY), 
+                                             static_cast<int>(endX), static_cast<int>(endY));
+            }
+        }
+    }
+
+    // ====================================================================
+    // 2. DIBUJAR ROMBOS Y TEXTOS CONDICIONALES
+    // ====================================================================
+    for (const auto& node : nodes) {
+        float scrX = node.treeX * zoomScale + offsetX;
+        float scrY = node.treeY * zoomScale + offsetY;
+        SDL_Color renderColor = node.color;
+        bool isSelected = (static_cast<int>(node.id) == selectedNodeId);
+        
+        if (isSelected) {
+            renderColor = { 255, 255, 255, 255 }; // Blanco para el seleccionado
+        }
+    
+        // Renderizar rombo
+        RenderRotatedSquare(renderer, scrX, scrY, NODE_SIZE, node.currentAngle, renderColor);
+
+        // 🔥 SOLUCIÓN ERROR 2: El hash solo se calcula e imprime si el nodo está SELECCIONADO
+        if (isSelected) {
+            std::stringstream hexStream;
+            hexStream << "0x" << std::uppercase << std::setfill('0') << std::setw(7) << std::hex << node.id;
+            std::string shortHexID = hexStream.str();
+
+            // Color Cyan Neón para que resalte la metadata flotante
+            SDL_Color idColor = { 0, 255, 255, 255 }; 
+        
+            // Dibujar el identificador centrado arriba del nodo
+            gfx->DrawText(shortHexID, "pixel_font", static_cast<int>(scrX) - 35, static_cast<int>(scrY) - 25, idColor, false);
+        }
+    }
+
+    // ====================================================================
+    // 3. RENDERIZADO DE LA BOTONERA (CON AJUSTE DE RESOLUCIÓN LÓGICA)
+    // ====================================================================
+    float oldScaleX, oldScaleY;
+    SDL_RenderGetScale(renderer, &oldScaleX, &oldScaleY);
+    
+    int screenW, screenH;
+    SDL_GetRendererOutputSize(renderer, &screenW, &screenH);
+    SDL_RenderSetScale(renderer, screenW / 800.0f, screenH / 600.0f);
+
+    for (size_t i = 0; i < menuOptions.size(); ++i) {
+        SDL_Color textColor = { 0, 190, 255, 255 }; // Cyan Base
+
+        if (hoveredOption == static_cast<int>(i)) {
+            textColor = { 255, 0, 128, 255 }; // Rosa Neón
+        }
+
+        // Dibujamos el rectángulo de colisión recolocado
+        SDL_SetRenderDrawColor(renderer, textColor.r, textColor.g, textColor.b, 255);
+        SDL_RenderDrawRect(renderer, &menuOptions[i].bounds);
+
+        // Desplazamos el texto +15 píxeles a la derecha de la caja para centrarlo estéticamente
+        gfx->DrawText(menuOptions[i].name, "pixel_font", menuOptions[i].bounds.x + 15, menuOptions[i].bounds.y + 8, textColor, false);
+    }
+
+    SDL_RenderSetScale(renderer, oldScaleX, oldScaleY);    
+
+    // ====================================================================
+    // 4. VENTANA EMERGENTE TEMPORAL (NOTIFICACIONES EN PARTE INFERIOR)
+    // ====================================================================
+    if (showNotification) {
+        // Definimos una caja flotante en la zona inferior céntrica (Coordenadas virtuales 800x600)
+        SDL_Rect bannerRect;
+        bannerRect.x = 150;  // Centrado horizontalmente en una cuadrícula de 800 de ancho
+        bannerRect.y = 520;  // Elevado 80 píxeles desde el fondo virtual
+        bannerRect.w = 500;  // Ancho del contenedor
+        bannerRect.h = 45;   // Alto del contenedor
+
+        // Fondo oscuro semitransparente para que no tape completamente el fondo del mapa
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 10, 15, 25, 230); // Fondo Cyberpunk Azul Oscuro
+        SDL_RenderFillRect(renderer, &bannerRect);
+
+        // Borde neón (Color Cyan si es guardado, Rosa si es carga)
+        SDL_Color edgeColor = { 0, 255, 180, 255 }; // Verde/Cyan por defecto
+        if (notificationText.find("RESTAURADA") != std::string::npos) {
+            edgeColor = { 255, 0, 128, 255 }; // Rosa Neón para cargas temporales
+        }
+        
+        SDL_SetRenderDrawColor(renderer, edgeColor.r, edgeColor.g, edgeColor.b, 255);
+        SDL_RenderDrawRect(renderer, &bannerRect);
+
+        // Renderizado del texto informativo dentro de la ventana emergente
+        // Calculamos un pequeño offset para que la fuente pixel_font quede simétrica
+        gfx->DrawText(notificationText, "pixel_font", bannerRect.x + 25, bannerRect.y + 14, edgeColor, false);
+    }
+}
+
+void KanaraPanel::HandleTouchInput(SDL_Event& ev, KanaraLink& core) {
+    if (!isActive) return;
+
+    // Procesamos coordenadas del evento táctil escaladas a tu UI (1280x720)
+    float mx = ev.tfinger.x * 800.0f;
+    float my = ev.tfinger.y * 600.0f;
+
+    // Verificar si el toque intersecta con la botonera fija de la esquina superior derecha
+    int currentHover = -1;
+    for (size_t i = 0; i < menuOptions.size(); ++i) {
+        const SDL_Rect& b = menuOptions[i].bounds;
+        if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+            currentHover = static_cast<int>(i);
+            break;
+        }
+    }
+
+    // --- MANEJO DE EVENTOS DE ENTRADA ---
+    if (ev.type == SDL_FINGERDOWN) {
+        TouchFinger finger = { ev.tfinger.fingerId, ev.tfinger.x, ev.tfinger.y };
+        activeFingers.push_back(finger);
+
+        if (currentHover != -1) {
+            // Si tocamos un botón, el Hover se enciende y cancelamos el inicio de arrastre del árbol
+            hoveredOption = currentHover;
+            isDragging = false;
+        } else if (activeFingers.size() == 1) {
+            isDragging = true;
+            lastTouchX = ev.tfinger.x;
+            lastTouchY = ev.tfinger.y;
+        } else if (activeFingers.size() == 2) {
+            isDragging = false;
+            isZooming = true;
+            float dx = activeFingers[0].x - activeFingers[1].x;
+            float dy = activeFingers[0].y - activeFingers[1].y;
+            lastFingerDistance = std::sqrt(dx * dx + dy * dy);
+        }
+    }
+    
+    else if (ev.type == SDL_FINGERMOTION) {
+        for (auto& finger : activeFingers) {
+            if (finger.id == ev.tfinger.fingerId) {
+                finger.x = ev.tfinger.x;
+                finger.y = ev.tfinger.y;
+            }
+        }
+
+        // Actualizar el estado de hover dinámicamente si el dedo se arrastra por el menú
+        if (activeFingers.size() == 1 && currentHover != -1) {
+            hoveredOption = currentHover;
+        } else if (currentHover == -1) {
+            hoveredOption = -1; // Limpiar hover si el dedo se sale de la zona
+        }
+
+        if (isDragging && !isZooming && hoveredOption == -1) {
+            float dx = (ev.tfinger.x - lastTouchX) * 1280.0f;
+            float dy = (ev.tfinger.y - lastTouchY) * 720.0f;
+            offsetX += dx;
+            offsetY += dy;
+            lastTouchX = ev.tfinger.x;
+            lastTouchY = ev.tfinger.y;
+        } 
+        else if (isZooming && activeFingers.size() == 2) {
+            float dx = activeFingers[0].x - activeFingers[1].x;
+            float dy = activeFingers[0].y - activeFingers[1].y;
+            float currentDistance = std::sqrt(dx * dx + dy * dy);
+
+            if (lastFingerDistance > 0.0f) {
+                float deltaDistance = currentDistance - lastFingerDistance;
+                zoomScale += deltaDistance * 2.0f;
+                zoomScale = std::clamp(zoomScale, MIN_ZOOM, MAX_ZOOM);
+            }
+            lastFingerDistance = currentDistance;
+        }
+    } 
+    
+    else if (ev.type == SDL_FINGERUP) {
+        activeFingers.erase(
+            std::remove_if(activeFingers.begin(), activeFingers.end(),
+                [&](const TouchFinger& f) { return f.id == ev.tfinger.fingerId; }),
+            activeFingers.end()
+        );
+
+        // Si soltamos el dedo dentro de una de las opciones del menú superior
+        if (hoveredOption != -1 && currentHover == hoveredOption) {
+            // EXECUTOR DE OPERACIONES DEL KANARALINK
+            switch (hoveredOption) {
+                case 0: // 💾 SAVE
+                    {
+                        // 1. Extraemos los datos actuales del Player real de tu partida
+                        Player& player = GlobalGameplay::GetPlayer(); // Ajusta según cómo accedas a tu instancia
+                        PlayerSnapshot currentSnapshot;
+                        currentSnapshot.pos = player.GetPos();
+                        currentSnapshot.health = player.GetHealth();
+                        currentSnapshot.coins = player.coinsCollected;
+                        currentSnapshot.gems = player.gemsCollected;
+                        currentSnapshot.nivel = player.GetLevel();
+                        currentSnapshot.expActual = player.GetExp();
+                        currentSnapshot.mp = player.GetMp();
+
+                        int currentMapID = GlobalGameplay::GetCurrentMapID();
+                        std::vector<bool> currentEvents = GlobalGameplay::GetEventFlags();
+
+                        // 2. Guardamos en el árbol lógico
+                        core.CreateSavePoint(currentSnapshot, currentMapID, currentEvents);
+
+                        // 3. Activamos la ventana temporal de aviso
+                        showNotification = true;
+                        notificationText = "NUEVO PUNTO DE GUARDADO ESTABLECIDO";
+                        notificationTimer = NOTIFICATION_DURATION;
+                    }
+                    break;
+
+                case 1: // ⏳ LOAD
+                    if (selectedNodeId != -1) {
+                        PlayerSnapshot loadedState;
+                        int loadedMapID = -1;
+
+                        if (core.LoadSavePoint(static_cast<uint32_t>(selectedNodeId), loadedState, loadedMapID)) {
+                            
+                            // 1. Sincronizamos los atributos privados del jugador con el pasado
+                            GlobalGameplay::GetPlayer().ApplySnapshotState(loadedState);
+                            
+                            // 2. Cambiamos el mapa del motor
+                            GlobalGameplay::ChangeMapScene(loadedMapID);
+                            
+                            // 3. Preparamos la notificación que verá el jugador al regresar
+                            showNotification = true;
+                            notificationText = "LINEA TEMPORAL RESTAURADA CON EXITO";
+                            notificationTimer = NOTIFICATION_DURATION;
+
+                            // Cerramos el panel para volver al gameplay de inmediato
+                            isActive = false; 
+                        }
+                    }
+                    break;
+                case 2: // CONFIG
+                    break;
+                case 3: // BIGFILE
+                    break;
+                case 4: // RESET
+                    offsetX = 0.0f;
+                    offsetY = 0.0f;
+                    zoomScale = 1.0f;
+                    break;
+                case 5: // CLOSE
+                    isActive = false; // Ocultar el panel de inmediato
+                    break;
+            }
+            hoveredOption = -1; // Resetear hover tras ejecución
+        }
+
+        if (activeFingers.size() < 2) {
+            isZooming = false;
+            lastFingerDistance = 0.0f;
+        }
+        if (activeFingers.empty()) {
+            isDragging = false;
+
+            // Selección de nodos normales (sólo si no se tocó el menú superior)
+            if (currentHover == -1 && !isZooming) {
+                bool nodeClicked = false;
+                const auto& nodes = core.GetTemporalNodes();
+
+                for (const auto& node : nodes) {
+                    float nodeScrX = node.treeX * zoomScale + offsetX;
+                    float nodeScrY = node.treeY * zoomScale + offsetY;
+
+                    float dx = mx - nodeScrX;
+                    float dy = my - nodeScrY;
+                    float distance = std::sqrt(dx * dx + dy * dy);
+                    float hitRadius = (NODE_SIZE * zoomScale) / 1.5f + 15.0f;
+
+                    if (distance <= hitRadius) {
+                        selectedNodeId = static_cast<int>(node.id);
+                        nodeClicked = true;
+                        break;
+                    }
+                }
+                if (!nodeClicked) selectedNodeId = -1;
+            }
+        }
+    }
+}
+
+void KanaraPanel::Update(float deltaTime, KanaraLink& core) {
+    if (!isActive) return;
+
+    auto& mutNodes = const_cast<std::vector<TemporalNode>&>(core.GetTemporalNodes());
+
+    for (auto& node : mutNodes) {
+        // Si el nodo es nuevo o sus propiedades de rotación están en 0, lo inicializamos
+        if (node.rotationSpeed == 0.0f) {
+            node.rotationSpeed = 15.0f + static_cast<float>(rand() % 20);
+            node.rotationDirection = (rand() % 2 == 0) ? 1.0f : -1.0f;
+            node.currentAngle = static_cast<float>(rand() % 360);
+            
+            // 🔥 SOLUCIÓN: Si el color del nodo es blanco (o no se ha definido), le damos su identidad neón
+            if (node.color.r == 255 && node.color.g == 255 && node.color.b == 255) {
+                std::vector<SDL_Color> neonPalette = {
+                    { 0, 255, 180, 255 },   // Verde Neón
+                    { 0, 255, 255, 255 },   // Cyan Eléctrico
+                    { 255, 0, 128, 255 },   // Rosa Cyberpunk
+                    { 255, 200, 0, 255 },   // Amarillo Oro
+                    { 180, 0, 255, 255 },   // Púrpura Alta Intensidad
+                    { 255, 60, 0, 255 }     // Naranja Vibrante
+                };
+                node.color = neonPalette[rand() % neonPalette.size()];
+            }
+        }
+        
+        // Aplicar la rotación física del frame
+        node.currentAngle += node.rotationSpeed * node.rotationDirection * deltaTime;
+        if (node.currentAngle > 360.0f) node.currentAngle -= 360.0f;
+        if (node.currentAngle < 0.0f) node.currentAngle += 360.0f;
+
+    }
+}
+
+// ============================================================================
+// FUNCIONES RECUPERADAS: GEOMETRÍA Y REJILLA DE FONDO
+// ============================================================================
+
+void KanaraPanel::RenderRotatedSquare(SDL_Renderer* renderer, float centerX, float centerY, float size, float angle, SDL_Color color) {
+    float rad = angle * (M_PI / 180.0f);
+    float halfSize = (size * zoomScale) / 2.0f;
+
+    // Matriz de rotación basada en el ángulo actual del nodo
+    float cosA = std::cos(rad);
+    float sinA = std::sin(rad);
+
+    // Definición de los 4 vértices locales del cuadrado mapeados desde su centro
+    SDL_Vertex vertices[4];
+    float localX[4] = { -halfSize,  halfSize, halfSize, -halfSize };
+    float localY[4] = { -halfSize, -halfSize,  halfSize,  halfSize };
+
+    for (int i = 0; i < 4; ++i) {
+        // Rotación trigonométrica + Traslación a coordenadas de pantalla con Zoom y Offset
+        float rotX = localX[i] * cosA - localY[i] * sinA;
+        float rotY = localX[i] * sinA + localY[i] * cosA;
+
+        vertices[i].position.x = centerX + rotX;
+        vertices[i].position.y = centerY + rotY;
+        vertices[i].color = color;
+        vertices[i].tex_coord = { 0.0f, 0.0f };
+    }
+
+    // Índices de renderizado por hardware (Dividimos el cuadrado en 2 triángulos)
+    int indices[6] = { 0, 1, 2, 0, 2, 3 };
+
+    // Invocación a la geometría nativa por hardware de SDL2
+    SDL_RenderGeometry(renderer, nullptr, vertices, 4, indices, 6);
+}
+
+void KanaraPanel::DrawGrid(SDL_Renderer* renderer) {
+    // Fondo oscuro base estilo terminal Cyberpunk (RGB: 20, 24, 34)
+    SDL_SetRenderDrawColor(renderer, 20, 24, 34, 255);
+    SDL_RenderClear(renderer);
+
+    // Color de las líneas de la rejilla (RGB: 35, 40, 55)
+    SDL_SetRenderDrawColor(renderer, 35, 40, 55, 255);
+    
+    // El tamaño de la cuadrícula escala con el zoom
+    int gridSize = static_cast<int>(40 * zoomScale);
+    if (gridSize < 10) gridSize = 10; // Evitar divisiones por cero o bucles infinitos
+
+    // Ajuste del punto de inicio basado en el desplazamiento de la cámara (Drag)
+    int startX = static_cast<int>(offsetX) % gridSize;
+    int startY = static_cast<int>(offsetY) % gridSize;
+
+    int w, h;
+    SDL_GetRendererOutputSize(renderer, &w, &h);
+
+    // Dibujar líneas verticales
+    for (int x = startX; x < w; x += gridSize) {
+        SDL_RenderDrawLine(renderer, x, 0, x, h);
+    }
+    // Dibujar líneas horizontales
+    for (int y = startY; y < h; y += gridSize) {
+        SDL_RenderDrawLine(renderer, 0, y, w, y);
+    }
+}
+

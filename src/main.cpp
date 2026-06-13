@@ -21,12 +21,18 @@
 #include "input/InputManager.h"
 #include "core/StateManager.h"
 #include "world/LevelLoader.h"
+#include "ui/DialogueBox.h"
 
 // Inclusión del sistema cinematográfico para el Debug Sandbox
 #include "core/CutsceneSystem.h"
+#include "core/InventoryState.h" //  AÑADE ESTA LÍNEA AQUÍ
+
+// Nuevas inclusiones del KanaraLink 
+#include "core/KanaraLink.h"
+#include "ui/KanaraPanel.h"
 
 // Declaraciones externas de los procesadores del mundo
-extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<WorldItem>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt);
+extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<WorldItem>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt, bool& outDialogueActive, DialogueBox& outDialogueBox);
 
 // ============================================================================
 // DECLARACIONES ADELANTADAS (FORWARD DECLARATIONS)
@@ -38,7 +44,7 @@ class DebugSandboxState;
 #include "elements/EarthSkill.h"
 
 // ============================================================================
-// ESTADO DE DEBUG: SANDBOX PARA CINEMÁTICAS Y DIÁLOGOS (CORREGIDO PARA MÓVIL)
+// ESTADO DE DEBUG: SANDBOX PARA CINEMÁTICAS, DIÁLOGOS Y KANARALINK (MODIFICADO)
 // ============================================================================
 class DebugSandboxState : public EngineState {
 private:
@@ -47,9 +53,12 @@ private:
     ShadowAudio& sfx;
     InputManager& input;
     bool sceneTriggered;
-
-    // Control de debounce para evitar que un solo toque registre múltiples clicks seguidos
     bool touchPressedLastFrame;
+    Player dummyPlayer;
+
+    // 🔥 Instancias del Sistema de Líneas de Tiempo
+    KanaraLink kLink;
+    KanaraPanel kPanel;
 
 public:
     DebugSandboxState(StateManager& sm, ShadowGFX& g, ShadowAudio& s, InputManager& in)
@@ -58,35 +67,69 @@ public:
     void OnEnter() override {
         SDL_Log("[DEBUG] Entrando al Sandbox de Pruebas Tecnológicas.");
         sceneTriggered = false;
-        touchPressedLastFrame = true; // Evita activar algo por arrastrar el toque desde el menú
+        touchPressedLastFrame = true;
         sfx.PlayMusic("menu_music");
+        dummyPlayer.SetElements(EARTH, DARKNESS);
+
+        // 🔥 Inicializar la semilla de prueba con las bifurcaciones y muertes simuladas
+        kLink.InitializeSandboxSeed();
+        kPanel.SetActive(false); // Inicia cerrado por defecto
     }
 
-    void OnExit() override {}
+    void OnExit() override {
+        kPanel.SetActive(false);
+    }
 
-    // Dejamos HandleInput vacío para el teclado y controlamos todo por coordenadas en el Update
     void HandleInput(SDL_Event& ev) override {
-        if (ev.type == SDL_KEYDOWN && (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_BACKSPACE)) {
-            stateManager.PopState();
+        // Si el panel de KanaraLink está activo, absorbe los eventos
+        if (kPanel.IsActive()) {
+            // 🔥 MODIFICADO: Ahora pasamos kLink Y TAMBIÉN dummyPlayer
+            kPanel.HandleTouchInput(ev, kLink, dummyPlayer);
+            
+            // Permitir salir del panel con el botón "Atrás" de Android o ESC en PC
+            if (ev.type == SDL_KEYDOWN) {
+                if (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_BACKSPACE) {
+                    sfx.Play("click");
+                    kPanel.SetActive(false);
+                }
+            }
+            return;
+        }
+
+        if (ev.type == SDL_KEYDOWN) {
+            if (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_BACKSPACE) {
+                stateManager.PopState();
+            }
+            if (ev.key.keysym.sym == SDLK_i) {
+                sfx.Play("blipSelect");
+                stateManager.PushState(std::make_shared<InventoryState>(dummyPlayer, stateManager, gfx, sfx));
+            }
+            // Tecla de acceso rápido física para NeoVim/PC Sandbox
+            if (ev.key.keysym.sym == SDLK_k) {
+                sfx.Play("blipSelect");
+                kPanel.SetActive(!kPanel.IsActive());
+            }
         }
     }
 
     void Update(float dt) override {
+        if (kPanel.IsActive()) {
+            kPanel.Update(dt, kLink);
+            return; // Congela la lógica de fondo del Sandbox
+        }
+
         int mouseX, mouseY;
         Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
         bool isTouching = (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT));
 
-        // Solo actuamos en el instante exacto en que el dedo toca la pantalla (FRENTE DE ONDA)
         if (isTouching && !touchPressedLastFrame) {
             touchPressedLastFrame = true;
 
-            // --- 1. BOTÓN TÁCTIL: PROBAR CINEMÁTICA COMPLETA ---
-            // Rectángulo: X(150 a 650), Y(220 a 280)
-            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 220 && mouseY <= 280) {
+            // 1. Botón Cinemática
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 180 && mouseY <= 240) {
                 if (!sceneTriggered) {
                     sceneTriggered = true;
                     sfx.Play("blipSelect");
-                    
                     auto cutscene = std::make_shared<CutsceneState>(stateManager, gfx, sfx, input);
 
                     CharacterProfile vectorZero;
@@ -110,36 +153,22 @@ public:
                     CutsceneAction a1;
                     a1.type = CutsceneActionType::SHOW_DIALOGUE;
                     a1.characterID = "vector_zero";
-                    a1.dialogueLines.push_back("¡Advertencia! Anomalía en el <shake>SECTOR 404</shake>.\nEcosistema compromised.");
+                    a1.dialogueLines.push_back("¡Advertencia! Anomalia en el <shake>SECTOR 404</shake>.\nEcosistema compromised.");
                     cutscene->AddAction(a1);
 
                     CutsceneAction a2;
                     a2.type = CutsceneActionType::SHOW_DIALOGUE;
                     a2.characterID = "spica_oracle";
-                    a2.dialogueLines.push_back("Calma, ShadowRoot07... Las ondas <wave>están estables</wave>.\nEjecutando ráfaga de datos...");
+                    a2.dialogueLines.push_back("Calma, ShadowRoot07... Las ondas <wave>estan estables</wave>.\nEjecutando rafaga de datos...");
                     cutscene->AddAction(a2);
-
-                    CutsceneAction a3;
-                    a3.type = CutsceneActionType::WAIT;
-                    a3.duration = 1.5f;
-                    cutscene->AddAction(a3);
-
-                    CutsceneAction a4;
-                    a4.type = CutsceneActionType::PLAY_BURST_ANIM;
-                    a4.targetID = "burst_test";
-                    a4.duration = 0.12f;
-                    a4.targetFrame = 15;
-                    cutscene->AddAction(a4);
 
                     stateManager.PushState(cutscene);
                 }
             }
 
-            // --- 2. BOTÓN TÁCTIL: PROBAR DIÁLOGOS DE CONVERSACIÓN ---
-            // Rectángulo: X(150 a 650), Y(310 a 370)
-            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 310 && mouseY <= 370) {
+            // 2. Botón Diálogos
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 270 && mouseY <= 330) {
                 sfx.Play("blipSelect");
-                
                 auto conversation = std::make_shared<CutsceneState>(stateManager, gfx, sfx, input);
 
                 CharacterProfile vectorZero;
@@ -163,20 +192,34 @@ public:
                 CutsceneAction d1;
                 d1.type = CutsceneActionType::SHOW_DIALOGUE;
                 d1.characterID = "vector_zero";
-                d1.dialogueLines.push_back("Iniciando canal de comunicación de pruebas.\n¿Me escuchas correctamente, Spica?");
+                d1.dialogueLines.push_back("Iniciando canal de comunicacion de pruebas.\n¿Me escuchas correctamente, Spica?");
                 conversation->AddAction(d1);
 
                 CutsceneAction d2;
                 d2.type = CutsceneActionType::SHOW_DIALOGUE;
                 d2.characterID = "spica_oracle";
-                d2.dialogueLines.push_back("Fuerte y claro. El búfer de texto responde.\nTipografía y retraso de bytes estables.");
+                d2.dialogueLines.push_back("Fuerte y claro. El bufer de texto responde.\nTipografia y retraso de bytes estables.");
                 conversation->AddAction(d2);
 
                 stateManager.PushState(conversation);
             }
 
-            // --- 3. BOTÓN TÁCTIL RECTANGULAR PARA SALIR ("X") ---
-            // Rectángulo: X(660 a 760), Y(20 a 70) -> Zona del letrero [X] SALIR
+            // 3. Botón Inventario
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 360 && mouseY <= 420) {
+                sfx.Play("blipSelect");
+                SDL_Log("[DEBUG-TACTIL] Desplegando Inventario Nativo OverWrite...");
+                auto invState = std::make_shared<InventoryState>(dummyPlayer, stateManager, gfx, sfx);
+                stateManager.PushState(invState);
+            }
+
+            // 🔥 4. NUEVO BOTÓN TÁCTIL: DESPLEGAR ARBOL KANARALINK
+            if (mouseX >= 150 && mouseX <= 650 && mouseY >= 450 && mouseY <= 510) {
+                sfx.Play("blipSelect");
+                SDL_Log("[DEBUG-TACTIL] Interceptando viewport: Abriendo KanaraLink...");
+                kPanel.SetActive(true);
+            }
+
+            // 5. Botón Salir
             if (mouseX >= 660 && mouseX <= 760 && mouseY >= 20 && mouseY <= 70) {
                 sfx.Play("blipSelect");
                 SDL_Log("[DEBUG-TACTIL] Saliendo del Laboratorio de Debug.");
@@ -186,48 +229,69 @@ public:
         }
 
         if (!isTouching) {
-            touchPressedLastFrame = false; // El usuario levantó el dedo, liberamos el botón
+            touchPressedLastFrame = false;
         }
     }
 
     void Render() override {
         SDL_Renderer* currentRenderer = SDL_GetRenderer(SDL_GL_GetCurrentWindow());
+        
+        // Si el panel de líneas de tiempo está activo, se renderiza encima de todo y cortamos el flujo ordinario
+        if (kPanel.IsActive()) {
+            kPanel.Render(currentRenderer, &gfx, kLink);
+            return; 
+        }
+
         SDL_SetRenderDrawColor(currentRenderer, 10, 10, 15, 255);
         SDL_RenderClear(currentRenderer);
 
         SDL_Color green = {0, 255, 120, 255};
         SDL_Color white = {255, 255, 255, 255};
         SDL_Color cyan = {0, 255, 255, 255};
+        SDL_Color purple = {170, 0, 255, 255};
+        SDL_Color neonGreen = {0, 255, 150, 255};
         SDL_Color red = {255, 50, 50, 255};
 
-        gfx.DrawText("--- MODE: DEBUG SANDBOX ---", "pixel_font", 400, 100, green, true);
+        gfx.DrawText("--- MODE: DEBUG SANDBOX ---", "pixel_font", 400, 40, green, true);
 
-        // --- DISEÑO DEL BOTÓN 1: CINEMÁTICA ---
-        SDL_Rect rectCine = { 150, 220, 500, 60 };
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 20, 20, 40, 255);
-        SDL_RenderFillRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectCine);
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 0, 255, 120, 255);
-        SDL_RenderDrawRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectCine);
-        gfx.DrawText("1. EJECUTAR CINEMATICA COMPLETA", "pixel_font", 400, 240, white, true);
+        SDL_Rect rectCine = { 150, 150, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 20, 20, 40, 255);
+        SDL_RenderFillRect(currentRenderer, &rectCine);
+        SDL_SetRenderDrawColor(currentRenderer, 0, 255, 120, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectCine);
+        gfx.DrawText("1. EJECUTAR CINEMATICA COMPLETA", "pixel_font", 400, 165, white, true);
 
-        // --- DISEÑO DEL BOTÓN 2: CONVERSACIÓN / DIÁLOGOS ---
-        SDL_Rect rectDiag = { 150, 310, 500, 60 };
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 20, 20, 40, 255);
-        SDL_RenderFillRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectDiag);
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 0, 255, 255, 255);
-        SDL_RenderDrawRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectDiag);
-        gfx.DrawText("2. PROBAR DIALOGOS DE CONVERSACION", "pixel_font", 400, 330, cyan, true);
+        SDL_Rect rectDiag = { 150, 225, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 20, 20, 40, 255);
+        SDL_RenderFillRect(currentRenderer, &rectDiag);
+        SDL_SetRenderDrawColor(currentRenderer, 0, 255, 255, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectDiag);
+        gfx.DrawText("2. PROBAR DIALOGOS DE CONVERSACION", "pixel_font", 400, 240, cyan, true);
 
-        // --- DISEÑO DEL BOTÓN DE SALIDA (ZONA DE PULSACIÓN EXACTA) ---
+        SDL_Rect rectInv = { 150, 300, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 20, 20, 40, 255);
+        SDL_RenderFillRect(currentRenderer, &rectInv);
+        SDL_SetRenderDrawColor(currentRenderer, 170, 0, 255, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectInv);
+        gfx.DrawText("3. ABRIR INVENTARIO MATEMÁTICO [I]", "pixel_font", 400, 315, purple, true);
+
+        // 🔥 CAJA VISUAL DEL NUEVO BOTÓN DE KANARALINK
+        SDL_Rect rectKanara = { 150, 375, 500, 50 };
+        SDL_SetRenderDrawColor(currentRenderer, 10, 30, 25, 255);
+        SDL_RenderFillRect(currentRenderer, &rectKanara);
+        SDL_SetRenderDrawColor(currentRenderer, 0, 255, 150, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectKanara);
+        gfx.DrawText("4. VER GRAFICO DE LINEAS DE TIEMPO [K]", "pixel_font", 400, 390, neonGreen, true);
+
         SDL_Rect rectSalir = { 660, 20, 100, 50 };
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 40, 10, 10, 255);
-        SDL_RenderFillRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectSalir);
-        SDL_SetRenderDrawColor(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), 255, 50, 50, 255);
-        SDL_RenderDrawRect(SDL_GetRenderer(SDL_GL_GetCurrentWindow()), &rectSalir);
+        SDL_SetRenderDrawColor(currentRenderer, 40, 10, 10, 255);
+        SDL_RenderFillRect(currentRenderer, &rectSalir);
+        SDL_SetRenderDrawColor(currentRenderer, 255, 50, 50, 255);
+        SDL_RenderDrawRect(currentRenderer, &rectSalir);
         gfx.DrawText("[X] SALIR", "pixel_font", 710, 35, red, true);
 
         if (sceneTriggered) {
-            gfx.DrawText("Cinemática procesada. Recarga volviendo a entrar.", "pixel_font", 400, 450, green, true);
+            gfx.DrawText("Cinemática procesada. Recarga volviendo a entrar.", "pixel_font", 400, 500, green, true);
         }
     }
 };
@@ -316,12 +380,15 @@ private:
     std::vector<Projectile> bullets;
     std::vector<Platform> level;
 
-    std::vector<WorldItem> items; // <<-- CAMBIADO AQUÍ
+    std::vector<WorldItem> items;
     std::vector<InteractiveObject> objects;
+
+    DialogueBox activeDialogueBox;
+    bool isDialogueActive = false;
 
 public:
     LimboGameplayState(SDL_Renderer* rend, ShadowGFX& g, ShadowAudio& s, InputManager& in, UIManager& u, StateManager& sm)
-        : renderer(rend), gfx(g), sfx(s), input(in), ui(u), camera(800, 600), stateManager(sm) {}
+        : renderer(rend), gfx(g), sfx(s), input(in), ui(u), camera(800, 600), stateManager(sm), isDialogueActive(false) {}
 
        void OnEnter() override {
         // Puestos al puro inicio para congelar el análisis de bytes antes del crash
@@ -356,10 +423,23 @@ public:
         camera.mapMaxHeight = (int)lowestPoint;
 
         SDL_Log("[ShadowCamera] Ajuste de scroll extendido a 3000px. Suelo MaxHeight: %d", camera.mapMaxHeight);
+
+        isDialogueActive = false;
     }
 
     void OnExit() override {}
-    void HandleInput(SDL_Event& ev) override {}
+    void HandleInput(SDL_Event& ev) override {
+        // Si hay un diálogo activo, capturamos el botón 'X' para avanzar páginas
+        if (isDialogueActive && ev.type == SDL_KEYDOWN) {
+            if (ev.key.keysym.sym == SDLK_x || ev.key.keysym.sym == SDLK_RETURN) {
+                sfx.Play("click");
+                if (activeDialogueBox.AdvancePage()) {
+                    // Si AdvancePage() devuelve true, significa que no quedan más páginas de texto
+                    isDialogueActive = false;
+                }
+            }
+        }
+    }
 
     // Solo declaramos Update aquí, lo implementamos abajo del todo
     void Update(float dt) override;
@@ -444,6 +524,10 @@ public:
         }
 
         ui.Render(renderer, gfx, input, player);
+
+        if (isDialogueActive) {
+            activeDialogueBox.Render(gfx, renderer);
+        }
     }
 
 };
@@ -536,6 +620,12 @@ void LimboGameplayState::Update(float dt) {
         return;
     }
 
+    if (isDialogueActive) {
+        // Actualiza el efecto typewriter (animación de letras de la caja base)
+        activeDialogueBox.Update(dt);
+        return; // Retornamos inmediatamente bloqueando enemigos, proyectiles y gravedad
+    }
+
     player.HandleInput(input, sfx);
 
     if (player.pendingPlatform) {
@@ -550,7 +640,8 @@ void LimboGameplayState::Update(float dt) {
     player.Update(dt);
     
     // ProcessWorld actualiza el movimiento y reduce el 'lifetime' de las plataformas TEMPORARY
-    ProcessWorld(player, level, enemies, bullets, items, objects, input, sfx, dt);
+    // BUSCA DONDE SE LLAMA A PROCESSWORLD EN TU UPDATE (Línea ~581) Y DÉJALO ASÍ:
+    ProcessWorld(player, level, enemies, bullets, items, objects, input, sfx, dt, isDialogueActive, activeDialogueBox);
 
     // ============================================================================
     // RECOLECTOR DE BASURA: Limpieza automática de la RAM en el Vector de Niveles

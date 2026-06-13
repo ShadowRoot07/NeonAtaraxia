@@ -52,4 +52,6 @@ build/ui/UIManager.o: src/ui/UIManager.cpp include/ui/UIManager.h \
   include/input/InputManager.h include/Common.h include/gfx/ShadowGFX.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h \
   include/player/Player.h include/gfx/ShadowAudio.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h
+  /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
+  include/player/InventorySystem.h include/core/GameplayEventBus.h \
+  include/core/KanaraLink.h

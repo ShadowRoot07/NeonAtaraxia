@@ -1,19 +1,12 @@
-# Mystery of Limbo Makefile - Optimized for Termux X11
-CXX = clang++
-# Agregamos -Iinclude para que encuentre todas las subcarpetas (world, gfx, player)
-CXXFLAGS = -Iinclude -Isrc `sdl2-config --cflags` -std=c++17 -MMD -O2
-LDFLAGS = `sdl2-config --libs` -lSDL2_mixer -lSDL2_ttf -lSDL2_image
-
-# Directorios
-SRC_DIR = src
-BUILD_DIR = build
-TARGET = game_core
-
-# Encontrar TODOS los .cpp recursivamente, incluyendo EarthSkill de forma estándar
-SOURCES = $(shell find $(SRC_DIR) -name '*.cpp')
-# Generar la lista de objetos manteniendo la estructura de carpetas en build/
-OBJECTS = $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SOURCES))
-DEPS = $(OBJECTS:.o=.d)
+CXX=clang++
+CXXFLAGS=-Iinclude -Isrc `sdl2-config --cflags` -std=c++17 -MMD -O2
+LDFLAGS=`sdl2-config --libs` -lSDL2_mixer -lSDL2_ttf -lSDL2_image
+SRC_DIR=src
+BUILD_DIR=build
+TARGET=game_core
+SOURCES=$(shell find $(SRC_DIR) -name '*.cpp')
+OBJECTS=$(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
+DEPS=$(OBJECTS:.o=.d)
 
 all: $(TARGET)
 
@@ -32,4 +25,3 @@ clean:
 	@echo "🧹 Limpieza completada."
 
 .PHONY: all clean
-

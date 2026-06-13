@@ -5,11 +5,19 @@
 Player::Player() {
     pos = {100.0f, 100.0f};
     vel = {0.0f, 0.0f};
-    hitbox = {0, 0, 32.0f, 32.0f}; 
+    hitbox = {0, 0, 32.0f, 32.0f};
     isGrounded = false;
-    health = 100.0f;
+    
+    // --- ESTADÍSTICAS VITALES REALES ---
+    maxHp = 100;
+    health = static_cast<float>(maxHp);
     speed = 320.0f;
     jumpForce = -700.0f;
+
+    // --- INICIALIZACIÓN DE PROGRESIÓN ---
+    nivel = 1;
+    expActual = 0;
+    expRequerida = 100; // El Backend actualizará esto dinámicamente
 
     elementSlot1 = NONE;
     elementSlot2 = NONE;
@@ -28,8 +36,12 @@ Player::Player() {
     faceDir = 1;
     isShieldActive = false;
 
-    // CORRECCIÓN: Eliminamos la 'n' fantasma para sincronizar con main.cpp
-    currentAnimID = "player_idle"; 
+    mp = 50;
+    maxMp = 80;
+    attack = 25;
+    defense = 14;
+
+    currentAnimID = "player_idle";
     currentFrameC = 0;
     currentFrameF = 0;
     animTimer = 0.0f;
@@ -95,9 +107,20 @@ void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
         else if (attackCooldown <= 0) {
             ApplyAttack();
             sfx.Play("attack");
+
+            // 🔥 INTEGRACIÓN QUANTUM CON EL EVENT BUS
+            GameplayEvent weaponEvent;
+            weaponEvent.type = EVENT_WEAPON_USED;
             
-            // Si el arma actual es de rango (ej: báculo o runa), podrías disparar el proyectil aquí
-            // SkillManager::CastProjectile(*this, projectiles, sfx);
+            // Si el jugador está en el aire o se mueve rápido, penalizamos el desgaste por inercia
+            if (!isGrounded) {
+                weaponEvent.intParam = USAGE_SUBOPTIMAL; // Contexto: Mal uso técnico
+            } else {
+                weaponEvent.intParam = USAGE_OPTIMAL;    // Contexto: Uso limpio en tierra
+            }
+            weaponEvent.entityPtr = this; // Compartimos la entidad para que el backend lea su inventario
+            
+            GameplayEventBus::Instance().Publish(weaponEvent);
         }
     }
 
@@ -266,3 +289,40 @@ Rect Player::GetAttackRect() const {
     return attackBox;
 }
 
+void Player::AddExperience(int amount, int nextLevelRequirement) {
+    expActual += amount;
+    // La verificación de LevelUp se delega al backend, pero el Player almacena los datos locales
+}
+
+void Player::LevelUp(int newRequiredExp) {
+    nivel++;
+    expActual = 0;
+    expRequerida = newRequiredExp;
+    
+    // Incrementos de estadísticas cyberpunk por nivel alcanzado
+    maxHp += 12;
+    maxMp += 8;
+    attack += 4;
+    defense += 2;
+    
+    health = static_cast<float>(maxHp); // Sanación completa al subir de nivel
+    mp = maxMp;
+    
+    SDL_Log("¡SHADOWROOT07 HA LOGRADO EL NIVEL %d! Atk: %d, Def: %d", nivel, attack, defense);
+}
+
+void Player::Heal(float amount) {
+    health += amount;
+    if (health > maxHp) health = static_cast<float>(maxHp);
+}
+
+void Player::RestoreMp(int amount) {
+    mp += amount;
+    if (mp > maxMp) mp = maxMp;
+}
+
+void Player::TakeRawDamage(float amount) {
+    if (isLiquid) return; // Conserva la inmunidad elemental líquida de agua
+    health -= amount;
+    // Daño puro sin empuje forzado (ideal para ticks de veneno o quemaduras de neón)
+}

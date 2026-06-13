@@ -4,20 +4,23 @@
 #include "physics/Collision.h"
 #include "input/InputManager.h"
 #include "gfx/ShadowAudio.h"
+#include "ui/DialogueBox.h"
 #include <vector>
 #include <cmath>
 #include <SDL.h>
 
 void ProcessWorld(
-    Player& p,
-    std::vector<Platform>& level,
-    std::vector<Enemy>& enemies,
-    std::vector<Projectile>& bullets,
-    std::vector<WorldItem>& items, // <<-- SOLUCIONADO: Cambiado de Item a WorldItem
-    std::vector<InteractiveObject>& objects,
-    InputManager& input,
-    ShadowAudio& sfx,
-    float dt
+        Player& p,
+        std::vector<Platform>& level,
+        std::vector<Enemy>& enemies,
+        std::vector<Projectile>& bullets,
+        std::vector<WorldItem>& items,
+        std::vector<InteractiveObject>& objects,
+        InputManager& input,
+        ShadowAudio& sfx,
+        float dt,
+        bool& outDialogueActive,
+        DialogueBox& outDialogueBox
 ) {
     p.isGrounded = false;
 
@@ -90,6 +93,10 @@ void ProcessWorld(
                 if (dist < 64.0f && input.IsKeyPressed(SDL_SCANCODE_X)) {
                     obj.isOpen = true;
                     sfx.Play("earth_skill");
+
+                    // [CONEXIÓN GAMEPLAY FRAMEWORK]: Publicación del evento o invocación del diálogo
+                    // Aquí es donde el DialogueState toma el control de la pantalla para evitar que el Player se mueva
+                    // Ejemplo: GameplayEventBus::Instance().Publish({DialogueEventType::START, {"Terminal de Acceso Red.", "Error 403: Requiere clave Quantum."}});
                 }
             }
         }
@@ -100,15 +107,22 @@ void ProcessWorld(
                     obj.isOpen = true;
                     sfx.Play("click");
 
-                    // <<-- SOLUCIONADO: Recompensa generada usando la nueva estructura limpia de WorldItem
+                    // Recompensa generada usando la nueva estructura limpia de WorldItem
                     WorldItem rewardG;
                     rewardG.pos = { obj.pos.x + 8, obj.pos.y - 32 };
                     rewardG.hitbox = { rewardG.pos.x, rewardG.pos.y, 32.0f, 32.0f };
-                    rewardG.type = WorldItemType::GEM; // <<-- Enum corregido
+                    rewardG.type = WorldItemType::GEM; 
                     rewardG.textureID = "gem";
                     rewardG.value = 100;
                     rewardG.active = true;
                     items.push_back(rewardG);
+
+                    std::vector<std::string> lineas = {
+                        "Has abierto un <shake>Cofre Antiguo</shake>.",
+                        "¡Contiene una <wave>Gema Quantum</wave> de alto valor analítico!"
+                    };
+                    outDialogueBox.StartDialogue(lineas, "pixel_font");
+                    outDialogueActive = true;
                 }
             }
         }
