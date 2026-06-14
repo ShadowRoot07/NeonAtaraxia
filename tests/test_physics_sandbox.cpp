@@ -43,7 +43,6 @@ int main(int argc, char* argv[]) {
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
     // Inicializamos el motor gráfico apuntando a tus assets locales
-    // Inicializamos el motor gráfico apuntando a tus assets locales
     ShadowGFX gfx(renderer, "assets/");
     if (!gfx.LoadFont("m5x7", "fonts/m5x7.ttf", 24)) {
         std::cerr << "[ERROR] No se pudo cargar fonts/m5x7.ttf" << std::endl;
@@ -118,9 +117,10 @@ int main(int argc, char* argv[]) {
                         }
                     }
                     else if (currentMode == MODE_LASER) {
-                        SDL_Color neonBlue = { 0, 255, 255, 255 };
-                        for(int j=0; j<15; ++j) {
-                            pool.emit(ParticleType::NONE, fx, fy, 500.0f + (rand()%100), ((rand()%60)-30), 12.0f, 3.0f, 0.4f, neonBlue);
+                        // El láser ahora dispara ráfagas ionizadas electrificadas
+                        SDL_Color electricBlue = { 0, 255, 255, 255 };
+                        for(int j = 0; j < 15; ++j) {
+                            pool.emit(ParticleType::LIQUID_FLUID, fx, fy, 400.0f + (rand()%150), ((rand()%80)-40), 6.0f, 6.0f, 0.8f, electricBlue);
                         }
                     }
                 }
@@ -156,9 +156,9 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Actualización física
-        pool.update(deltaTime);
+        // Actualización física optimizada modular
         FluidSimulation::UpdateFluids(pool.getParticles(), ParticlePool::MAX_PARTICLES, deltaTime, floorPlatform);
+        pool.update(deltaTime);
 
         // --- RENDERIZADO GENERAL (ESTILO SHADOWOS INDUSTRIAL) ---
         SDL_SetRenderDrawColor(renderer, 18, 18, 22, 255);
@@ -175,28 +175,22 @@ int main(int argc, char* argv[]) {
         // 2. Renderizar Partículas de los pools físicos
         pool.render(renderer);
 
-        // ====================================================================
-        // 3. CORREGIDO: Renderizado expansivo pixel-art (Tiling 32x32) con ShadowGFX
+        // 3. Renderizado expansivo pixel-art (Tiling 32x32) con ShadowGFX
         if (!testPlatform.isDestroyed) {
             int spriteSize = 32;
-            // Calculamos cuántos bloques de 32px caben a lo ancho de la plataforma
             int cantidadBloques = static_cast<int>(testPlatform.bounds.w) / spriteSize;
             if (cantidadBloques <= 0) cantidadBloques = 1;
 
             for (int n = 0; n < cantidadBloques; n++) {
-                // Calculamos la posición destino de cada fragmento estructural de 32x32
                 SDL_Rect rBlock = {
                     static_cast<int>(testPlatform.bounds.x + (n * spriteSize)),
                     static_cast<int>(testPlatform.bounds.y),
                     spriteSize,
-                    static_cast<int>(testPlatform.bounds.h) // Alto nativo (24px o 32px)
+                    static_cast<int>(testPlatform.bounds.h)
                 };
-
-                // Invocamos el renderizado estático nativo de tu Grimorio Gráfico
                 gfx.DrawStatic("platform_breakable", rBlock);
             }
 
-            // Opcional: Borde estricto táctico ShadowOS para delimitar la zona de colisión
             SDL_Rect fullBounds = {
                 static_cast<int>(testPlatform.bounds.x), static_cast<int>(testPlatform.bounds.y),
                 static_cast<int>(testPlatform.bounds.w), static_cast<int>(testPlatform.bounds.h)
@@ -204,12 +198,12 @@ int main(int argc, char* argv[]) {
             SDL_SetRenderDrawColor(renderer, 0, 255, 180, 100);
             SDL_RenderDrawRect(renderer, &fullBounds);
         }
-        // ====================================================================
+
         // 4. Dibujar Panel de Menú Lateral (Capa UI superior)
         SDL_SetRenderDrawColor(renderer, 28, 28, 34, 255);
         SDL_Rect sidebar = { 0, 0, 220, 480 };
         SDL_RenderFillRect(renderer, &sidebar);
-        
+
         SDL_SetRenderDrawColor(renderer, 50, 50, 60, 255);
         SDL_RenderDrawLine(renderer, 220, 0, 220, 480);
 
@@ -236,7 +230,6 @@ int main(int argc, char* argv[]) {
             gfx.DrawText(menuButtons[i].name, "m5x7", menuButtons[i].bounds.x + 15, menuButtons[i].bounds.y + 12, textColor, false);
         }
 
-        // Mostrar el estado de la simulación activa en la esquina superior derecha
         std::string activeStatus = "SIMULACION ACTIVA: " + labels[currentMode];
         gfx.DrawText(activeStatus, "m5x7", 240, 15, {0, 255, 180, 255}, false);
 

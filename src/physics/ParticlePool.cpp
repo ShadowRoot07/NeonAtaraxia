@@ -1,4 +1,6 @@
 #include "physics/ParticlePool.h"
+#include "physics/ElementReaction.h"
+#include <cstdlib>
 
 ParticlePool::ParticlePool() {
     for (int i = 0; i < MAX_PARTICLES; ++i) {
@@ -18,13 +20,15 @@ void ParticlePool::emit(ParticleType type, float x, float y, float vx, float vy,
             m_pool[idx].vy = vy;
             m_pool[idx].width = w;
             m_pool[idx].height = h;
-            m_pool[idx].lifeTime = 0.0f;
+            m_pool[idx].lifeTime = life;    // CORREGIDO: Inicializa con el tiempo de vida asignado
             m_pool[idx].maxLifeTime = life;
             m_pool[idx].color = color;
             m_pool[idx].bounciness = bounciness;
             m_pool[idx].density = density;
             m_pool[idx].isAlive = true;
-            
+            m_pool[idx].isElectrified = false; // Resetear flags sistémicos
+            m_pool[idx].chargeTimer = 0.0f;
+
             m_nextAvailableIndex = (idx + 1) % MAX_PARTICLES;
             return;
         }
@@ -32,12 +36,49 @@ void ParticlePool::emit(ParticleType type, float x, float y, float vx, float vy,
 }
 
 void ParticlePool::update(float deltaTime) {
+    // 1. Procesar comportamiento individual de las partículas y decaimiento de carga
     for (int i = 0; i < MAX_PARTICLES; ++i) {
-        if (m_pool[i].isAlive) {
-            m_pool[i].lifeTime += deltaTime;
-            if (m_pool[i].lifeTime >= m_pool[i].maxLifeTime) {
-                m_pool[i].isAlive = false;
+        if (!m_pool[i].isAlive) continue;
+
+        // Decaimiento del tiempo de vida nativo
+        m_pool[i].lifeTime -= deltaTime;
+        if (m_pool[i].lifeTime <= 0.0f) {
+            m_pool[i].isAlive = false;
+            continue;
+        }
+
+        // Gestión del temporizador de conductividad eléctrica
+        if (m_pool[i].isElectrified) {
+            m_pool[i].chargeTimer -= deltaTime;
+            if (m_pool[i].chargeTimer <= 0.0f) {
+                m_pool[i].isElectrified = false;
+                if (m_pool[i].type == ParticleType::LIQUID_FLUID) {
+                    m_pool[i].color = {180, 20, 40, 255}; // Retorna a color base (ej: Sangre/Fluido)
+                }
             }
+        }
+
+        // Aplicar movimiento según vectores de velocidad
+        m_pool[i].x += m_pool[i].vx * deltaTime;
+        m_pool[i].y += m_pool[i].vy * deltaTime;
+
+        // Comportamiento de gravedad específico por densidad
+        if (m_pool[i].type == ParticleType::LIQUID_FLUID || m_pool[i].type == ParticleType::GORE_FRAGMENT) {
+            m_pool[i].vy += 320.0f * m_pool[i].density * deltaTime;
+        } else if (m_pool[i].type == ParticleType::GAS_SMOKE || m_pool[i].type == ParticleType::VAPOR || m_pool[i].type == ParticleType::ELECTRIC_SPARK) {
+            m_pool[i].vy -= 40.0f * deltaTime; // Comportamiento ascendente o volátil
+        }
+    }
+
+    // 2. Bucle de Interacción Cruzada (Leyes Elementales Sistémicas)
+    for (int i = 0; i < MAX_PARTICLES; ++i) {
+        if (!m_pool[i].isAlive) continue;
+
+        for (int j = i + 1; j < MAX_PARTICLES; ++j) {
+            if (!m_pool[j].isAlive) continue;
+
+            // Resolvemos colisión/reacción usando el array correcto m_pool
+            ElementReaction::ResolveInteractions(m_pool[i], m_pool[j]);
         }
     }
 }

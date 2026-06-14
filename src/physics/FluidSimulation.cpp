@@ -8,7 +8,7 @@ void FluidSimulation::UpdateFluids(Particle* particles, int maxParticles, float 
     for (int i = 0; i < maxParticles; ++i) {
         if (!particles[i].isAlive) continue;
 
-        // --- DINÁMICA SEGÚN COMPORTAMIENTO FÍSICO ---
+        // --- DINÁMICA SEGÚN COMPORTAMIENTO FÍSICO (Afectamos solo velocidades/dimensiones) ---
         switch (particles[i].type) {
             case ParticleType::LIQUID_FLUID:
             case ParticleType::GORE_FRAGMENT:
@@ -20,8 +20,7 @@ void FluidSimulation::UpdateFluids(Particle* particles, int maxParticles, float 
                 // Gases: Flotabilidad invertida y disipación errática lateral
                 particles[i].vy -= (GRAVITY * 0.25f) * deltaTime;
                 particles[i].vx += ((rand() % 60) - 30) * deltaTime;
-                // Atenuación suave por el aire
-                particles[i].vx *= 0.98f;
+                particles[i].vx *= 0.98f; // Atenuación suave por el aire
                 break;
 
             case ParticleType::FIRE:
@@ -32,24 +31,15 @@ void FluidSimulation::UpdateFluids(Particle* particles, int maxParticles, float 
                 particles[i].height -= deltaTime * 4.5f;
                 if (particles[i].width <= 0.1f || particles[i].height <= 0.1f) {
                     particles[i].isAlive = false;
+                    continue;
                 }
                 break;
 
             default:
-                // Ráfagas y Láser: Siguen vectores puros sin gravedad inicial
                 break;
         }
 
-        // Aplicar movimiento físico
-        particles[i].x += particles[i].vx * deltaTime;
-        particles[i].y += particles[i].vy * deltaTime;
-
-        // Reducir tiempo de vida general
-        particles[i].lifeTime += deltaTime;
-        if (particles[i].lifeTime >= particles[i].maxLifeTime) {
-            particles[i].isAlive = false;
-            continue;
-        }
+        // NOTA: El movimiento (x += vx, y += vy) y el lifeTime se gestionan centralizadamente en ParticlePool::update
 
         // --- COLISIÓN USANDO TU ENGINE AABB ---
         Rect pRect = { particles[i].x, particles[i].y, particles[i].width, particles[i].height };

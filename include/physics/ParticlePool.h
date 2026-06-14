@@ -9,7 +9,8 @@ enum class ParticleType {
     LIQUID_FLUID,   // Surtidor (Sangre/Aceite/Agua)
     GORE_FRAGMENT,  // Mutilación (Fragmentos pesados)
     FIRE,           // Fuego invasivo
-    VAPOR           // Interacción fuego-agua
+    VAPOR,          // Interacción fuego-agua
+    ELECTRIC_SPARK  // NUEVO: Chispas y arcos eléctricos
 };
 
 struct Particle {
@@ -23,6 +24,10 @@ struct Particle {
     float density = 1.0f;
     SDL_Color color = {255, 255, 255, 255};
     bool isAlive = false;
+    
+    // NUEVAS VARIABLES SISTÉMICAS
+    bool isElectrified = false; // Flag para propagación de conductividad
+    float chargeTimer = 0.0f;   // Tiempo que retiene la corriente antes de disipar
 };
 
 class ParticlePool {
