@@ -1,0 +1,28 @@
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -I./include `sdl2-config --cflags`
+LDFLAGS = `sdl2-config --libs` -lSDL2_image -lSDL2_ttf
+
+TARGET = bin/test_sandbox
+
+# AGREGADO: src/gfx/ShadowGFX.cpp incluido en el pipeline
+SRC = tests/test_physics_sandbox.cpp \
+      src/physics/ParticlePool.cpp \
+      src/physics/FluidSimulation.cpp \
+      src/physics/EnergyPhysics.cpp \
+      src/physics/Collision.cpp \
+      src/gfx/ShadowGFX.cpp \
+      src/physics/DestructionEngine.cpp
+
+OBJ = $(SRC:.cpp=.o)
+
+all: $(TARGET)
+
+$(TARGET): $(OBJ)
+	@mkdir -p bin
+	$(CXX) $(OBJ) -o $(TARGET) $(LDFLAGS)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	rm -f tests/*.o src/physics/*.o src/gfx/*.o $(TARGET)
