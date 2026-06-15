@@ -1,245 +1,319 @@
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include <SDL2/SDL.h>
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include "physics/ParticlePool.h"
+#include "physics/FluidSimulation.h"
+#include "physics/EnergyPhysics.h"
+#include "physics/ElementReaction.h"
 #include <iostream>
 #include <vector>
 #include <string>
 #include <cstdlib>
 #include <ctime>
-#include <cmath>
 
-#include "physics/ParticlePool.h"
-#include "physics/FluidSimulation.h"
-#include "physics/EnergyPhysics.h"
-#include "physics/Collision.h"
-#include "gfx/ShadowGFX.h"
-#include "physics/DestructionEngine.h"
-
-// Enumerador de estados de test solicitados
-enum TestMode {
-    MODE_FIRE,
-    MODE_FLUIDS,
-    MODE_EXPLOSIONS,
-    MODE_ENERGY,
-    MODE_LASER,
-    MODE_GASES,
-    MODE_COUNT
+enum class SandboxMode {
+    AISLADO,
+    FIRE_VS_WATER,
+    FIRE_VS_OIL,
+    WATER_VS_OIL
 };
 
-struct TestButton {
-    std::string name;
+struct MenuButton {
     SDL_Rect bounds;
-    TestMode mode;
+    std::string text;
+    SandboxMode mode;
+};
+
+struct Slider {
+    SDL_Rect track;
+    SDL_Rect knob;
+    float value;
+    std::string label;
 };
 
 int main(int argc, char* argv[]) {
     std::srand(std::time(nullptr));
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) return -1;
-    if (TTF_Init() < 0) return -1;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+        std::cerr << "Error al inicializar SDL: " << SDL_GetError() << "\n";
+        return -1;
+    }
+    if (TTF_Init() < 0) {
+        std::cerr << "Error al inicializar TTF: " << SDL_GetError() << "\n";
+        SDL_Quit();
+        return -1;
+    }
 
-    SDL_Window* window = SDL_CreateWindow("ShadowOS - Sandbox Modular de Fisicas",
-                                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                          800, 480, SDL_WINDOW_SHOWN);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Window* window = SDL_CreateWindow("NeonAtaraxia - Laboratorio de Fisicas",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_SHOWN);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    // Inicializamos el motor gráfico apuntando a tus assets locales
     ShadowGFX gfx(renderer, "assets/");
     if (!gfx.LoadFont("m5x7", "fonts/m5x7.ttf", 24)) {
-        std::cerr << "[ERROR] No se pudo cargar fonts/m5x7.ttf" << std::endl;
+        std::cerr << "[ERROR] No se pudo cargar la fuente m5x7.ttf\n";
     }
 
-    gfx.GetTexture("platform_breakable", "sprites/platforms/edificio_parte_test.png");
+    // --- INSTANCIACIÓN Y CARGA DE AUDIO ---
+    ShadowAudio audio;
+    if (!audio.Init()) {
+        std::cerr << "[ERROR] No se pudo inicializar ShadowAudio\n";
+    }
+    audio.LoadSound("SFX_EVAPORATE", "assets/audio/SFX_EVAPORATE.wav");
+    audio.LoadSound("SFX_FIRE_LOOP", "assets/audio/SFX_FIRE_LOOP.wav");
+    audio.LoadSound("SFX_FLUID_DROP", "assets/audio/SFX_FLUID_DROP.wav");
+    audio.LoadSound("SFX_GAS_PUFF", "assets/audio/SFX_GAS_PUFF.wav");
+    audio.LoadSound("SFX_OIL_IGNITE", "assets/audio/SFX_OIL_IGNITE.wav");
+
+    bool isFireLoopPlaying = false;
 
     ParticlePool pool;
-    Rect floorPlatform = { 240.0f, 420.0f, 530.0f, 30.0f }; // Espacio libre a la derecha del menú
+    SandboxMode currentMode = SandboxMode::AISLADO;
+    ParticleType selectedType = ParticleType::WATER;
 
-    // Plataforma destructible flotante de pruebas (Persistente fuera del bucle)
-    DestructiblePlatform testPlatform = { { 350.0f, 250.0f, 128.0f, 24.0f }, "platform_breakable", false };
-
-    // Configuración del Menú de Opciones Lateral de la UI
-    std::vector<TestButton> menuButtons;
-    std::string labels[MODE_COUNT] = {
-        "Probar Fuego", "Probar Fluidos", "Probar Explosiones",
-        "Rafagas Energia", "Probar Laser", "Probar Gases"
+    std::vector<MenuButton> menuButtons = {
+        {{20, 50, 180, 35}, "Fisicas Aisladas", SandboxMode::AISLADO},
+        {{20, 95, 180, 35}, "Mix: Fuego v Agua", SandboxMode::FIRE_VS_WATER},
+        {{20, 140, 180, 35}, "Mix: Fuego v Aceite", SandboxMode::FIRE_VS_OIL},
+        {{20, 185, 180, 35}, "Mix: Agua v Aceite", SandboxMode::WATER_VS_OIL}
     };
 
-    for (int i = 0; i < MODE_COUNT; ++i) {
-        // Botones estructurados verticalmente en el panel izquierdo (Ancho: 200px)
-        SDL_Rect btnRect = { 15, 45 + (i * 65), 190, 45 };
-        menuButtons.push_back({ labels[i], btnRect, static_cast<TestMode>(i) });
-    }
+    Slider gravitySlider = {{20, 470, 180, 10}, {100, 462, 16, 26}, 0.5f, "Gravedad"};
+    Slider frictionSlider = {{20, 530, 180, 10}, {100, 522, 16, 26}, 0.2f, "Friccion"};
 
-    TestMode currentMode = MODE_FIRE;
-    int hoveredButton = -1;
+    Rect testPlatform = {300.0f, 440.0f, 400.0f, 30.0f};
 
     bool running = true;
-    SDL_Event event;
+    SDL_Event ev;
+    bool isTouching = false;
+    int touchX = 0, touchY = 0;
+    int hoveredButton = -1;
+    bool draggingGravity = false;
+    bool draggingFriction = false;
+
     Uint32 lastTime = SDL_GetTicks();
 
     while (running) {
         Uint32 currentTime = SDL_GetTicks();
-        float deltaTime = (currentTime - lastTime) / 1000.0f;
+        float dt = (currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
+        if (dt > 0.1f) dt = 0.1f;
 
-        int mouseX, mouseY;
-        Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-
-        // Control de Colisión de UI (Check Hover)
-        hoveredButton = -1;
-        for (size_t i = 0; i < menuButtons.size(); ++i) {
-            if (mouseX >= menuButtons[i].bounds.x && mouseX <= menuButtons[i].bounds.x + menuButtons[i].bounds.w &&
-                mouseY >= menuButtons[i].bounds.y && mouseY <= menuButtons[i].bounds.y + menuButtons[i].bounds.h) {
-                hoveredButton = static_cast<int>(i);
-            }
-        }
-
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_QUIT) {
                 running = false;
             }
-            else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                if (hoveredButton != -1) {
-                    // Seleccionar modo desde el menú
-                    currentMode = menuButtons[hoveredButton].mode;
-                } else if (mouseX > 230 && mouseY < 400) {
-                    // Acción interactiva en el área de simulación según el modo activo
-                    float fx = static_cast<float>(mouseX);
-                    float fy = static_cast<float>(mouseY);
+            else if (ev.type == SDL_MOUSEBUTTONDOWN || ev.type == SDL_FINGERDOWN) {
+                isTouching = true;
+                touchX = (ev.type == SDL_MOUSEBUTTONDOWN) ? ev.button.x : ev.tfinger.x * 800;
+                touchY = (ev.type == SDL_MOUSEBUTTONDOWN) ? ev.button.y : ev.tfinger.y * 600;
 
-                    if (currentMode == MODE_EXPLOSIONS) {
-                        EnergyPhysics::TriggerExplosion(pool, fx, fy, 250.0f, 60);
+                for (size_t i = 0; i < menuButtons.size(); ++i) {
+                    if (touchX >= menuButtons[i].bounds.x && touchX <= menuButtons[i].bounds.x + menuButtons[i].bounds.w &&
+                        touchY >= menuButtons[i].bounds.y && touchY <= menuButtons[i].bounds.y + menuButtons[i].bounds.h) {
+                        currentMode = menuButtons[i].mode;
+                        isTouching = false;
+                    }
+                }
 
-                        // Si hacemos clic cerca de la plataforma flotante y no está rota, la destruimos
-                        Rect clickRect = { fx - 10, fy - 10, 20, 20 };
-                        if (!testPlatform.isDestroyed && PhysicsEngine::AABB(clickRect, testPlatform.bounds)) {
-                            testPlatform.isDestroyed = true;
-                            DestructionEngine::FragmentPlatform(pool, testPlatform, fx, fy, 320.0f);
-                        }
+                if (currentMode == SandboxMode::AISLADO && touchX >= 20 && touchX <= 200 && touchY >= 230 && touchY <= 410) {
+                    int section = (touchY - 230) / 40;
+                    if (section == 0) selectedType = ParticleType::WATER;
+                    if (section == 1) selectedType = ParticleType::OIL;
+                    if (section == 2) selectedType = ParticleType::GAS;
+                    if (section == 3) selectedType = ParticleType::FIRE;
+                    isTouching = false;
+                }
+
+                if (touchX >= gravitySlider.knob.x && touchX <= gravitySlider.knob.x + gravitySlider.knob.w &&
+                    touchY >= gravitySlider.knob.y && touchY <= gravitySlider.knob.y + gravitySlider.knob.h) {
+                    draggingGravity = true;
+                    isTouching = false;
+                }
+                if (touchX >= frictionSlider.knob.x && touchX <= frictionSlider.knob.x + frictionSlider.knob.w &&
+                    touchY >= frictionSlider.knob.y && touchY <= frictionSlider.knob.y + frictionSlider.knob.h) {
+                    draggingFriction = true;
+                    isTouching = false;
+                }
+            }
+            else if (ev.type == SDL_MOUSEBUTTONUP || ev.type == SDL_FINGERUP) {
+                isTouching = false;
+                draggingGravity = false;
+                draggingFriction = false;
+            }
+            else if (ev.type == SDL_MOUSEMOTION || ev.type == SDL_FINGERMOTION) {
+                touchX = (ev.type == SDL_MOUSEMOTION) ? ev.motion.x : ev.tfinger.x * 800;
+                touchY = (ev.type == SDL_MOUSEMOTION) ? ev.motion.y : ev.tfinger.y * 600;
+
+                hoveredButton = -1;
+                for (size_t i = 0; i < menuButtons.size(); ++i) {
+                    if (touchX >= menuButtons[i].bounds.x && touchX <= menuButtons[i].bounds.x + menuButtons[i].bounds.w &&
+                        touchY >= menuButtons[i].bounds.y && touchY <= menuButtons[i].bounds.y + menuButtons[i].bounds.h) {
+                        hoveredButton = static_cast<int>(i);
                     }
-                    else if (currentMode == MODE_LASER) {
-                        // El láser ahora dispara ráfagas ionizadas electrificadas
-                        SDL_Color electricBlue = { 0, 255, 255, 255 };
-                        for(int j = 0; j < 15; ++j) {
-                            pool.emit(ParticleType::LIQUID_FLUID, fx, fy, 400.0f + (rand()%150), ((rand()%80)-40), 6.0f, 6.0f, 0.8f, electricBlue);
-                        }
-                    }
+                }
+
+                if (draggingGravity) {
+                    gravitySlider.knob.x = touchX - gravitySlider.knob.w / 2;
+                    if (gravitySlider.knob.x < gravitySlider.track.x) gravitySlider.knob.x = gravitySlider.track.x;
+                    if (gravitySlider.knob.x > gravitySlider.track.x + gravitySlider.track.w - gravitySlider.knob.w)
+                        gravitySlider.knob.x = gravitySlider.track.x + gravitySlider.track.w - gravitySlider.knob.w;
+                    gravitySlider.value = static_cast<float>(gravitySlider.knob.x - gravitySlider.track.x) / (gravitySlider.track.w - gravitySlider.knob.w);
+                }
+                if (draggingFriction) {
+                    frictionSlider.knob.x = touchX - frictionSlider.knob.w / 2;
+                    if (frictionSlider.knob.x < frictionSlider.track.x) frictionSlider.knob.x = frictionSlider.track.x;
+                    if (frictionSlider.knob.x > frictionSlider.track.x + frictionSlider.track.w - frictionSlider.knob.w)
+                        frictionSlider.knob.x = frictionSlider.track.x + frictionSlider.track.w - frictionSlider.knob.w;
+                    frictionSlider.value = static_cast<float>(frictionSlider.knob.x - frictionSlider.track.x) / (frictionSlider.track.w - frictionSlider.knob.w);
                 }
             }
         }
 
-        // --- GENERACIÓN CONTINUA POR ARRASTRE / INYECCIÓN ACTIVA ---
-        if ((mouseState & SDL_BUTTON_LMASK) && hoveredButton == -1 && mouseX > 230 && mouseY < 400) {
-            float fx = static_cast<float>(mouseX);
-            float fy = static_cast<float>(mouseY);
+        // --- SISTEMA DE INYECCIÓN DE PARTÍCULAS ---
+        if (isTouching && touchX > 220 && currentMode == SandboxMode::AISLADO) {
+            float rvx = (rand() % 140 - 70) * (1.0f + frictionSlider.value * 2.0f);
+            float rvy = (rand() % 140 - 100) * (1.0f + gravitySlider.value * 1.5f);
+            SDL_Color col = {255, 255, 255, 255};
+            if (selectedType == ParticleType::WATER) col = {0, 140, 255, 255};
+            if (selectedType == ParticleType::OIL) col = {75, 50, 40, 255};
+            if (selectedType == ParticleType::GAS) col = {180, 180, 210, 200};
+            if (selectedType == ParticleType::FIRE) col = {255, 60, 0, 255};
 
-            if (currentMode == MODE_FLUIDS) {
-                FluidSimulation::InjectDamageFluid(pool, fx, fy, 80.0f, 100.0f, 1);
-            }
-            else if (currentMode == MODE_GASES) {
-                SDL_Color smoke = { 110, 110, 125, 140 };
-                pool.emit(ParticleType::GAS_SMOKE, fx, fy, ((rand()%80)-40), -50.0f, 6.0f, 6.0f, 1.5f, smoke);
-            }
-            else if (currentMode == MODE_FIRE) {
-                SDL_Color fireColor = { static_cast<Uint8>(200 + (rand()%55)), static_cast<Uint8>(50 + (rand()%50)), 0, 255 };
-                pool.emit(ParticleType::FIRE, fx, fy, ((rand()%100)-50), -120.0f - (rand()%80), 8.0f, 8.0f, 0.8f, fireColor);
-            }
-            else if (currentMode == MODE_ENERGY) {
-                SDL_Color neonGreen = { 50, 255, 50, 255 };
-                pool.emit(ParticleType::NONE, fx, fy, ((rand()%300)-150), ((rand()%300)-150), 4.0f, 4.0f, 0.3f, neonGreen);
+            pool.Spawn(touchX, touchY, rvx, rvy, 6.0f, 2.5f, col, selectedType);
+        }
 
-                // Romper de forma inmediata si es impactada por la ráfaga continua
-                Rect dragRect = { fx, fy, 4, 4 };
-                if (!testPlatform.isDestroyed && PhysicsEngine::AABB(dragRect, testPlatform.bounds)) {
-                    testPlatform.isDestroyed = true;
-                    DestructionEngine::FragmentPlatform(pool, testPlatform, fx, fy, 200.0f);
-                }
+        // CONTROL DE EMISORES VERTICALES CRUZADOS (ARRIBA VS ABAJO)
+        if (currentMode != SandboxMode::AISLADO) {
+            float rvx_fluid = (rand() % 40 - 20);
+            float rvx_fire = (rand() % 60 - 30);
+            float rvy_fluid = (rand() % 30 + 60);
+            float rvy_fire = -(rand() % 40 + 50);
+
+            if (currentMode == SandboxMode::FIRE_VS_WATER) {
+                pool.Spawn(500, 40, rvx_fluid, rvy_fluid, 5.0f, 2.5f, {0, 140, 255, 255}, ParticleType::WATER);
+                pool.Spawn(500, 430, rvx_fire, rvy_fire, 5.0f, 2.0f, {255, 60, 0, 255}, ParticleType::FIRE);
+            }
+            else if (currentMode == SandboxMode::FIRE_VS_OIL) {
+                pool.Spawn(500, 40, rvx_fluid, rvy_fluid, 5.0f, 2.5f, {75, 50, 40, 255}, ParticleType::OIL);
+                pool.Spawn(500, 430, rvx_fire, rvy_fire, 5.0f, 2.0f, {255, 60, 0, 255}, ParticleType::FIRE);
+            }
+            else if (currentMode == SandboxMode::WATER_VS_OIL) {
+                float rvx1 = (rand() % 30 - 5);
+                float rvx2 = (rand() % 30 - 25);
+                pool.Spawn(400, 40, rvx1, rvy_fluid, 5.0f, 2.5f, {0, 140, 255, 255}, ParticleType::WATER);
+                pool.Spawn(600, 40, rvx2, rvy_fluid, 5.0f, 2.5f, {75, 50, 40, 255}, ParticleType::OIL);
             }
         }
 
-        // Actualización física optimizada modular
-        FluidSimulation::UpdateFluids(pool.getParticles(), ParticlePool::MAX_PARTICLES, deltaTime, floorPlatform);
-        pool.update(deltaTime);
+        // --- PIPELINE DE ACTUALIZACIÓN DE FÍSICAS EN EL LOOP PRINCIPAL ---
+        pool.Update(dt);
+        FluidSimulation::UpdateFluids(pool.GetPool(), pool.GetMaxParticles(), dt, testPlatform, audio);
 
-        // --- RENDERIZADO GENERAL (ESTILO SHADOWOS INDUSTRIAL) ---
-        SDL_SetRenderDrawColor(renderer, 18, 18, 22, 255);
+        int fireCount = 0;
+        Particle* pArr = pool.GetPool();
+        for (int i = 0; i < pool.GetMaxParticles(); ++i) {
+            if (!pArr[i].active) continue;
+
+            if (pArr[i].type == ParticleType::GAS) {
+                pArr[i].vy -= (130.0f * (1.0f - gravitySlider.value)) * dt;
+            }
+
+            if (pArr[i].type == ParticleType::FIRE) {
+                fireCount++;
+                float ratio = pArr[i].lifeTime / pArr[i].maxLife;
+                if (ratio > 0.70f) pArr[i].color = {255, 50, 0, 255};
+                else if (ratio > 0.35f) pArr[i].color = {255, 175, 0, 255};
+                else pArr[i].color = {95, 65, 60, 255};
+            }
+        }
+
+        // CONTROL DINÁMICO DEL BUCLE DEL FUEGO (LOOP CONTINUO)
+        if (fireCount > 0 && !isFireLoopPlaying) {
+            audio.Play("SFX_FIRE_LOOP", -1); // -1 activa bucle infinito en SDL_mixer
+            isFireLoopPlaying = true;
+        } 
+        else if (fireCount == 0 && isFireLoopPlaying) {
+            Mix_HaltChannel(-1); // Apaga todos los canales cuando ya no hay fuego vivo
+            isFireLoopPlaying = false;
+        }
+
+        if (currentMode != SandboxMode::AISLADO) {
+            ElementReaction::ResolveInteractions(pool, audio);
+        }
+
+        // --- RENDERING ---
+        SDL_SetRenderDrawColor(renderer, 20, 22, 30, 255);
         SDL_RenderClear(renderer);
 
-        // 1. Dibujar el área de simulación (Suelo duro)
-        SDL_SetRenderDrawColor(renderer, 45, 45, 52, 255);
-        SDL_Rect sdlFloor = {
-            static_cast<int>(floorPlatform.x), static_cast<int>(floorPlatform.y),
-            static_cast<int>(floorPlatform.w), static_cast<int>(floorPlatform.h)
-        };
-        SDL_RenderFillRect(renderer, &sdlFloor);
+        SDL_SetRenderDrawColor(renderer, 45, 50, 65, 255);
+        SDL_RenderDrawLine(renderer, 220, 0, 220, 600);
 
-        // 2. Renderizar Partículas de los pools físicos
-        pool.render(renderer);
+        gfx.DrawText("MODULOS DE TEST", "m5x7", 20, 15, {140, 140, 170, 255}, false);
 
-        // 3. Renderizado expansivo pixel-art (Tiling 32x32) con ShadowGFX
-        if (!testPlatform.isDestroyed) {
-            int spriteSize = 32;
-            int cantidadBloques = static_cast<int>(testPlatform.bounds.w) / spriteSize;
-            if (cantidadBloques <= 0) cantidadBloques = 1;
-
-            for (int n = 0; n < cantidadBloques; n++) {
-                SDL_Rect rBlock = {
-                    static_cast<int>(testPlatform.bounds.x + (n * spriteSize)),
-                    static_cast<int>(testPlatform.bounds.y),
-                    spriteSize,
-                    static_cast<int>(testPlatform.bounds.h)
-                };
-                gfx.DrawStatic("platform_breakable", rBlock);
-            }
-
-            SDL_Rect fullBounds = {
-                static_cast<int>(testPlatform.bounds.x), static_cast<int>(testPlatform.bounds.y),
-                static_cast<int>(testPlatform.bounds.w), static_cast<int>(testPlatform.bounds.h)
-            };
-            SDL_SetRenderDrawColor(renderer, 0, 255, 180, 100);
-            SDL_RenderDrawRect(renderer, &fullBounds);
-        }
-
-        // 4. Dibujar Panel de Menú Lateral (Capa UI superior)
-        SDL_SetRenderDrawColor(renderer, 28, 28, 34, 255);
-        SDL_Rect sidebar = { 0, 0, 220, 480 };
-        SDL_RenderFillRect(renderer, &sidebar);
-
-        SDL_SetRenderDrawColor(renderer, 50, 50, 60, 255);
-        SDL_RenderDrawLine(renderer, 220, 0, 220, 480);
-
-        gfx.DrawText("MODULOS DE PRUEBA", "m5x7", 20, 15, {140, 140, 160, 255}, false);
-
-        // Renderizar Botones del menú lateral
         for (size_t i = 0; i < menuButtons.size(); ++i) {
             bool isSelected = (currentMode == menuButtons[i].mode);
             bool isHovered = (static_cast<int>(i) == hoveredButton);
 
-            if (isSelected) {
-                SDL_SetRenderDrawColor(renderer, 70, 70, 95, 255);
-            } else if (isHovered) {
-                SDL_SetRenderDrawColor(renderer, 42, 42, 52, 255);
-            } else {
-                SDL_SetRenderDrawColor(renderer, 34, 34, 40, 255);
-            }
-            SDL_RenderFillRect(renderer, &menuButtons[i].bounds);
+            if (isSelected) SDL_SetRenderDrawColor(renderer, 65, 65, 90, 255);
+            else if (isHovered) SDL_SetRenderDrawColor(renderer, 40, 40, 50, 255);
+            else SDL_SetRenderDrawColor(renderer, 30, 30, 36, 255);
 
-            SDL_SetRenderDrawColor(renderer, 60, 60, 75, 255);
+            SDL_RenderFillRect(renderer, &menuButtons[i].bounds);
+            SDL_SetRenderDrawColor(renderer, 55, 55, 70, 255);
             SDL_RenderDrawRect(renderer, &menuButtons[i].bounds);
 
-            SDL_Color textColor = isSelected ? SDL_Color{255, 255, 255, 255} : SDL_Color{180, 180, 195, 255};
-            gfx.DrawText(menuButtons[i].name, "m5x7", menuButtons[i].bounds.x + 15, menuButtons[i].bounds.y + 12, textColor, false);
+            SDL_Color txtCol = isSelected ? SDL_Color{0, 255, 140, 255} : SDL_Color{170, 170, 185, 255};
+            gfx.DrawText(menuButtons[i].text, "m5x7", menuButtons[i].bounds.x + 10, menuButtons[i].bounds.y + 8, txtCol, false);
         }
 
-        std::string activeStatus = "SIMULACION ACTIVA: " + labels[currentMode];
-        gfx.DrawText(activeStatus, "m5x7", 240, 15, {0, 255, 180, 255}, false);
+        if (currentMode == SandboxMode::AISLADO) {
+            gfx.DrawText("ELEMENTO ACTIVO:", "m5x7", 20, 230, {110, 110, 130, 255}, false);
+            std::vector<std::pair<std::string, ParticleType>> typeList = {
+                {"[A] AGUA", ParticleType::WATER}, {"[C] ACEITE", ParticleType::OIL},
+                {"[G] GAS", ParticleType::GAS}, {"[F] FUEGO", ParticleType::FIRE}
+            };
+            for (size_t i = 0; i < typeList.size(); ++i) {
+                bool isSelected = (selectedType == typeList[i].second);
+                SDL_Color c = isSelected ? SDL_Color{0, 255, 140, 255} : SDL_Color{140, 140, 140, 255};
+                gfx.DrawText(typeList[i].first, "m5x7", 30, 260 + i * 35, c, false);
+            }
+        } else {
+            gfx.DrawText("SIMULACION DE MIX", "m5x7", 20, 240, {255, 100, 0, 255}, false);
+            if (currentMode == SandboxMode::WATER_VS_OIL) {
+                gfx.DrawText("FLUIDOS EN CASCADA", "m5x7", 25, 275, {200, 200, 200, 255}, false);
+                gfx.DrawText("Separacion por densidad", "m5x7", 25, 305, {100, 255, 200, 255}, false);
+            } else {
+                gfx.DrawText("FLUIDO: ARRIBA (CAE)", "m5x7", 25, 275, {200, 200, 200, 255}, false);
+                gfx.DrawText("FUEGO: ABAJO (SUBE)", "m5x7", 25, 305, {200, 200, 200, 255}, false);
+                gfx.DrawText("Choque en el centro!", "m5x7", 25, 340, {100, 255, 200, 255}, false);
+            }
+        }
+
+        SDL_SetRenderDrawColor(renderer, 50, 55, 70, 255);
+        SDL_RenderFillRect(renderer, &gravitySlider.track);
+        SDL_RenderFillRect(renderer, &frictionSlider.track);
+
+        SDL_SetRenderDrawColor(renderer, 0, 255, 150, 255);
+        SDL_RenderFillRect(renderer, &gravitySlider.knob);
+        SDL_RenderFillRect(renderer, &frictionSlider.knob);
+
+        gfx.DrawText(gravitySlider.label, "m5x7", 20, 440, {160, 160, 160, 255}, false);
+        gfx.DrawText(frictionSlider.label, "m5x7", 20, 500, {160, 160, 160, 255}, false);
+
+        SDL_SetRenderDrawColor(renderer, 70, 75, 95, 255);
+        SDL_Rect pRect = {static_cast<int>(testPlatform.x), static_cast<int>(testPlatform.y), static_cast<int>(testPlatform.w), static_cast<int>(testPlatform.h)};
+        SDL_RenderFillRect(renderer, &pRect);
+        SDL_SetRenderDrawColor(renderer, 0, 255, 140, 255);
+        SDL_RenderDrawLine(renderer, pRect.x, pRect.y, pRect.x + pRect.w, pRect.y);
+
+        pool.Render(renderer);
 
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
     }
 
-    TTF_Quit();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    TTF_Quit();
     SDL_Quit();
     return 0;
 }

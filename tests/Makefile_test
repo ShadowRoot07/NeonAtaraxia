@@ -1,16 +1,18 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -I./include `sdl2-config --cflags`
-LDFLAGS = `sdl2-config --libs` -lSDL2_image -lSDL2_ttf
+# SOLUCIÓN 1: Se agrega -lSDL2_mixer al final de las banderas del enlazador
+LDFLAGS = `sdl2-config --libs` -lSDL2_image -lSDL2_ttf -lSDL2_mixer
 
 TARGET = bin/test_sandbox
 
-# AGREGADO: src/physics/ElementReaction.cpp en el pipeline
+# SOLUCIÓN 2: Se agrega src/gfx/ShadowAudio.cpp en la tubería de archivos fuentes
 SRC = tests/test_physics_sandbox.cpp \
       src/physics/ParticlePool.cpp \
       src/physics/FluidSimulation.cpp \
       src/physics/EnergyPhysics.cpp \
       src/physics/Collision.cpp \
       src/gfx/ShadowGFX.cpp \
+      src/gfx/ShadowAudio.cpp \
       src/physics/DestructionEngine.cpp \
       src/physics/ElementReaction.cpp
 

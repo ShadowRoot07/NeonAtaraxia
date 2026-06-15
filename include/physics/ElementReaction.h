@@ -3,9 +3,13 @@
 
 #include "physics/ParticlePool.h"
 
+// Forward declaration limpia
+class ShadowAudio;
+
 class ElementReaction {
 public:
-    // Procesa la interacción mutua entre dos partículas activas basándose en su cercanía
+    static void ResolveInteractions(ParticlePool& pool);
+    static void ResolveInteractions(ParticlePool& pool, ShadowAudio& audio);
     static void ResolveInteractions(Particle& p1, Particle& p2);
 };
 

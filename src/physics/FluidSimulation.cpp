@@ -1,81 +1,74 @@
 #include "physics/FluidSimulation.h"
-#include <cstdlib>
+#include "physics/ParticleAudioConfig.h"
 #include <cmath>
+#include <cstdlib>
 
-void FluidSimulation::UpdateFluids(Particle* particles, int maxParticles, float deltaTime, Rect platform) {
-    const float GRAVITY = 450.0f;
-
+void FluidSimulation::UpdateFluids(Particle* particles, int maxParticles, float deltaTime, Rect platform, ShadowAudio& audio) {
     for (int i = 0; i < maxParticles; ++i) {
-        if (!particles[i].isAlive) continue;
+        if (!particles[i].active) continue;
 
-        // --- DINÁMICA SEGÚN COMPORTAMIENTO FÍSICO (Afectamos solo velocidades/dimensiones) ---
+        // 1. Aplicar mecánicas cinéticas específicas según el tipo de fluido
         switch (particles[i].type) {
-            case ParticleType::LIQUID_FLUID:
-            case ParticleType::GORE_FRAGMENT:
-                // Fluidos y sangre: Gravedad estándar pesada
-                particles[i].vy += GRAVITY * particles[i].density * deltaTime;
+            case ParticleType::WATER:
+                particles[i].density = 1.0f;
+                particles[i].vy += 480.0f * deltaTime;
+                particles[i].vx *= std::pow(0.97f, deltaTime * 60.0f);
                 break;
 
-            case ParticleType::GAS_SMOKE:
-                // Gases: Flotabilidad invertida y disipación errática lateral
-                particles[i].vy -= (GRAVITY * 0.25f) * deltaTime;
-                particles[i].vx += ((rand() % 60) - 30) * deltaTime;
-                particles[i].vx *= 0.98f; // Atenuación suave por el aire
+            case ParticleType::OIL:
+                particles[i].density = 0.8f;
+                particles[i].vy += 320.0f * deltaTime;
+                particles[i].vx *= std::pow(0.90f, deltaTime * 60.0f);
+                break;
+
+            case ParticleType::GAS:
+                particles[i].vy -= 90.0f * deltaTime;
+                particles[i].color.a = static_cast<Uint8>((particles[i].lifeTime / particles[i].maxLife) * 180);
                 break;
 
             case ParticleType::FIRE:
-                // Fuego: Ascenso rápido, expansión cónica y disipación térmica (encogimiento)
-                particles[i].vy -= (GRAVITY * 0.6f) * deltaTime;
-                particles[i].vx += ((rand() % 40) - 20) * deltaTime;
-                particles[i].width -= deltaTime * 4.5f;
-                particles[i].height -= deltaTime * 4.5f;
-                if (particles[i].width <= 0.1f || particles[i].height <= 0.1f) {
-                    particles[i].isAlive = false;
-                    continue;
-                }
+                particles[i].vy -= 90.0f * deltaTime;
+                particles[i].vx += ((rand() % 100 - 50) * 1.5f) * deltaTime;
+                particles[i].vx *= std::pow(0.94f, deltaTime * 60.0f);
                 break;
 
             default:
                 break;
         }
 
-        // NOTA: El movimiento (x += vx, y += vy) y el lifeTime se gestionan centralizadamente en ParticlePool::update
+        // Integración de Euler básica para actualizar la posición antes de validar colisión
+        particles[i].x += particles[i].vx * deltaTime;
+        particles[i].y += particles[i].vy * deltaTime;
 
-        // --- COLISIÓN USANDO TU ENGINE AABB ---
-        Rect pRect = { particles[i].x, particles[i].y, particles[i].width, particles[i].height };
+        // 2. Colisión física contra la plataforma virtual del Sandbox
+        if (particles[i].x >= platform.x && particles[i].x <= (platform.x + platform.w)) {
+            if (particles[i].y >= platform.y && particles[i].y <= (platform.y + platform.h)) {
+                particles[i].y = platform.y; // Ajuste instantáneo a la superficie
 
-        if (PhysicsEngine::AABB(pRect, platform)) {
-            // Reposicionamiento vertical
-            particles[i].y -= particles[i].vy * deltaTime;
-            // Rebote elástico
-            particles[i].vy = -particles[i].vy * particles[i].bounciness;
-            // Fricción horizontal del suelo (Frenado)
-            particles[i].vx *= 0.75f;
+                if (particles[i].type == ParticleType::WATER || particles[i].type == ParticleType::OIL) {
+                    particles[i].vy = -particles[i].vy * 0.15f;
+                    particles[i].vx += (rand() % 60 - 30);
+                    
+                    // Sonido corto de impacto de líquido (60ms de cooldown)
+                    ParticleAudioConfig::TriggerSFX(audio, "SFX_FLUID_DROP", 60);
+                } else if (particles[i].type == ParticleType::GAS) {
+                    particles[i].vy = -particles[i].vy * 0.4f;
+                    
+                    // Sonido de expansión de ráfaga de gas (100ms de cooldown)
+                    ParticleAudioConfig::TriggerSFX(audio, "SFX_GAS_PUFF", 100);
+                }
+            }
         }
-    }
-}
 
-// === AGREGA ESTO AL FINAL DEL ARCHIVO ===
-void FluidSimulation::InjectDamageFluid(ParticlePool& pool, float x, float y, float damage, float maxHealth, int dmgType) {
-    float ratio = (damage / maxHealth) * 100.0f;
-    int count = 0;
-    
-    if (ratio < 15.0f) count = 8;        // Micro-fugas
-    else if (ratio < 50.0f) count = 32;  // Surtidor
-    else count = 90;                     // Mutilación crítica catastrófica
-
-    for (int i = 0; i < count; ++i) {
-        float vx = static_cast<float>((rand() % 200) - 100);
-        float vy = static_cast<float>(-((rand() % 150) + 50));
-        float size = static_cast<float>((rand() % 4) + 2); 
-        float life = 0.5f + ((rand() % 100) / 100.0f);
-
-        if (dmgType == 1) { 
-            SDL_Color fluidColor = { 180, 0, 0, 255 }; // Rojo oscuro mate para fluidos/sangre
-            pool.emit(ParticleType::LIQUID_FLUID, x, y, vx, vy, size, size, life, fluidColor, 0.2f, 1.2f);
-        } else { 
-            SDL_Color smokeColor = { 80, 80, 90, 180 };
-            pool.emit(ParticleType::GAS_SMOKE, x, y, vx * 0.4f, vy * 0.5f, size * 1.5f, size * 1.5f, life * 0.7f, smokeColor);
+        // Limite inferior global de seguridad (Suelo de la pantalla Y = 520)
+        if (particles[i].y >= 520.0f) {
+            particles[i].y = 520.0f;
+            if (particles[i].type == ParticleType::WATER || particles[i].type == ParticleType::OIL) {
+                particles[i].vy = -particles[i].vy * 0.2f;
+                particles[i].vx += (rand() % 40 - 20);
+                
+                ParticleAudioConfig::TriggerSFX(audio, "SFX_FLUID_DROP", 60);
+            }
         }
     }
 }

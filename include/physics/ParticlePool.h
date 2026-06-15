@@ -1,49 +1,53 @@
 #ifndef PARTICLE_POOL_H
 #define PARTICLE_POOL_H
 
-#include <SDL.h>
+#include "Common.h"
+#include <SDL2/SDL.h>
 
 enum class ParticleType {
     NONE,
-    GAS_SMOKE,      // Micro-fugas / Disipación
-    LIQUID_FLUID,   // Surtidor (Sangre/Aceite/Agua)
-    GORE_FRAGMENT,  // Mutilación (Fragmentos pesados)
-    FIRE,           // Fuego invasivo
-    VAPOR,          // Interacción fuego-agua
-    ELECTRIC_SPARK  // NUEVO: Chispas y arcos eléctricos
+    WATER,
+    OIL,
+    GAS,
+    FIRE,
+    LASER_BEAM,
+    EXPLOSION_SMOKE,
+    GORE
 };
 
 struct Particle {
-    ParticleType type = ParticleType::NONE;
-    float x = 0.0f, y = 0.0f;
-    float vx = 0.0f, vy = 0.0f;
-    float width = 0.0f, height = 0.0f;
-    float lifeTime = 0.0f;
-    float maxLifeTime = 0.0f;
-    float bounciness = 0.2f;
-    float density = 1.0f;
-    SDL_Color color = {255, 255, 255, 255};
-    bool isAlive = false;
+    float x, y;
+    float vx, vy;
+    float width, height;
+    float lifeTime;
+    float maxLife;
+    SDL_Color color;
+    ParticleType type;
+    bool active = false;
     
-    // NUEVAS VARIABLES SISTÉMICAS
-    bool isElectrified = false; // Flag para propagación de conductividad
-    float chargeTimer = 0.0f;   // Tiempo que retiene la corriente antes de disipar
+    // Propiedades adicionales para simulación celular avanzada
+    float density;       // Para flotabilidad cruzada de líquidos
+    float temperature;   // Para propagación del fuego invasivo
 };
 
 class ParticlePool {
-public:
-    static const int MAX_PARTICLES = 2048; // Pool estático fijo para Termux
-    
-    ParticlePool();
-    void emit(ParticleType type, float x, float y, float vx, float vy, float w, float h, float life, SDL_Color color, float bounciness = 0.2f, float density = 1.0f);
-    void update(float deltaTime);
-    void render(SDL_Renderer* renderer);
-    
-    Particle* getParticles() { return m_pool; }
-
 private:
+    static const int MAX_PARTICLES = 2048;
     Particle m_pool[MAX_PARTICLES];
     int m_nextAvailableIndex = 0;
+
+public:
+    ParticlePool();
+    ~ParticlePool() = default;
+
+    void Spawn(float x, float y, float vx, float vy, float size, float life, SDL_Color color, ParticleType type);
+    void Update(float deltaTime);
+    void Render(SDL_Renderer* renderer);
+    void Clear();
+
+    // Getters para el motor de reacciones y testing
+    Particle* GetPool() { return m_pool; }
+    int GetMaxParticles() const { return MAX_PARTICLES; }
 };
 
 #endif

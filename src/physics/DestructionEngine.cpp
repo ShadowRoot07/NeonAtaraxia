@@ -1,66 +1,52 @@
-#include "physics/DestructionEngine.h"
-#include <cstdlib>
+#include "physics/ElementReaction.h"
 #include <cmath>
+#include <cstdlib>
 
-void DestructionEngine::FragmentPlatform(ParticlePool& pool, const DestructiblePlatform& platform, float explosionX, float explosionY, float force) {
-    // Definimos el tamaño de cada fragmento/escombro (en píxeles, ej: bloques de 8x8)
-    const float SHARD_SIZE = 8.0f;
-    
-    float rows = platform.bounds.h / SHARD_SIZE;
-    float cols = platform.bounds.w / SHARD_SIZE;
-    
-    // Color base industrial para los escombros si no se renderiza textura directa en el pool
-    // SDL_Color debrisColor = { 90, 85, 95, 255 };
+void ElementReaction::ResolveInteractions(Particle& p1, Particle& p2) {
+    // --- REACCIÓN 1: FUEGO + AGUA = Evaporación instantánea ---
+    if ((p1.type == ParticleType::FIRE && p2.type == ParticleType::WATER) ||
+        (p1.type == ParticleType::WATER && p2.type == ParticleType::FIRE)) {
 
-    for (int r = 0; r < static_cast<int>(rows); ++r) {
-        for (int c = 0; c < static_cast<int>(cols); ++c) {
-            // Posición inicial de este escombro específico en el espacio del mapa
-            float shardX = platform.bounds.x + (c * SHARD_SIZE);
-            float shardY = platform.bounds.y + (r * SHARD_SIZE);
-            
-            // Calcular vector de dirección desde el centro del impacto (Explosión/Ráfaga)
-            float dirX = shardX - explosionX;
-            float dirY = shardY - explosionY;
-            float distance = std::sqrt(dirX * dirX + dirY * dirY);
-            
-            if (distance == 0.0f) distance = 1.0f; // Evitar división por cero
-            
-            // Normalizar vector de dirección
-            dirX /= distance;
-            dirY /= distance;
-            
-            // La fuerza aplicada disminuye inversamente proporcional a la distancia del impacto
-            float attenuation = 1.0f / (1.0f + (distance * 0.01f));
-            float finalForce = force * attenuation;
-            
-            // Calcular velocidades finales añadiendo una pequeña variación caótica
-            float vx = (dirX * finalForce) + ((rand() % 60) - 30);
-            float vy = (dirY * finalForce) - ((rand() % 80) + 20); // Impulso ascendente adicional
-            
-            float lifeTime = 1.0f + ((rand() % 100) / 100.0f); // Entre 1 y 2 segundos de vida
-            
-            // Emitir el fragmento como una partícula física pesada en el pool estático
-            // Pasamos el tipo GORE_FRAGMENT para que use la gravedad pesada y rebotes del suelo
-            Uint8 baseR = 80  + ((r * 7) % 35) + ((c * 4) % 25);
-            Uint8 baseG = 80  + ((r * 5) % 30) + ((c * 6) % 20);
-            Uint8 baseB = 90  + ((r * 3) % 25) + ((c * 8) % 30);
-            
-            SDL_Color debrisColor = { baseR, baseG, baseB, 255 };
+        // Determinamos con precisión cuál es el fuego y cuál es el agua
+        Particle& fire = (p1.type == ParticleType::FIRE) ? p1 : p2;
+        Particle& water = (p1.type == ParticleType::WATER) ? p1 : p2;
 
-            // Emitir la partícula con su variación tonal única
-            pool.emit(
-                ParticleType::GORE_FRAGMENT,
-                shardX,
-                shardY,
-                vx,
-                vy,
-                SHARD_SIZE,
-                SHARD_SIZE,
-                lifeTime,
-                debrisColor,
-                0.35f,
-                1.5f
-            );
-        }
+        // Transformamos el agua en Gas/Vapor gris que sube térmicamente
+        water.type = ParticleType::GAS;
+        water.color = {150, 150, 150, 180}; // Gris nube térmica
+        water.maxLife = 0.7f;
+        water.lifeTime = 0.7f;
+        water.vy = -80.0f; // Impulso ascendente
+        water.vx = static_cast<float>(rand() % 40 - 20);
+
+        // Apagamos la partícula de fuego (extinción)
+        fire.active = false;
+        fire.type = ParticleType::NONE;
+        return;
+    }
+
+    // --- REACCIÓN 2: FUEGO + ACEITE = Ignición invasiva masiva ---
+    if (p1.type == ParticleType::OIL && p2.type == ParticleType::FIRE) {
+        p1.type = ParticleType::FIRE;
+        p1.maxLife = 1.2f;
+        p1.lifeTime = 1.2f;
+        p1.color = {255, 60, 0, 255};
+    }
+    else if (p2.type == ParticleType::OIL && p1.type == ParticleType::FIRE) {
+        p2.type = ParticleType::FIRE;
+        p2.maxLife = 1.2f;
+        p2.lifeTime = 1.2f;
+        p2.color = {255, 60, 0, 255};
+    }
+
+    // --- REACCIÓN 3: AGUA + ACEITE = Separación por densidad ---
+    else if (p1.type == ParticleType::WATER && p2.type == ParticleType::OIL) {
+        // El aceite es menos denso, se le da un micro-impulso hacia arriba, el agua baja
+        p2.y -= 1.0f;
+        p1.y += 1.0f;
+    }
+    else if (p2.type == ParticleType::WATER && p1.type == ParticleType::OIL) {
+        p1.y -= 1.0f;
+        p2.y += 1.0f;
     }
 }

@@ -1,60 +1,43 @@
 #include "physics/ElementReaction.h"
+#include "physics/ParticleAudioConfig.h"
 #include <cmath>
 #include <cstdlib>
 
-void ElementReaction::ResolveInteractions(Particle& p1, Particle& p2) {
-    if (!p1.isAlive || !p2.isAlive) return;
+// Inicialización del mapa estático de control de tiempos para los cooldowns
+std::map<std::string, Uint32> ParticleAudioConfig::lastTriggerTimes;
 
-    // Comprobación de proximidad radial rápida (AABB o distancia mínima por radio)
-    float dx = p1.x - p2.x;
-    float dy = p1.y - p2.y;
-    float distanceSq = (dx * dx) + (dy * dy);
-    float interactionRadius = 8.0f; // Distancia en píxeles para que reaccionen
+void ElementReaction::ResolveInteractions(ParticlePool& pool, ShadowAudio& audio) {
+    Particle* particles = pool.GetPool();
+    int maxParticles = pool.GetMaxParticles();
+    float interactionRadius = 12.0f;
+    float radiusSq = interactionRadius * interactionRadius;
 
-    if (distanceSq > (interactionRadius * interactionRadius)) return;
+    for (int i = 0; i < maxParticles; ++i) {
+        if (!particles[i].active) continue;
 
-    // --- LEY 1: INTERACCIÓN FUEGO + AGWA (Evaporación Térmica) ---
-    if ((p1.type == ParticleType::FIRE && p2.type == ParticleType::LIQUID_FLUID) ||
-        (p2.type == ParticleType::FIRE && p1.type == ParticleType::LIQUID_FLUID))
-    {
-        // El fuego evapora el fluido. Transformamos el agua en vapor ascendente
-        Particle& water = (p1.type == ParticleType::LIQUID_FLUID) ? p1 : p2;
-        Particle& fire = (p1.type == ParticleType::FIRE) ? p1 : p2;
+        for (int j = i + 1; j < maxParticles; ++j) {
+            if (!particles[j].active) continue;
 
-        water.type = ParticleType::VAPOR;
-        water.color = {220, 220, 255, 180}; // Tono blanquecino gaseoso
-        water.vy = -60.0f - (rand() % 40);   // Comienza a subir como gas
-        water.vx += (rand() % 40) - 20;
-        water.lifeTime = 0.6f;               // Vida corta de disipación
+            float dx = particles[i].x - particles[j].x;
+            float dy = particles[i].y - particles[j].y;
+            float distSq = dx * dx + dy * dy;
 
-        // El fuego se mitiga ligeramente al enfriarse con el agua
-        fire.lifeTime -= 0.15f;
-        return;
-    }
+            if (distSq <= radiusSq) {
+                // --- DETECCIÓN DE AUDIO DE REACCIONES QUÍMICAS ---
+                // Agua vs Fuego = Evaporación (Tssss)
+                if ((particles[i].type == ParticleType::WATER && particles[j].type == ParticleType::FIRE) ||
+                    (particles[j].type == ParticleType::WATER && particles[i].type == ParticleType::FIRE)) {
+                    ParticleAudioConfig::TriggerSFX(audio, "SFX_EVAPORATE", 120);
+                }
+                // Aceite vs Fuego = Ignición Explosiva (Fwoosh)
+                else if ((particles[i].type == ParticleType::OIL && particles[j].type == ParticleType::FIRE) ||
+                         (particles[j].type == ParticleType::OIL && particles[i].type == ParticleType::FIRE)) {
+                    ParticleAudioConfig::TriggerSFX(audio, "SFX_OIL_IGNITE", 180);
+                }
 
-    // --- LEY 2: CONDUCTIVIDAD ELÉCTRICA (Propagación por contacto) ---
-    if (p1.isElectrified && !p2.isElectrified && p2.type == ParticleType::LIQUID_FLUID) {
-        p2.isElectrified = true;
-        p2.chargeTimer = 1.5f; // El agua retiene la carga por segundo y medio
-        p2.color = {0, 255, 255, 255}; // Cambia a color cian neón eléctrico
-    }
-    else if (p2.isElectrified && !p1.isElectrified && p1.type == ParticleType::LIQUID_FLUID) {
-        p1.isElectrified = true;
-        p1.chargeTimer = 1.5f;
-        p1.color = {0, 255, 255, 255};
-    }
-
-    // --- LEY 3: REACCIÓN ELECTRICIDAD + VAPOR (Sobrecarga / Ionización) ---
-    if ((p1.type == ParticleType::VAPOR && p2.isElectrified) ||
-        (p2.type == ParticleType::VAPOR && p1.isElectrified))
-    {
-        Particle& vapor = (p1.type == ParticleType::VAPOR) ? p1 : p2;
-        // El vapor ionizado genera una pequeña chispa errática que sale disparada
-        if ((rand() % 100) < 5) { // 5% de probabilidad por frame
-            vapor.type = ParticleType::ELECTRIC_SPARK;
-            vapor.color = {100, 200, 255, 255};
-            vapor.vx *= 2.0f;
-            vapor.vy -= 30.0f;
+                // Delegamos las interacciones químicas puras al DestructionEngine
+                ElementReaction::ResolveInteractions(particles[i], particles[j]);
+            }
         }
     }
 }
