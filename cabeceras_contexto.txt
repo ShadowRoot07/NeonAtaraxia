@@ -1,0 +1,2023 @@
+=== MAPA DE MÉTODOS Y SINGLETONS ===
+
+
+/* FILE: include/Common.h */
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <SDL.h>
+#include <string>
+
+// Definiciones de botones para mapeo rápido
+const SDL_Scancode BTN_Z = SDL_SCANCODE_Z;
+const SDL_Scancode BTN_X = SDL_SCANCODE_X;
+const SDL_Scancode BTN_F = SDL_SCANCODE_F;
+
+struct Vector2 { float x, y; };
+struct Rect { float x, y, w, h; };
+
+enum ElementType { FIRE, AIR, LIGHT, EARTH, WATER, DARKNESS, NONE };
+
+enum EquipmentSlotType {
+    EQUIP_HELMET,   // 0: Casco
+    EQUIP_CHEST,    // 1: Peto
+    EQUIP_PANTS,    // 2: Mallas
+    EQUIP_BOOTS,    // 3: Botas
+    EQUIP_WEAPON_1, // 4: Arma Principal
+    EQUIP_WEAPON_2, // 5: Arma Secundaria
+    EQUIP_COUNT     // 6 slots en total
+};
+
+struct Entity {
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool isGrounded;
+};
+
+enum EnemyType { WALKER, FLYER, TURRET };
+
+struct Projectile {
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool active;
+};
+
+namespace Assets {
+    // Nuevas texturas de UI animadas (Spritesheets 1x2 - PNG)
+    const std::string BTN_Z_PATH = "sprites/ui/buttonZ_f1_c2.png";
+    const std::string BTN_X_PATH = "sprites/ui/buttonX_f1_c2.png";
+    const std::string BTN_F_PATH = "sprites/ui/buttonF_f1_c2.png";
+    const std::string BTN_D_PATH = "sprites/ui/buttonD_f1_c1.png"; // Auxiliar / Diálogos
+    const std::string BTN_INV_PATH = "sprites/ui/buttonInventory_f1_c2.png";
+    const std::string BTN_LINK_PATH = "sprites/ui/buttonKanaraLink_f1_c2.png";
+    
+    // Joystick analógico (Se mantienen en BMP temporalmente)
+    const std::string JOY_BASE_PATH = "sprites/ui/joystick_base.bmp";
+    const std::string JOY_KNOB_PATH = "sprites/ui/joystick_knob.bmp";
+}
+
+// include/Common.h (Agregar al final, antes del #endif)
+
+// Tipos de efectos de estado soportados por el motor
+enum StatusEffectType {
+    EFFECT_REGENERATION,
+    EFFECT_POISON,
+    EFFECT_OVERDRIVE,       // Aumenta el ataque, pero acelera el desgaste
+    EFFECT_NEON_SHIELD,     // Escudo que mitiga daño elemental
+    EFFECT_NIGHT_VISION     // Modificador visual / de luz
+};
+
+// Estructura limpia para buffs/debuffs temporales
+struct StatusEffect {
+    StatusEffectType type;
+    float duration;         // Duración restante en segundos
+    float tickTimer;        // Para efectos que actúan por intervalos (como el veneno)
+    float intensity;        // Magnitud del efecto
+};
+
+// Contextos de uso para el cálculo de degradación dinámica (Zelda BotW Style)
+enum ItemUsageContext {
+    USAGE_OPTIMAL,          // Picar piedra con pico, golpear carne con espada
+    USAGE_SUBOPTIMAL,       // Picar metal blindado con hacha de madera
+    USAGE_CRITICAL_HIT,     // Ataque pesado/cargado
+    USAGE_GOLPE_DE_GRACIA   // Lanzar el arma o golpe destructivo final
+};
+
+// Identificadores de Eventos del Sistema
+enum GameplayEventType {
+    EVENT_PLAYER_HIT,
+    EVENT_ENEMY_DEFEATED,
+    EVENT_ITEM_PICKUP,
+    EVENT_STORY_TRIGGER,
+    EVENT_WEAPON_USED
+};
+
+// Estructura genérica y ligera para transportar datos de eventos sin alojar RAM dinámica
+struct GameplayEvent {
+    GameplayEventType type;
+    std::string stringParam;
+    int intParam;
+    float floatParam;
+    void* entityPtr;        // Puntero genérico para interactuar con Player o Enemy si se requiere
+};
+
+#endif
+
+
+/* FILE: include/input/InputManager.h */
+#ifndef INPUT_MANAGER_H
+#define INPUT_MANAGER_H
+
+#include <SDL.h>
+#include "Common.h"
+
+struct JoyState {
+    float x, y;
+    bool isActive;
+    SDL_FingerID fingerID;
+};
+
+class InputManager {
+public:
+    InputManager();
+    void Update();
+    void HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer);       
+    
+    // --- FUNCIONES DE ESTADO ---
+    bool IsKeyPressed(SDL_Scancode k);
+    bool IsBtnPressed(SDL_Scancode k);
+    bool IsKeyDown(SDL_Scancode k);
+
+    // --- GETTERS PARA JOYSTICK ---
+    Vector2 GetJoyDir() const { return {joystick.x, joystick.y}; }
+    Vector2 GetJoystick() const { return {joystick.x, joystick.y}; } 
+    SDL_Point GetJoystickScreenPos() const;
+
+    // --- GETTERS DE HITBOXES (Para el render visual en UIManager o debug) ---
+    SDL_Rect GetBtnZArea() const { return btnZVisual; }
+    SDL_Rect GetBtnXArea() const { return btnXVisual; }
+    SDL_Rect GetBtnFArea() const { return btnFVisual; }
+    SDL_Rect GetBtnDArea() const { return btnDVisual; }
+    SDL_Rect GetBtnInvArea() const { return btnInvVisual; }
+    SDL_Rect GetBtnLinkArea() const { return btnLinkVisual; }
+    SDL_Rect GetJoyArea() const { return joystickArea; }
+
+    // --- GETTERS DE ESTADO PARA ANIMACIÓN DE BOTONES ---
+    bool IsZPressed() const { return vZ; }
+    bool IsXPressed() const { return vX; }
+    bool IsFPressed() const { return vF; }
+    bool IsDPressed() const { return vD; }
+    bool IsInvPressed() const { return vInv; }
+    bool IsLinkPressed() const { return vLink; }
+
+private:
+    const Uint8* state;
+    Uint8 lastState[SDL_NUM_SCANCODES];
+    JoyState joystick;
+
+    // Área del Joystick
+    SDL_Rect joystickArea;
+
+    // Hitboxes Táctiles Reales (Súper ampliados para que no fallen el toque)
+    SDL_Rect btnZTouch, btnXTouch, btnFTouch, btnDTouch, btnInvTouch, btnLinkTouch;
+
+    // Rectángulos Visuales (Dónde se dibujan los botones en pantalla estilo Deltarune)
+    SDL_Rect btnZVisual, btnXVisual, btnFVisual, btnDVisual, btnInvVisual, btnLinkVisual;
+
+    // Estados virtuales de los botones
+    bool vZ, vX, vF, vD, vInv, vLink;
+    bool lastVZ, lastVX, lastVF, lastVD, lastVInv, lastVLink;
+};
+
+#endif
+
+
+/* FILE: include/physics/Collision.h */
+#ifndef COLLISION_H
+#define COLLISION_H
+
+#include "Common.h"
+
+// Forward declaration para evitar inclusiones circulares innecesarias
+class Player;
+
+class PhysicsEngine {
+public:
+    static bool AABB(Rect a, Rect b);
+    // Cambiamos Entity& por Player& para poder gestionar el isGrounded
+    static void ResolvePlatformCollision(Player& e, Rect platform);
+};
+
+#endif
+
+
+
+/* FILE: include/physics/CombatSystem.h */
+#ifndef COMBAT_SYSTEM_H
+#define COMBAT_SYSTEM_H
+
+#include "player/Player.h"
+#include "world/Enemy.h"
+#include "physics/Collision.h"
+#include "gfx/ShadowAudio.h"
+#include <vector>
+#include <SDL_log.h>
+
+class CombatSystem {
+public:
+    static void ProcessCombat(Player& player, std::vector<Enemy>& enemies, ShadowAudio& sfx) {
+        // --- 1. ATAQUE DEL JUGADOR A ENEMIGOS ---
+        if (player.IsAttacking()) {
+            Rect attackBox = player.GetAttackRect();
+
+            for (auto& enemy : enemies) {
+                if (enemy.health > 0 && PhysicsEngine::AABB(attackBox, enemy.hitbox)) {
+                    // Si el enemigo no estaba ya muerto, recibe el impacto de la ShadowSword
+                    float damage = 20.0f; // Daño base
+                    enemy.health -= damage;
+                    
+                    // Aplicar Knockback orgánico usando el faceDir del jugador
+                    float knockbackForce = 150.0f;
+                    enemy.vel.x = player.GetFaceDir() * knockbackForce;
+                    
+                    // Reproducir el sonido de impacto cargado en tus assets
+                    sfx.Play("hitHurt");
+                    
+                    SDL_Log("CombatSystem: Enemigo impactado! HP restante: %.1f", enemy.health);
+                }
+            }
+        }
+
+        // --- 2. COLISIÓN / ATAQUE DE ENEMIGOS AL JUGADOR ---
+        // Limpiamos los enemigos caídos del vector para optimizar Termux
+        enemies.erase(
+            std::remove_if(enemies.begin(), enemies.end(), [](const Enemy& e) { return e.health <= 0; }),
+            enemies.end()
+        );
+
+        for (auto& enemy : enemies) {
+            // Si el enemigo toca el cuerpo del jugador y el jugador no tiene i-frames (invulnerabilidad)
+            if (player.GetInvulTimer() <= 0 && PhysicsEngine::AABB(player.hitbox, enemy.hitbox)) {
+                float damageToPlayer = 10.0f;
+                // Le pasamos el daño y la posición X del enemigo para que el jugador se empuje en dirección opuesta
+                player.TakeDamage(damageToPlayer, enemy.pos.x);
+                sfx.Play("hitHurt"); // Reutilizamos el sonido de daño
+            }
+        }
+    }
+};
+
+#endif
+
+
+/* FILE: include/physics/ParticlePool.h */
+#ifndef PARTICLE_POOL_H
+#define PARTICLE_POOL_H
+
+#include "Common.h"
+#include <SDL2/SDL.h>
+
+enum class ParticleType {
+    NONE,
+    WATER,
+    OIL,
+    GAS,
+    FIRE,
+    LASER_BEAM,
+    EXPLOSION_SMOKE,
+    GORE
+};
+
+struct Particle {
+    float x, y;
+    float vx, vy;
+    float width, height;
+    float lifeTime;
+    float maxLife;
+    SDL_Color color;
+    ParticleType type;
+    bool active = false;
+    
+    // Propiedades adicionales para simulación celular avanzada
+    float density;       // Para flotabilidad cruzada de líquidos
+    float temperature;   // Para propagación del fuego invasivo
+};
+
+class ParticlePool {
+private:
+    static const int MAX_PARTICLES = 2048;
+    Particle m_pool[MAX_PARTICLES];
+    int m_nextAvailableIndex = 0;
+
+public:
+    ParticlePool();
+    ~ParticlePool() = default;
+
+    void Spawn(float x, float y, float vx, float vy, float size, float life, SDL_Color color, ParticleType type);
+    void Update(float deltaTime);
+    void Render(SDL_Renderer* renderer);
+    void Clear();
+
+    // Getters para el motor de reacciones y testing
+    Particle* GetPool() { return m_pool; }
+    int GetMaxParticles() const { return MAX_PARTICLES; }
+};
+
+#endif
+
+
+/* FILE: include/physics/FluidSimulation.h */
+#ifndef FLUID_SIMULATION_H
+#define FLUID_SIMULATION_H
+
+#include "physics/ParticlePool.h"
+
+// Forward declaration limpia para compilar rápido
+class ShadowAudio;
+
+class FluidSimulation {
+public:
+    static void UpdateFluids(Particle* particles, int maxParticles, float deltaTime, Rect platform, ShadowAudio& audio);
+};
+
+#endif // FLUID_SIMULATION_H
+
+
+/* FILE: include/physics/EnergyPhysics.h */
+#ifndef ENERGY_PHYSICS_H
+#define ENERGY_PHYSICS_H
+
+#include "ParticlePool.h"
+
+class EnergyPhysics {
+public:
+    // Aplica retroceso al emisor y calcula el vector de empuje cinético continuo
+    static void ApplyLaserForce(float& entityVx, float& entityVy, float angle, float force, bool isRecoil, float deltaTime);
+    
+    // Propagación térmica: Genera partículas de fuego y vapor instantáneo
+    static void TriggerExplosion(ParticlePool& pool, float x, float y, float radius, int particleCount);
+};
+
+#endif
+
+
+/* FILE: include/physics/DestructionEngine.h */
+#ifndef DESTRUCTION_ENGINE_H
+#define DESTRUCTION_ENGINE_H
+
+#include <SDL.h>
+#include "physics/ParticlePool.h"
+#include "physics/Collision.h"
+
+// Estructura para representar una plataforma que se puede romper en el sandbox
+struct DestructiblePlatform {
+    Rect bounds;
+    std::string textureId;
+    bool isDestroyed;
+};
+
+class DestructionEngine {
+public:
+    // Fragmenta una plataforma en pedazos matriciales y los inyecta al pool con fuerza radial
+    static void FragmentPlatform(ParticlePool& pool, const DestructiblePlatform& platform, float explosionX, float explosionY, float force);
+};
+
+#endif
+
+
+/* FILE: include/physics/ElementReaction.h */
+#ifndef ELEMENT_REACTION_H
+#define ELEMENT_REACTION_H
+
+#include "physics/ParticlePool.h"
+
+// Forward declaration limpia
+class ShadowAudio;
+
+class ElementReaction {
+public:
+    static void ResolveInteractions(ParticlePool& pool);
+    static void ResolveInteractions(ParticlePool& pool, ShadowAudio& audio);
+    static void ResolveInteractions(Particle& p1, Particle& p2);
+};
+
+#endif // ELEMENT_REACTION_H
+
+
+/* FILE: include/physics/ParticleAudioConfig.h */
+#ifndef PARTICLE_AUDIO_CONFIG_H
+#define PARTICLE_AUDIO_CONFIG_H
+
+#include <string>
+#include <SDL2/SDL.h>
+#include "gfx/ShadowAudio.h"
+
+class ParticleAudioConfig {
+public:
+    // Filtro regulador: Solo reproduce el sonido si pasó el cooldown (en ms)
+    static void TriggerSFX(ShadowAudio& audio, const std::string& id, Uint32 cooldownMs) {
+        Uint32 currentTime = SDL_GetTicks();
+        
+        // Inicializar o buscar la última marca de tiempo del efecto
+        if (lastTriggerTimes.find(id) == lastTriggerTimes.end()) {
+            lastTriggerTimes[id] = 0;
+        }
+
+        if (currentTime - lastTriggerTimes[id] >= cooldownMs) {
+            audio.Play(id, 0); // Ejecución One-Shot estándar
+            lastTriggerTimes[id] = currentTime;
+        }
+    }
+
+private:
+    static std::map<std::string, Uint32> lastTriggerTimes;
+};
+
+#endif
+
+
+/* FILE: include/player/Player.h */
+#ifndef PLAYER_H
+#define PLAYER_H
+
+#include <vector>
+#include <string>
+#include <SDL.h>
+#include "Common.h" // Sincronización cuántica con Vector2, ElementType y GameplayEventBus globales
+#include "input/InputManager.h"
+#include "gfx/ShadowAudio.h"
+#include "player/InventorySystem.h"
+#include "core/GameplayEventBus.h"
+#include "core/KanaraLink.h"
+
+// Definición directa de la estructura para resolver el tipo de arma
+struct Weapon {
+    int rangeBonus = 0;
+};
+
+class Player {
+public:
+    // --- GETTERS DE ANIMACIÓN Y DIRECCIÓN ---
+    std::string GetCurrentAnimID() const { return currentAnimID; }
+    int GetCurrentFrameC() const { return currentFrameC; }
+    int GetCurrentFrameF() const { return currentFrameF; }
+    int GetFaceDir() const { return faceDir; }
+
+    Player();
+    void HandleInput(InputManager& input, ShadowAudio& sfx);
+    void Update(float dt);
+    void TakeDamage(float amount, float sourceX);
+
+    void ApplySnapshotState(const PlayerSnapshot& snapshot) {
+        this->pos = snapshot.pos;
+        this->health = snapshot.health;
+        this->coinsCollected = snapshot.coins;
+        this->gemsCollected = snapshot.gems;
+        this->nivel = snapshot.nivel;
+        this->expActual = snapshot.expActual;
+        this->mp = snapshot.mp;
+    }
+
+    void ApplyDash(float dir);
+    void ApplyAttack();
+
+    // --- GETTERS Y SETTERS COMPATIBLES CON COMMON.H ---
+    Vector2 GetPos() const { return pos; }
+    Vector2 GetShadowMark() const { return shadowMark; }
+    Rect GetHitbox() const { return hitbox; }
+    Rect GetAttackRect() const;
+    float GetInvulTimer() const { return invulTimer; }
+    float GetHealth() const { return health; }
+    bool IsAttacking() const { return attackTimer > 0.0f; }
+    bool IsShieldActive() const { return isShieldActive; }
+
+    // --- GETTERS DE ESTADÍSTICAS REALES ---
+    std::string GetName() const { return "ShadowRoot07"; } 
+    int GetLevel() const { return nivel; }                    
+    int GetExp() const { return expActual; }                    
+    int GetNextLevelExp() const { return expRequerida; }
+
+    int GetHp() const { return static_cast<int>(health); }
+    int GetMaxHp() const { return maxHp; }                    
+
+    int GetMp() const { return mp; }
+    int GetMaxMp() const { return maxMp; }
+    int GetAttack() const { return attack; }
+    int GetDefense() const { return defense; }
+
+    // Mecánicas Quantum (Marca de Sombra)
+    bool GetHasMark() const { return hasMark; }
+
+    // --- MÉTODOS ELEMENTALES REQUERIDOS ---
+    void SetElements(ElementType primary, ElementType secondary) {
+        elementSlot1 = primary;
+        elementSlot2 = secondary;
+    }
+
+    bool HasElement(ElementType element) const {
+        return (elementSlot1 == element || elementSlot2 == element);
+    }
+
+    // Getters/Setters de Armas
+    void SetWeapon(const Weapon& newWeapon) { currentWeapon = newWeapon; }
+    Weapon GetCurrentWeapon() const { return currentWeapon; }
+
+    // --- MÉTODOS DE CONTROL PARA EL BACKEND ---
+    void AddExperience(int amount, int nextLevelRequirement);
+    void LevelUp(int newRequiredExp);
+    void Heal(float amount);
+    void RestoreMp(int amount);
+    void TakeRawDamage(float amount); // Daño directo ignorando escudos (ej. veneno ambiental)
+
+    // Atributos públicos de físicas y lógica global
+    Vector2 pos;
+    Vector2 vel;
+    Rect hitbox;
+    bool isGrounded;
+    bool pendingPlatform;
+    int coinsCollected;
+    int gemsCollected;
+
+    InventorySystem inventory;
+
+private:
+    // Variables de control de físicas y vida básica
+    float speed;
+    float jumpForce;
+    float health;
+    int maxHp; 
+
+    // --- SISTEMA DE PROGRESIÓN REAL ---
+    int nivel;
+    int expActual;
+    int expRequerida;
+
+    // --- ATRIBUTOS DE MANÁ Y COMBATE ---
+    int mp;
+    int maxMp;
+    int attack;
+    int defense;
+
+    // --- VARIABLES DE ANIMACIÓN Y LOGICA INTERNA ---
+    std::string currentAnimID;
+    int currentFrameC;
+    int currentFrameF;
+    int faceDir;
+    Vector2 shadowMark;
+    float invulTimer;
+    float attackTimer;
+    bool isShieldActive;
+    bool hasMark;
+    float animTimer;
+
+    // --- MECÁNICAS DE MOVIMIENTO AVANZADO Y COOLDOWNS ---
+    int jumpCount;
+    int maxJumps;
+    float dashCooldown;
+    float dashTimer;
+    float attackCooldown;
+    bool isDashing;
+
+    // --- MECÁNICAS ELEMENTALES DE ESTADO ---
+    bool isLiquid;
+    float liquidTimer;
+
+    // Slots elementales y armas de la arquitectura del motor
+    ElementType elementSlot1;
+    ElementType elementSlot2;
+    Weapon currentWeapon;
+};
+
+#endif // PLAYER_H
+
+
+/* FILE: include/player/Weapon.h */
+#ifndef WEAPON_H
+#define WEAPON_H
+
+#include <string>
+
+struct Weapon {
+    std::string id;
+    std::string name;
+    int damageBonus;
+    int rangeBonus;      // Píxeles extra de alcance (Ej: +20 para una lanza, +0 para dagas)
+    std::string spriteId;
+
+    Weapon() : id("default_sword"), name("ShadowSword"), damageBonus(0), rangeBonus(0), spriteId("icon_sword") {}
+    Weapon(std::string p_id, std::string p_name, int p_dmg, int p_rng, std::string p_sprite)
+        : id(p_id), name(p_name), damageBonus(p_dmg), rangeBonus(p_rng), spriteId(p_sprite) {}
+};
+
+#endif
+
+
+/* FILE: include/player/InventorySystem.h */
+#ifndef INVENTORY_SYSTEM_H
+#define INVENTORY_SYSTEM_H
+
+#include <string>
+#include <vector>
+
+// Estructura de ranura individual estilo Minecraft
+struct InventorySlot {
+    std::string itemID = "VACIO"; 
+    std::string itemName = "";    
+    int count = 0;                
+    int maxStack = 64;            
+
+    // --- NUEVOS ATRIBUTOS DEL GAMEPLAY FRAMEWORK ---
+    float durabilidadMax = -1.0f;    // -1 significa indestructible (ej: pociones, materiales)
+    float durabilidadActual = -1.0f; 
+    float coeficienteFragilidad = 1.0f;
+};
+
+class InventorySystem {
+private:
+    std::vector<InventorySlot> slots;          // Grilla normal (20 slots)
+    std::vector<InventorySlot> equipmentSlots; // Equipamiento fijo (6 slots)
+
+public:
+    InventorySystem() {
+        slots.resize(20);
+        equipmentSlots.resize(6); // Redimensionar para Casco, Peto, Pantalones, Botas, Arma 1, Arma 2
+
+        // Inicializar slots de equipamiento por defecto como VACÍOS
+        for(int i = 0; i < 6; i++) {
+            equipmentSlots[i] = InventorySlot();
+        }
+
+        // Ítems de prueba iniciales
+        slots[0] = { "potion_red", "Pocion de Vida Roja", 10, 64 };
+        slots[1] = { "ore_shadow", "Fragmento de Mineral de Sombra Oscura", 64, 64 };
+        
+        // Agreguemos piezas de prueba equipables al inventario normal para testeo
+        slots[3] = { "helm_neon", "Casco de Fibra de Neon (+5 Def)", 1, 1 };
+        slots[4] = { "sword_cyber", "Espada Bifurcada Cyberpunk (+15 Atk)", 1, 1 };
+    }
+
+    std::vector<InventorySlot>& GetSlots() { return slots; }
+    std::vector<InventorySlot>& GetEquipmentSlots() { return equipmentSlots; }
+
+    // Intercambio normal entre slots de la mochila
+    void SwapSlots(int indexA, int indexB) {
+        if (indexA >= 0 && indexA < 20 && indexB >= 0 && indexB < 20) {
+            std::swap(slots[indexA], slots[indexB]);
+        }
+    }
+
+    // Intenta equipar un ítem desde la mochila a una ranura de equipamiento específica
+    bool EquipItem(int inventoryIndex, int equipSlotIndex) {
+        if (inventoryIndex < 0 || inventoryIndex >= 20 || equipSlotIndex < 0 || equipSlotIndex >= 6) return false;
+        
+        // Sincronización cuántica de slots por copia/intercambio seguro
+        std::swap(slots[inventoryIndex], equipmentSlots[equipSlotIndex]);
+        return true;
+    }
+
+    // Desequipar: Mueve el equipamiento de vuelta al inventario en el primer espacio vacío libre
+    bool UnequipItem(int equipSlotIndex) {
+        if (equipSlotIndex < 0 || equipSlotIndex >= 6) return false;
+        if (equipmentSlots[equipSlotIndex].itemID == "VACIO") return false;
+
+        // Buscar el primer slot vacío en el inventario común
+        for (int i = 0; i < 20; i++) {
+            if (slots[i].itemID == "VACIO") {
+                slots[i] = equipmentSlots[equipSlotIndex];
+                equipmentSlots[equipSlotIndex] = InventorySlot(); // Limpiar ranura corporal
+                return true;
+            }
+        }
+        return false; // Inventario lleno
+    }
+
+    void ClearSlot(int index) {
+        if (index >= 0 && index < 20) {
+            slots[index] = InventorySlot();
+        }
+    }
+};
+
+#endif // INVENTORY_SYSTEM_H
+
+
+/* FILE: include/world/Platform.h */
+#ifndef PLATFORM_H
+#define PLATFORM_H
+
+#include "Common.h"
+#include <string>
+
+enum PlatformType { NORMAL, SPIKE, TEMPORARY, LAVA };
+
+struct Platform {
+    std::string textureID; // <<-- SIEMPRE AL INICIO (Evita corrupción RAM)
+    Rect bounds;           // 16 bytes
+    PlatformType type;     // 4 bytes
+    float lifetime;        // 4 bytes
+    float damage;          // 4 bytes
+};
+
+// ============================================================================
+// NUEVAS ENTIDADES DEL MUNDO DE VECTORZERO (ALINEACIÓN REPARADA)
+// ============================================================================
+
+// 2. Sistema de Coleccionables del Mundo (Monedas, Gemas en el Mapa)
+enum class WorldItemType { COIN_GOLD, COIN_SILVER, GEM };
+
+struct WorldItem {
+    std::string textureID; // Objeto complejo dinámico SIEMPRE AL INICIO
+    Rect hitbox;           // 16 bytes
+    Vector2 pos;           // 8 bytes
+    WorldItemType type;    // 4 bytes
+    int value;             // 4 bytes
+    bool active;           // 1 byte (Primitivo al final)
+};
+
+// 3. Sistema de Objetos Interactivos (Cofres, Puertas)
+enum ObjectType { CHEST, DOOR };
+
+struct InteractiveObject {
+    std::string textureID; // Objeto complejo dinámico SIEMPRE AL INICIO
+    Rect hitbox;           // 16 bytes
+    Vector2 pos;           // 8 bytes
+    ObjectType type;       // 4 bytes
+    bool isOpen;           // 1 byte (Primitivo al final)
+};
+
+#endif
+
+
+
+/* FILE: include/world/Camera.h */
+#ifndef CAMERA_H
+#define CAMERA_H
+
+#include "Common.h" // <--- CRUCIAL: Para que reconozca la estructura Vector2
+
+class Camera {
+public:
+    Vector2 pos; // <--- CORREGIDO: Sin la 'D'
+    int viewW, viewH;
+    
+    // Límites máximos del mapa JSON actual
+    int mapMinWidth = 0;
+    int mapMaxWidth = 1000;
+    int mapMinHeight = 0;
+    int mapMaxHeight = 750;
+
+    Camera(int w, int h) : viewW(w), viewH(h) {
+        pos = {0.0f, 0.0f};
+    }
+
+    void Follow(Vector2 targetPos, float dt); // <--- CORREGIDO: Sin la 'D'
+};
+
+#endif
+
+
+
+/* FILE: include/world/Enemy.h */
+#ifndef ENEMY_H
+#define ENEMY_H
+
+#include "Common.h"
+
+// Estados para una IA más orgánica
+enum EnemyState { PATROL, CHASE, ATTACK, ALERT };
+
+struct Enemy : public Entity {
+    EnemyType type;
+    EnemyState state;
+    
+    float health = 60.0f;
+    float timer = 0.0f;
+    int dir = 1;
+    
+    // Parámetros de IA
+    float detectionRange = 300.0f;
+    float speedMult = 1.0f;
+
+    Enemy() {
+        pos = {0, 0};
+        vel = {0, 0};
+        hitbox = {0, 0, 32, 48};
+        type = WALKER;
+        state = PATROL;
+    }
+};
+
+#endif
+
+
+
+/* FILE: include/world/LevelLoader.h */
+#ifndef LEVEL_LOADER_H
+#define LEVEL_LOADER_H
+
+#include <string>
+#include <vector>
+#include "world/Platform.h"
+#include "world/Enemy.h"
+#include "player/Player.h"
+
+// Firma del cargador de niveles actualizada a la nueva nomenclatura del mapa
+std::vector<Platform> LoadLevel(
+    const std::string& jsonPath,
+    const std::string& assetRoot,
+    std::vector<Enemy>& enemies,
+    Player& player,
+    std::vector<WorldItem>& items, // <<-- CAMBIADO: De Item a WorldItem
+    std::vector<InteractiveObject>& objects
+);
+
+#endif
+
+
+/* FILE: include/ui/UIManager.h */
+#ifndef UIMANAGER_H
+#define UIMANAGER_H
+
+#include <SDL.h>
+#include "input/InputManager.h"
+#include "gfx/ShadowGFX.h"
+
+class Player;
+
+class UIManager {
+public:
+    UIManager();
+    // Recibe la librería de texturas
+    bool LoadAssets(ShadowGFX& gfx);
+    void Render(SDL_Renderer* renderer, ShadowGFX& gfx, const InputManager& input, const Player& player);
+    void Clean();
+};
+
+#endif
+
+
+
+/* FILE: include/ui/MenuManager.h */
+#ifndef MENU_MANAGER_H
+#define MENU_MANAGER_H
+
+#include <vector>
+#include <string>
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include "input/InputManager.h"
+
+enum MenuState { IN_MENU, START_GAME, IN_SETTINGS, IN_CREDITS };
+
+class MenuManager {
+public:
+    MenuManager();
+    void Update(InputManager& input, ShadowAudio& sfx);
+    void Render(ShadowGFX& gfx);
+    MenuState GetState() { return currentState; }
+
+private:
+    int selectedIndex;
+    std::vector<std::string> options;
+    MenuState currentState;
+    float inputTimer; // Para evitar scroll infinito del joystick
+};
+
+#endif
+
+
+
+/* FILE: include/ui/DialogueBox.h */
+#ifndef DIALOGUE_BOX_H
+#define DIALOGUE_BOX_H
+
+#include <vector>
+#include <string>
+#include <SDL.h>
+#include "gfx/ShadowGFX.h"
+
+class DialogueBox {
+public:
+    DialogueBox();
+    
+    void StartDialogue(const std::vector<std::string>& lines, const std::string& fontId);
+    void Update(float dt);
+    void Render(ShadowGFX& gfx, SDL_Renderer* renderer);
+    
+    // Cambiado a bool para coincidir con la arquitectura original de tu feature branch
+    bool AdvancePage();
+    bool IsPageFinished() const;
+
+private:
+    std::vector<std::string> dialoguePages; // Coincide con tu nota de compilación
+    std::string activeFontId;
+    std::string currentText;
+    
+    size_t currentPage;                     // Coincide con tu nota de compilación
+    size_t currentChar;                     // Agregado para el efecto typewriter
+    float textTimer;                        // Agregado para el control de tiempo por letra
+    bool dialogueFinished;
+};
+
+#endif
+
+
+/* FILE: include/ui/Inventory.h */
+#ifndef INVENTORY_H
+#define INVENTORY_H
+
+#include <string>
+#include <vector>
+#include <map>
+#include <SDL.h>
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+
+enum class ItemType { CONSUMABLE, WEAPON, ARMOR, QUEST };
+enum class InventoryTab { ITEMS, EQUIPMENT, STATS };
+
+struct Item {
+    std::string id;
+    std::string name;
+    std::string description;
+    ItemType type;
+    int quantity;
+    int maxStack;
+    std::string spriteId; // ID de la textura en ShadowGFX
+};
+
+// Estructura para reflejar las estadísticas y el Karma del jugador en la interfaz
+struct PlayerStats {
+    int level = 1;
+    int hp = 100;
+    int maxHp = 100;
+    int mp = 50;
+    int maxMp = 50;
+    int attack = 15;
+    int defense = 10;
+    int exp = 0;
+    int nextLevelExp = 100;
+    int statPointsToAssign = 0;
+    
+    // Sistema de Karma de Ataraxia Soul
+    int goodnessPoints = 0;
+    int evilnessPoints = 0;
+};
+
+class Inventory {
+public:
+    Inventory();
+    ~Inventory() = default;
+
+    // Gestión de Ítems
+    bool AddItem(const Item& item);
+    void RemoveItem(const std::string& itemId, int qty = 1);
+    
+    // Controles de Navegación
+    void HandleInput(SDL_Event& ev, ShadowAudio& sfx);
+    void Update(float dt);
+    void Render(ShadowGFX& gfx, SDL_Renderer* renderer, const PlayerStats& stats);
+
+    // Getters de Estado
+    InventoryTab GetActiveTab() const { return currentTab; }
+    bool IsOpen() const { return isOpen; }
+    void Toggle() { isOpen = !isOpen; }
+
+private:
+    InventoryTab currentTab;
+    bool isOpen;
+    
+    // Contenedores
+    std::vector<Item> itemsSlots;
+    size_t selectedGridIndex; // Índice para movernos en la cuadrícula de ítems (Página 1)
+    size_t selectedStatIndex; // Índice para elegir qué stat mejorar (Página 3)
+    
+    // Equipamiento actual
+    Item equippedWeapon;
+    Item equippedArmor;
+    bool hasWeaponEquipped;
+    bool hasArmorEquipped;
+
+    // Variables de UI (Burbujas temporales)
+    float bubbleTimer;
+    bool showBubble;
+    std::string bubbleText;
+    int bubbleX, bubbleY;
+
+    // Métodos de dibujado interno para cada página
+    void RenderItemsTab(ShadowGFX& gfx, SDL_Renderer* renderer);
+    void RenderEquipmentTab(ShadowGFX& gfx, SDL_Renderer* renderer);
+    void RenderStatsTab(ShadowGFX& gfx, SDL_Renderer* renderer, const PlayerStats& stats);
+    void TriggerBubble(const std::string& text, int x, int y);
+};
+
+#endif
+
+
+
+/* FILE: include/ui/KanaraPanel.h */
+// include/ui/KanaraPanel.h
+#pragma once
+
+#include <SDL.h>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <algorithm>
+
+#include "gfx/ShadowGFX.h"
+
+class KanaraLink;
+class Player;
+class ShadowGFX;
+
+struct MenuOption {
+    std::string name;
+    SDL_Rect bounds; 
+};
+
+struct TouchFinger {
+    SDL_FingerID id;
+    float x;
+    float y;
+};
+
+class KanaraPanel {
+private:
+    bool isActive = false;
+
+    // Variables de Viewport (Cámara y Transformación)
+    float offsetX = 0.0f;
+    float offsetY = 0.0f;
+    float zoomScale = 1.0f;
+    const float MIN_ZOOM = 0.4f;
+    const float MAX_ZOOM = 3.0f;
+
+    // Estado del arrastre (Drag) con un solo dedo
+    bool isDragging = false;
+    float lastTouchX = 0.0f;
+    float lastTouchY = 0.0f;
+
+    // Control de la interacción táctil y Zoom
+    std::vector<TouchFinger> activeFingers;
+    float lastFingerDistance = 0.0f;
+    bool isZooming = false;
+
+    // Nodo seleccionado en el grafo
+    int selectedNodeId = -1;
+    const float NODE_SIZE = 32.0f;
+
+    // --- VARIABLES PARA LA VENTANA DE OPERACIONES ---
+    std::vector<MenuOption> menuOptions;
+    int hoveredOption = -1; 
+    void InitializeMenuOptions();
+
+    // --- VARIABLES DE ESTADO DE CONFIGURACIÓN MODULAR ---
+    bool isConfigOpen = false;
+    int activeTab = 0;         // 0: Gráficos, 1: Audio, 2: Memoria
+    int chunkDistance = 8;     // Chunks por defecto
+    bool musicEnabled = true;
+    bool sfxEnabled = true;
+
+    enum ResetState {
+        RESET_IDLE,
+        RESET_CONFIRM_1,      // ¿Estás seguro de eliminar todo?
+        RESET_CONFIRM_2,      // ¿Estás realmente seguro?
+        RESET_CONFIRM_3,      // Por favor, no borres tu progreso por un mal momento...
+        RESET_LOADING         // Barra roja cargando (7 segundos de agonía)
+    };
+    ResetState currentResetState = RESET_IDLE;
+
+    float resetTimer = 0.0f;
+    const float RESET_TOTAL_TIME = 7.0f;
+    
+    // Control del efecto de Glitch Neón al cancelar
+    bool isGlitchActive = false;
+    float glitchTimer = 0.0f;
+    const float GLITCH_DURATION = 0.6f; // Duración del estallido visual
+
+    // Variables de control para la ventana emergente temporal
+    bool showNotification = false;
+    std::string notificationText = "";
+    float notificationTimer = 0.0f;
+    const float NOTIFICATION_DURATION = 3.0f;
+
+    void RenderConfigScreen(SDL_Renderer* renderer, ShadowGFX* gfx, KanaraLink& core);
+    void RenderResetWindow(SDL_Renderer* renderer, ShadowGFX* gfx); // <-- NUEVO MÉTODO
+    void RenderGlitchEffect(SDL_Renderer* renderer);                // <-- NUEVO MÉTODO
+    void RenderRotatedSquare(SDL_Renderer* renderer, float centerX, float centerY, float size, float angle, SDL_Color color);
+    void DrawGrid(SDL_Renderer* renderer);
+
+public:
+    KanaraPanel(); 
+    ~KanaraPanel() = default;
+
+    void SetActive(bool active) { isActive = active; }
+    bool IsActive() const { return isActive; }
+
+    void Update(float deltaTime, KanaraLink& core);
+    void Render(SDL_Renderer* renderer, ShadowGFX* gfx, KanaraLink& core);
+    void HandleTouchInput(SDL_Event& ev, KanaraLink& core, Player& player);
+};
+
+
+/* FILE: include/gfx/ShadowGFX.h */
+#ifndef SHADOW_GFX_H
+#define SHADOW_GFX_H
+
+#include <SDL.h>
+#include <SDL_ttf.h>
+#include <string>
+#include <map>
+
+class ShadowGFX {
+public:
+    // Ahora el constructor requiere el renderizador Y la ruta base de assets del motor
+    ShadowGFX(SDL_Renderer* renderer, const std::string& assetRoot);
+    ~ShadowGFX();
+    
+    SDL_Texture* GetTexture(const std::string& id, const std::string& p_path = "", bool useColorKey = true);
+    void DrawStatic(const std::string& id, SDL_Rect dest);
+    void DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip = false, int spriteW = 32, int spriteH = 32);
+    void DrawBackgroundInfinity(const std::string& textureId, float camX, float camY, int bgW = 800, int bgH = 600);
+
+    bool LoadFont(const std::string& id, const std::string& path, int size);
+    void DrawText(const std::string& text, const std::string& fontId, int x, int y, SDL_Color color, bool center = false);
+
+private:
+    SDL_Renderer* renderer;
+    std::string assetRootPath; // <--- Almacena la ruta (ej: "examples/Limbo/assets/")
+    std::map<std::string, SDL_Texture*> textureCache;
+    std::map<std::string, TTF_Font*> fontCache;
+    SDL_Texture* CreateFallbackTexture();
+};
+
+#endif
+
+
+
+/* FILE: include/gfx/ShadowAudio.h */
+#ifndef SHADOW_AUDIO_H
+#define SHADOW_AUDIO_H
+
+#include <SDL_mixer.h>
+#include <string>
+#include <map>
+
+class ShadowAudio {
+public:
+    ShadowAudio();
+    ~ShadowAudio();
+
+    bool Init();
+    void LoadSound(const std::string& id, const std::string& path);
+    void Play(const std::string& id, int loops = 0);
+    
+    // NUEVOS MÉTODOS DE STREAMING:
+    void PlayMusic(const std::string& id);
+    void StopMusic();
+    
+    void Clean();
+
+private:
+    std::map<std::string, Mix_Chunk*> soundCache;
+    std::map<std::string, Mix_Music*> musicCache;
+    Mix_Chunk* fallbackSound;
+};
+
+#endif
+
+
+
+/* FILE: include/NeonAtaraxia.h */
+#ifndef NEON_ATARAXIA_H
+#define NEON_ATARAXIA_H
+
+#include "gfx/ShadowGFX.h"
+#include "input/InputManager.h"
+#include "core/StateManager.h"
+#include <string>
+
+struct EngineConfig {
+    std::string windowTitle = "NeonAtaraxia Game";
+    int screenWidth = 800;
+    int screenHeight = 600;
+    bool vsync = true;
+    std::string assetRoot = "examples/Limbo/assets/"; // <--- Por defecto busca en el ejemplo
+};
+
+class NeonEngine {
+public:
+    NeonEngine() : window(nullptr), renderer(nullptr), gfx(nullptr), running(true) {}
+    virtual ~NeonEngine(); // <--- Implementado en el .cpp para evitar fugas
+
+    bool Init(const EngineConfig& config);
+    void Run();
+
+    virtual void OnStart() = 0;
+    virtual void OnUpdate(float dt) = 0;
+    virtual void OnRender() = 0;
+
+protected:
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    ShadowGFX* gfx;
+    InputManager input;
+    StateManager stateManager;
+    bool running;
+    std::string baseAssetPath; // <--- Guarda la ruta raíz de los assets activos
+};
+
+#endif
+
+
+
+/* FILE: include/core/StateManager.h */
+#ifndef STATE_MANAGER_H
+#define STATE_MANAGER_H
+
+#include <vector>
+#include <memory>
+#include <SDL.h>
+
+// Los estados fundamentales que planificamos para NeonAtaraxia
+enum class GameState {
+    MENU,
+    GAMEPLAY,
+    CUTSCENE,
+    DIALOGUE,
+    INVENTORY
+};
+
+// Clase base abstracta para cualquier estado del juego
+class EngineState {
+public:
+    virtual ~EngineState() = default;
+    
+    virtual void OnEnter() = 0;
+    virtual void OnExit() = 0;
+    virtual void HandleInput(SDL_Event& ev) = 0;
+    virtual void Update(float dt) = 0;
+    virtual void Render() = 0;
+};
+
+// El gestor que administra la pila de estados
+class StateManager {
+public:
+    StateManager() = default;
+    ~StateManager() { Clear(); }
+
+    void PushState(std::shared_ptr<EngineState> state);
+    void PopState();
+    void ChangeState(std::shared_ptr<EngineState> state); // Borra el actual y pone uno nuevo
+    void Clear();
+
+    void HandleInput(SDL_Event& ev);
+    void Update(float dt);
+    void Render();
+
+    bool IsEmpty() const { return states.empty(); }
+
+private:
+    std::vector<std::shared_ptr<EngineState>> states; // Pila de estados
+};
+
+#endif
+
+
+
+/* FILE: include/core/DialogueState.h */
+#ifndef DIALOGUE_STATE_H
+#define DIALOGUE_STATE_H
+
+#include "core/StateManager.h"
+#include "ui/DialogueBox.h"
+#include "gfx/ShadowAudio.h"
+#include <string>
+#include <vector>
+
+class DialogueState : public EngineState {
+public:
+    DialogueState(StateManager& stack, ShadowGFX* graphics, ShadowAudio* sfx,
+                  const std::vector<std::string>& lines, const std::string& textSfx = "click")
+        : stateManager(stack), gfx(graphics), audio(sfx), sfxId(textSfx) { // <<-- Cambiado 'graphics' por 'graphics' coordinado a gfx
+        box.StartDialogue(lines, "main_font");
+    }
+
+    void OnEnter() override { SDL_Log("DialogueState: Diálogo iniciado."); }
+    void OnExit() override { SDL_Log("DialogueState: Diálogo terminado."); }
+
+    void HandleInput(SDL_Event& ev) override {
+        if (ev.type == SDL_KEYDOWN) {
+            // Avanzar con la tecla Z (o el botón Z de tu UI táctil)
+            if (ev.key.keysym.sym == SDLK_z) {
+                // AdvancePage devuelve true si ya no quedan más páginas de texto
+                if (box.AdvancePage()) {
+                    stateManager.PopState(); // Quitamos este estado y volvemos al gameplay
+                } else {
+                    audio->Play("blipSelect"); // Sonido sutil de pasar página
+                }
+            }
+        }
+    }
+
+    void Update(float dt) override {
+        // Le pasamos el audio y el ID del sonido para el efecto Undertale
+        box.Update(dt, *audio, sfxId);
+    }
+
+    void Render() override {
+        // Al no limpiar la pantalla aquí, lo que esté abajo en la pila (el mapa/jugador)
+        // se seguirá dibujando de fondo de forma automática.
+        box.Render(*gfx, nullptr); // Si el Render de la caja ocupa el renderizador de SDL, pásalo aquí
+    }
+
+private:
+    StateManager& stateManager;
+    ShadowGFX* gfx;
+    ShadowAudio* audio;
+    DialogueBox box;
+    std::string sfxId;
+};
+
+#endif
+
+
+
+/* FILE: include/core/InventoryState.h */
+#ifndef INVENTORY_STATE_H
+#define INVENTORY_STATE_H
+
+#include "core/StateManager.h"
+#include "player/Player.h"
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include <SDL.h>
+#include <iostream>
+
+enum class MenuTab { ITEMS, STATS, EQUIPMENT };
+
+class InventoryState : public EngineState {
+
+private:
+    void RenderItemsPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon);
+    void RenderStatsPage(SDL_Renderer* renderer);
+    void RenderEquipmentPage(SDL_Renderer* renderer, SDL_Color colorBlanco, SDL_Color colorVerdeNeon);   
+
+    Player& player;
+    StateManager& stateManager;
+    ShadowGFX& gfx;
+    ShadowAudio& audio;
+
+    MenuTab activeTab = MenuTab::ITEMS;
+    int cursorIndex = 0;
+
+    // --- VARIABLES DE INTERFAZ INTEGRALES ---
+    SDL_Rect closeButtonRect = { 680, 70, 30, 30 };
+
+    // Control de Gestos (Swipe)
+    float touchStartX = 0.0f;
+    bool potentialSwipe = false;
+
+    // Control de Drag & Drop
+    int draggedSlotIndex = -1;
+    bool isDragging = false;
+    int mouseX = 0, mouseY = 0;
+
+    // Menú Contextual
+    bool isContextMenuOpen = false;
+    int contextSlotIndex = -1;
+    SDL_Rect btnUseRect = { 0, 0, 0, 0 };
+    SDL_Rect btnDropRect = { 0, 0, 0, 0 };
+
+    // Tooltip Dinámico
+    std::string tooltipText = "";
+    float tooltipTimer = 0.0f;
+
+    const std::string fontID = "main";
+
+    // Regiones de Pestañas
+    SDL_Rect tabRects[3] = {
+        { 100, 75, 120, 35 },
+        { 240, 75, 120, 35 },
+        { 380, 75, 120, 35 }
+    };
+
+    // Dimensiones de Grilla
+    const int startX = 120;
+    const int startY = 150;
+    const int slotSize = 48;
+    const int padding = 12;
+    const int columnas = 5;
+
+    int GetSlotIndexAt(int mx, int my);
+    
+    // Métodos privados auxiliares para simplificar el Render principal
+
+public:
+    InventoryState(Player& p, StateManager& sm, ShadowGFX& g, ShadowAudio& a);
+
+    void OnEnter() override;
+    void OnExit() override;
+    void HandleInput(SDL_Event& ev) override;
+    void Update(float dt) override;
+    void Render() override;
+};
+
+#endif // INVENTORY_STATE_H
+
+
+/* FILE: include/core/TimeLine.h */
+#ifndef TIMELINE_H
+#define TIMELINE_H
+
+#include <string>
+#include <vector>
+#include <SDL.h>
+#include <nlohmann/json.hpp>
+
+// Representa una ranura de guardado física dentro de un punto de la línea temporal
+struct SaveSlot {
+    std::string slotId;       // Cadenas aleatorias (ej: "ERR_0x45")
+    std::string worldName;    // Nombre del mapa/mundo actual
+    std::string timestamp;    // Fecha/Hora del guardado
+    nlohmann::json rawData;   // Datos puros de la Fase 3 (Stats, Karma, Inventario)
+};
+
+// Representa un nodo cuántico en el mapa de la máquina del tiempo
+struct TimeNode {
+    int id;
+    float x, y;
+    SDL_Color color;
+    std::string nodeHash;     // Nombre alfanumérico aleatorio (ej: "LINE_TZ_77")
+    std::vector<SaveSlot> slots;
+};
+
+// Generador de hashes y colores aleatorios cuánticos
+class TimeLineGenerator {
+public:
+    static std::string GenerateRandomHash(size_t length) {
+        auto randChar = []() -> char {
+            const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const size_t max_index = (sizeof(charset) - 1);
+            return charset[rand() % max_index];
+        };
+        std::string str(length, 0);
+        std::generate_n(str.begin(), length, randChar);
+        return str;
+    }
+
+    static SDL_Color GenerateRandomColor() {
+        // Colores vivos cyberpunk que contrasten con el fondo negro/morado
+        Uint8 r = (rand() % 155) + 100;
+        Uint8 g = (rand() % 155) + 100;
+        Uint8 b = (rand() % 155) + 100;
+        return SDL_Color{r, g, b, 255};
+    }
+};
+
+#endif
+
+
+
+/* FILE: include/core/TimeMachineState.h */
+#ifndef TIMEMACHINE_STATE_H
+#define TIMEMACHINE_STATE_H
+
+#include "core/StateManager.h"
+#include "core/TimeLine.h"
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include "ui/DialogueBox.h"
+#include <vector>
+#include <cmath>
+#include <algorithm>
+
+class TimeMachineState : public EngineState {
+public:
+    TimeMachineState(StateManager& stack, ShadowGFX* graphics, SDL_Renderer* rawRenderer, ShadowAudio* sfx, nlohmann::json currentGameState)
+        : stateManager(stack), gfx(graphics), renderer(rawRenderer), audio(sfx), activeSaveData(currentGameState), selectedNodeIndex(0) {
+        srand(static_cast<unsigned int>(SDL_GetTicks()));
+        InitializeTimeLine();
+    }
+
+    void OnEnter() override {
+        audio->Play("blipSelect");
+        // Inicializamos burbuja temporal de diálogo
+        std::vector<std::string> intro = {"DISPOSITIVO CRONOLOGICO ACTIVO: Seleccione un nodo temporal o salte al vacio."};
+        dialogueBubble.StartDialogue(intro, "main_font");
+    }
+
+    void OnExit() override {
+        audio->Play("blipSelect");
+    }
+
+    void HandleInput(SDL_Event& ev) override {
+        if (ev.type == SDL_KEYDOWN) {
+            if (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_g) {
+                stateManager.PopState(); // Cerrar máquina del tiempo
+                return;
+            }
+
+            // Navegación horizontal por la línea temporal (Flechas)
+            if (ev.key.keysym.sym == SDLK_RIGHT) {
+                if (selectedNodeIndex < nodes.size()) {
+                    selectedNodeIndex++;
+                    audio->Play("click");
+                    UpdateBubbleText();
+                }
+            }
+            else if (ev.key.keysym.sym == SDLK_LEFT) {
+                if (selectedNodeIndex > 0) {
+                    selectedNodeIndex--;
+                    audio->Play("click");
+                    UpdateBubbleText();
+                }
+            }
+
+            // Confirmar Acción (Tecla Z para Guardar / Cargar)
+            if (ev.key.keysym.sym == SDLK_z) {
+                if (selectedNodeIndex == nodes.size()) {
+                    // --- SALTO AL VACÍO: CREAR NUEVO PUNTO DE GUARDADO ---
+                    CreateNewTimelineNode();
+                } else {
+                    // Cargar o sobreescribir en nodo existente
+                    audio->Play("blipSelect");
+                    SDL_Log("TimeMachine: Nodo %s seleccionado para procesamiento.", nodes[selectedNodeIndex].nodeHash.c_str());
+                }
+            }
+        }
+    }
+
+    void Update(float dt) override {
+        dialogueBubble.Update(dt, *audio, "click");
+    }
+
+    void Render() override {
+        // 1. EFECTO DE OLAS MATEMÁTICAS (Fondo Negro/Morado)
+        Uint32 ticks = SDL_GetTicks();
+        SDL_SetRenderDrawColor(renderer, 10, 5, 15, 255); // Fondo casi negro
+        SDL_RenderClear(renderer);
+
+        // Renderizado de las olas moradas usando líneas senoidales reactivas al tiempo
+        SDL_SetRenderDrawColor(renderer, 100, 30, 140, 50); // Morado translúcido
+        for (int i = 0; i < 800; i += 4) {
+            float wave1 = std::sin(ticks * 0.001f + i * 0.005f) * 40.0f;
+            float wave2 = std::cos(ticks * 0.002f + i * 0.01f) * 20.0f;
+            int yPos = static_cast<int>(300 + wave1 + wave2);
+            SDL_RenderDrawLine(renderer, i, yPos - 50, i, yPos + 150);
+        }
+
+        // 2. RENDERIZADO DE LAS CONEXIONES COHERENTES (Líneas de colores aleatorios estables)
+        for (size_t i = 0; i < nodes.size() - 1; ++i) {
+            SDL_SetRenderDrawColor(renderer, connectionColors[i].r, connectionColors[i].g, connectionColors[i].b, 255);
+            SDL_RenderDrawLine(renderer, (int)nodes[i].x, (int)nodes[i].y, (int)nodes[i+1].x, (int)nodes[i+1].y);
+        }
+
+        // Conexión ficticia hacia el "Vacío"
+        if (!nodes.empty()) {
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 100); // Línea discontinua/tenue al vacío
+            SDL_RenderDrawLine(renderer, (int)nodes.back().x, (int)nodes.back().y, 680, 300);
+        }
+
+        // 3. RENDERIZADO DE LOS NODOS (Bolas de colores)
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            SDL_Rect r = { (int)nodes[i].x - 12, (int)nodes[i].y - 12, 24, 24 };
+            SDL_SetRenderDrawColor(renderer, nodes[i].color.r, nodes[i].color.g, nodes[i].color.b, 255);
+            SDL_RenderFillRect(renderer, &r); // Representación geométrica compacta del nodo
+        }
+
+        // Nodo del "Vacío" (Representa la opción de crear un nuevo punto futuro)
+        SDL_Rect voidRect = { 680 - 10, 300 - 10, 20, 20 };
+        SDL_SetRenderDrawColor(renderer, 30, 30, 40, 255);
+        SDL_RenderDrawRect(renderer, &voidRect);
+
+        // 4. PINTAR LA FLECHA VERDE DE SELECCIÓN DE LA MÁQUINA DEL TIEMPO
+        int arrowX = (selectedNodeIndex == nodes.size()) ? 680 : (int)nodes[selectedNodeIndex].x;
+        int arrowY = (selectedNodeIndex == nodes.size()) ? 300 - 35 : (int)nodes[selectedNodeIndex].y - 35;
+        
+        SDL_Color greenArrow = { 0, 255, 100, 255 };
+        gfx->DrawText("V", "main_font", arrowX, arrowY, greenArrow, true);
+
+        // 5. RENDER DE LA BURBUJA DE CONTEXTO TEMPORAL
+        dialogueBubble.Render(*gfx, renderer);
+    }
+
+private:
+    StateManager& stateManager;
+    ShadowGFX* gfx;
+    SDL_Renderer* renderer;
+    ShadowAudio* audio;
+    nlohmann::json activeSaveData;
+
+    std::vector<TimeNode> nodes;
+    std::vector<SDL_Color> connectionColors;
+    size_t selectedNodeIndex;
+    DialogueBox dialogueBubble;
+
+    void InitializeTimeLine() {
+        nodes.clear();
+        connectionColors.clear();
+
+        // Generamos dinámicamente 4 nodos de ejemplo en la línea temporal para poblar el mapa
+        int startX = 150;
+        for (int i = 0; i < 4; ++i) {
+            TimeNode n;
+            n.id = i;
+            n.x = static_cast<float>(startX + (i * 130));
+            n.y = static_cast<float>(280 + (rand() % 60 - 30)); // Desviación vertical mística
+            n.color = TimeLineGenerator::GenerateRandomColor();
+            n.nodeHash = "NODE_0x" + TimeLineGenerator::GenerateRandomHash(4);
+            
+            // Slot interno ficticio de prueba
+            n.slots.push_back({ "SLOT_" + TimeLineGenerator::GenerateRandomHash(3), "Limbo Lab", "18:00", activeSaveData });
+            nodes.push_back(n);
+
+            if (i > 0) {
+                connectionColors.push_back(TimeLineGenerator::GenerateRandomColor());
+            }
+        }
+    }
+
+    void UpdateBubbleText() {
+        std::vector<std::string> lines;
+        if (selectedNodeIndex == nodes.size()) {
+            lines = {"[ EL VACIO QUANTICO ] - Selecciona para ramificar una nueva linea de tiempo."};
+        } else {
+            auto& n = nodes[selectedNodeIndex];
+            lines = {"LINEA: " + n.nodeHash + " | MUNDO: " + n.slots[0].worldName + " (" + n.slots[0].slotId + ")"};
+        }
+        dialogueBubble.StartDialogue(lines, "main_font");
+    }
+
+    void CreateNewTimelineNode() {
+        audio->Play("powerUp"); // Sonido épico de distorsión temporal
+        TimeNode n;
+        n.id = static_cast<int>(nodes.size());
+        n.x = static_cast<float>(150 + (nodes.size() * 130));
+        n.y = static_cast<float>(280 + (rand() % 60 - 30));
+        n.color = TimeLineGenerator::GenerateRandomColor();
+        n.nodeHash = "NEW_0x" + TimeLineGenerator::GenerateRandomHash(4);
+        n.slots.push_back({ "SLOT_" + TimeLineGenerator::GenerateRandomHash(3), "Mystery of Limbo", "18:05", activeSaveData });
+        
+        nodes.push_back(n);
+        connectionColors.push_back(TimeLineGenerator::GenerateRandomColor());
+        
+        // El motor escribe físicamente los datos en el storage a través del ecosistema JSON
+        std::string filename = "examples/Limbo/assets/maps/save_timeline.json";
+        std::string dataString = activeSaveData.dump(4);
+        
+        SDL_RWops* rw = SDL_RWFromFile(filename.c_str(), "wb");
+        if (rw) {
+            SDL_RWwrite(rw, dataString.c_str(), 1, dataString.length());
+            SDL_RWclose(rw);
+            SDL_Log("TimeMachine: Registro cronologico salvado exitosamente en storage local.");
+        }
+        
+        UpdateBubbleText();
+    }
+};
+
+#endif
+
+
+
+/* FILE: include/core/CutsceneSystem.h */
+#ifndef CUTSCENE_SYSTEM_H
+#define CUTSCENE_SYSTEM_H
+
+#include <string>
+#include <vector>
+#include <queue>
+#include <memory>
+#include <functional>
+#include <SDL.h>
+#include "core/StateManager.h"
+#include "gfx/ShadowGFX.h"
+#include "gfx/ShadowAudio.h"
+#include "input/InputManager.h"
+
+// Estructura interna para parsear efectos de texto enriquecido de forma segura
+struct RichChar {
+    char character;
+    bool shake;
+    bool wave;
+};
+
+// ============================================================================
+// 1. PERFIL DE PERSONAJE (CONFIGURACIÓN ESTILO UNDERTALE / CELESTE)
+// ============================================================================
+struct CharacterProfile {
+    std::string id;          // Ej: "vector_zero", "oracle_spica"
+    std::string name;        // Nombre legible que se dibujará en la caja
+    std::string faceTexID;   // ID de la textura del portrait cargada en ShadowGFX
+    std::string fontID;      // ID de la fuente cargada (por defecto "pixel_font")
+    std::string sfxID;       // Sonido tipo "chirp" o "click" exclusivo al hablar
+    std::string boxTexID;    // Sprite personalizado para el borde de su caja
+};
+
+// ============================================================================
+// 2. ARQUITECTURA DE COMANDOS SECUENCIALES (ACTION QUEUE)
+// ============================================================================
+enum class CutsceneActionType {
+    MOVE_ENTITY,      
+    PLAY_ANIM,        
+    WAIT,             
+    SHOW_DIALOGUE,    
+    PLAY_AUDIO,       
+    PLAY_BURST_ANIM,  
+    TRIGGER_EVENT     
+};
+
+struct CutsceneAction {
+    CutsceneActionType type;
+
+    std::string targetID;     
+    float targetX = 0.0f;     
+    float targetY = 0.0f;     
+    float duration = 0.0f;    
+    int targetFrame = 0;      
+
+    std::vector<std::string> dialogueLines;
+    std::string characterID;   
+
+    std::function<void()> eventCallback = nullptr;
+};
+
+// ============================================================================
+// 3. ESTADO DE CINEMÁTICA: CONTROL CENTRALIZADO DEL MOTOR
+// ============================================================================
+class CutsceneState : public EngineState {
+public:
+    CutsceneState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in);
+    ~CutsceneState() override = default;
+
+    void OnEnter() override;
+    void OnExit() override;
+    void HandleInput(SDL_Event& ev) override;
+    void Update(float dt) override;
+    void Render() override;
+
+    void AddAction(const CutsceneAction& action);
+    void RegisterCharacter(const CharacterProfile& profile);
+    bool IsCinematicFinished() const { return actionQueue.empty() && !isActionActive; }
+
+private:
+    void ProcessNextAction();
+    void UpdateCurrentAction(float dt);
+    
+    // Método auxiliar para construir líneas procesadas con saltos automáticos (Word Wrap)
+    void PrepareDialogueTokens(const std::string& rawText);
+
+    StateManager& stateManager;
+    ShadowGFX& gfx;
+    ShadowAudio& audio;
+    InputManager& input;
+
+    std::queue<CutsceneAction> actionQueue;
+    CutsceneAction currentAction;
+
+    std::vector<CharacterProfile> registeredCharacters;
+
+    float actionTimer;
+    bool isActionActive;
+    bool isDialogueActive;
+
+    // --- VARIABLES NUEVAS PARA EL EFECTO TELETIPO (MECÁNICAS 1, 2 Y 3) ---
+    std::vector<RichChar> parsedTokens; // Almacén indexado del diálogo actual
+    size_t visibleCharsCount;           // Cuántos caracteres se han mostrado de la lista
+    float textTimer;                    // Acumulador de tiempo para la siguiente letra
+    float currentLetterDelay;           // Retraso actual (dinámico por puntos/comas)
+    bool isTextComplete;                // Flag para bloquear el avance rápido accidental
+
+    int currentBurstFrame;
+    float burstFrameTimer;
+
+    CharacterProfile fallbackProfile;
+    const CharacterProfile& GetCharacter(const std::string& id) const;
+};
+
+#endif // CUTSCENE_SYSTEM_H
+
+
+/* FILE: include/core/GameplayBackend.h */
+#ifndef GAMEPLAY_BACKEND_H
+#define GAMEPLAY_BACKEND_H
+
+#include "Common.h"
+#include <unordered_map>
+#include <vector>
+
+class Player; // Forward declaration para interactuar con las stats del jugador
+
+class GameplayBackend {
+private:
+    std::vector<StatusEffect> activeEffects;
+    std::unordered_map<std::string, bool> worldFlags; // Banderas de la historia
+
+    // Parámetros de progresión matemática
+    const float expBase = 100.0f;
+    const float expExponent = 1.5f;
+
+public:
+    GameplayBackend();
+    ~GameplayBackend() = default;
+
+    // --- SISTEMA MATEMÁTICO Y COMBATE ---
+    float CalculateMitigatedDamage(float incomingDamage, float defense);
+    int CalculateRequiredEXP(int currentLevel);
+    
+    // --- GESTOR DE EFECTOS TEMPORALES (MINECRAFT STYLE) ---
+    void AddEffect(StatusEffectType type, float duration, float intensity);
+    void UpdateEffects(float dt, Player& player);
+    bool HasEffect(StatusEffectType type) const;
+
+    // --- DEGRADACIÓN DINÁMICA (ZELDA BOTW STYLE) ---
+    // Retorna la cantidad de durabilidad exacta a restar
+    float ProcessDurabilityLoss(float baseCost, ItemUsageContext context, float materialFragility);
+
+    // --- MEMORIA DE SUCESOS (STORY FLAGS) ---
+    void SetFlag(const std::string& flagID, bool value);
+    bool GetFlag(const std::string& flagID);
+    
+    // Inicializa las suscripciones al Bus de Eventos
+    void InitEventBindings();
+};
+
+#endif
+
+
+/* FILE: include/core/GameplayEventBus.h */
+#ifndef GAMEPLAY_EVENT_BUS_H
+#define GAMEPLAY_EVENT_BUS_H
+
+#include "Common.h"
+#include <vector>
+#include <functional>
+
+class GameplayEventBus {
+public:
+    using EventCallback = std::function<void(const GameplayEvent&)>;
+
+    // Singleton táctico para acceder desde cualquier parte del motor
+    static GameplayEventBus& Instance() {
+        static GameplayEventBus instance;
+        return instance;
+    }
+
+    // Registrar un oyente (Observer) para un tipo de evento específico
+    void Subscribe(GameplayEventType type, EventCallback callback) {
+        listeners[type].push_back(callback);
+    }
+
+    // Publicar un evento en el bus para notificar a todos los interesados
+    void Publish(const GameplayEvent& ev) {
+        for (auto& callback : listeners[ev.type]) {
+            callback(ev);
+        }
+    }
+
+    void Clear() {
+        listeners.clear();
+    }
+
+private:
+    GameplayEventBus() = default;
+    std::unordered_map<GameplayEventType, std::vector<EventCallback>> listeners;
+};
+
+#endif
+
+
+/* FILE: include/core/KanaraLink.h */
+#ifndef KANARALINK_H
+#define KANARALINK_H
+
+#include <vector>
+#include <string>
+#include <map>
+#include <unordered_map>
+#include <SDL.h>
+#include "Common.h"
+
+// Snapshot expandido para capturar el estado narrativo y kármico del jugador
+struct PlayerSnapshot {
+    Vector2 pos;
+    float health;
+    int coins;
+    int gems;
+    int nivel;
+    int expActual;
+    int mp;
+    int karmaPoints; // <-- NUEVO: Puntuación de Karma del jugador (-100 a +100 por ejemplo)
+};
+
+// Nodo de la línea temporal (Mantiene tus físicas cuánticas estables)
+struct TemporalNode {
+    uint32_t id;
+    uint32_t parentId;
+    std::vector<uint32_t> childrenIds;
+
+    int treeX;
+    int treeY;
+
+    float currentAngle = 0.0f;
+    float rotationSpeed = 0.0f;
+    float rotationDirection = 1.0f;
+    SDL_Color color = { 255, 255, 255, 255 };
+
+    int deathCount;
+    bool isEstablished;
+
+    int mapID;
+    PlayerSnapshot playerState;
+    std::map<std::string, bool> worldEventFlags; // Clonación de flags del universo en este punto
+};
+
+// Estructura de una Opción o Decisión en los diálogos del juego
+struct NarrativeChoice {
+    std::string text;           // Texto que se muestra en la UI táctil
+    std::string targetEventID;  // ID del evento al que salta si se elige
+    int karmaImpact;            // Modificador de karma (+5 bondad, -5 maldad, etc.)
+    std::string requiredFlag;   // Flag necesaria para desbloquear esta opción (opcional)
+};
+
+// Un Evento del Lore (Conversación, cinemática, trigger de zona, etc.)
+struct KarmaEvent {
+    std::string id;
+    std::vector<std::string> dialogueLines;
+    std::vector<NarrativeChoice> choices;
+    std::string automaticNextEventID; // Si no hay elecciones, salta a este evento automáticamente
+    
+    // Requisitos de activación
+    int minKarmaRequired = -999;
+    int maxKarmaRequired = 999;
+    std::string requiredEventFlag;
+};
+
+class KarmaLink {
+public:
+    KarmaLink();
+    ~KarmaLink();
+
+    // -- Gestión Cuántica de Líneas Temporales (Heredado de KanaraLink) --
+    void InitializeSandboxSeed();
+    void CreateSavePoint(const PlayerSnapshot& playerState, int currentMapID, const std::map<std::string, bool>& currentEvents, int64_t parentOverrideId = -1);
+    bool LoadSavePoint(uint32_t nodeId, PlayerSnapshot& outPlayerState, int& outMapID);
+    void RegisterPlayerDeath();
+    void ResetToRootNodeOnly();
+    
+    const std::vector<TemporalNode>& GetTemporalNodes() const { return nodes; }
+    uint32_t GetActiveNodeID() const { return activeNodeId; }
+    const TemporalNode* FindNode(uint32_t id) const;
+
+    // -- NUEVO: Sistema de Historia Backend (KarmaLink) --
+    void RegisterNarrativeEvent(const KarmaEvent& ev);
+    const KarmaEvent* EvaluateNextStoryEvent(const std::string& currentEventID, int currentKarma);
+    
+    // Gestión directa de Flags a través de la línea de tiempo activa
+    void SetStoryFlag(const std::string& flag, bool value);
+    bool GetStoryFlag(const std::string& flag) const;
+
+private:
+    std::vector<TemporalNode> nodes;
+    uint32_t activeNodeId;
+    uint32_t nextNodeId;
+
+    // Base de datos en memoria con todos los eventos de la historia indexados
+    std::unordered_map<std::string, KarmaEvent> storyDatabase;
+};
+
+#endif // KANARALINK_H
+
+
+/* FILE: include/core/StoryEventManager.h */
+#ifndef STORY_EVENT_MANAGER_H
+#define STORY_EVENT_MANAGER_H
+
+#include <unordered_map>
+#include <string>
+
+class StoryEventManager {
+public:
+    static StoryEventManager& GetInstance() {
+        static StoryEventManager instance;
+        return instance;
+    }
+
+    // Registrar o cambiar el estado de un evento/flag de la historia
+    void SetFlag(const std::string& flagName, bool value) {
+        storyFlags[flagName] = value;
+    }
+
+    // Verificar si un evento ya ocurrió
+    bool GetFlag(const std::string& flagName) const {
+        auto it = storyFlags.find(flagName);
+        if (it != storyFlags.end()) {
+            return it->second;
+        }
+        return false; // Por defecto el evento no ha ocurrido
+    }
+
+    // Limpiar banderas (útil para reiniciar partida o saltar de línea temporal)
+    void ClearFlags() {
+        storyFlags.clear();
+    }
+
+    // El KanaraLink usará esto directamente para serializar a JSON en el futuro
+    const std::unordered_map<std::string, bool>& GetAllFlags() const {
+        return storyFlags;
+    }
+
+    void LoadAllFlags(const std::unordered_map<std::string, bool>& loadedFlags) {
+        storyFlags = loadedFlags;
+    }
+
+private:
+    StoryEventManager() = default;
+    std::unordered_map<std::string, bool> storyFlags;
+};
+
+#endif // STORY_EVENT_MANAGER_H

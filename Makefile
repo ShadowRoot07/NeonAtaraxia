@@ -1,6 +1,6 @@
 CXX=clang++
 CXXFLAGS=-Iinclude -Isrc `sdl2-config --cflags` -std=c++17 -MMD -O2
-LDFLAGS=`sdl2-config --libs` -lSDL2_mixer -lSDL2_ttf -lSDL2_image
+LDFLAGS=`sdl2-config --libs` -lSDL2_image -lSDL2_ttf -lSDL2_mixer
 SRC_DIR=src
 BUILD_DIR=build
 TARGET=game_core

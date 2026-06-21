@@ -1,7 +1,7 @@
 #include "ui/KanaraPanel.h"
+#include "core/KanaraLink.h"
 
 #include "player/Player.h" 
-#include "core/KanaraLink.h"
 #include "core/GameplayEventBus.h"
 
 #include <sstream>
@@ -18,7 +18,7 @@ KanaraPanel::KanaraPanel() {
 // ============================================================================
 // IMPLEMENTACIÓN DE KANARAPANEL::RENDER (INTEGRADO CON RESET DE SEGURIDAD)
 // ============================================================================
-void KanaraPanel::Render(SDL_Renderer* renderer, ShadowGFX* gfx, KanaraLink& core) {
+void KanaraPanel::Render(SDL_Renderer* renderer, ShadowGFX* gfx, KarmaLink& core) {
     if (!isActive) return;
 
     // 1. Dibujar Rejilla de Fondo Cyberpunk
@@ -139,7 +139,7 @@ void KanaraPanel::Render(SDL_Renderer* renderer, ShadowGFX* gfx, KanaraLink& cor
 // ============================================================================
 // IMPLEMENTACIÓN DE KANARAPANEL::UPDATE (MANEJO DE TEMPORIZADORES Y GLITCHES)
 // ============================================================================
-void KanaraPanel::Update(float deltaTime, KanaraLink& core) {
+void KanaraPanel::Update(float deltaTime, KarmaLink& core) {
     if (!isActive) return;
 
     // 1. Actualización del estallido de glitches al cancelar
@@ -346,7 +346,7 @@ void KanaraPanel::InitializeMenuOptions() {
     }
 }
 
-void KanaraPanel::RenderConfigScreen(SDL_Renderer* renderer, ShadowGFX* gfx, KanaraLink& core) {
+void KanaraPanel::RenderConfigScreen(SDL_Renderer* renderer, ShadowGFX* gfx, KarmaLink& core) {
     // Contenedor principal centrado en el espacio lógico virtual (800x600)
     SDL_Rect configBox = { 80, 60, 640, 460 };
 
@@ -414,7 +414,7 @@ void KanaraPanel::RenderConfigScreen(SDL_Renderer* renderer, ShadowGFX* gfx, Kan
     gfx->DrawText("VOLVER", "pixel_font", 595, 473, { 0, 190, 255, 255 }, false);
 }
 
-void KanaraPanel::HandleTouchInput(SDL_Event& ev, KanaraLink& core, Player& player) {
+void KanaraPanel::HandleTouchInput(SDL_Event& ev, KarmaLink& core, Player& player) {
     if (!isActive) return;
 
     // Procesamos coordenadas del evento táctil escaladas a tu UI virtual (800x600)
@@ -637,8 +637,13 @@ void KanaraPanel::HandleTouchInput(SDL_Event& ev, KanaraLink& core, Player& play
                         } else if (!currentNodes.empty()) {
                             parentId = currentNodes.back().id;
                         }
+                        
+                        std::map<std::string, bool> eventMap;
+                        for(size_t i = 0; i < currentEvents.size(); ++i) {
+                            eventMap["flag_" + std::to_string(i)] = currentEvents[i]; 
+                        }
+                        core.CreateSavePoint(currentSnapshot, currentMapID, eventMap, parentId);
 
-                        core.CreateSavePoint(currentSnapshot, currentMapID, currentEvents, parentId);
                         if (!core.GetTemporalNodes().empty()) {
                             selectedNodeId = static_cast<int>(core.GetTemporalNodes().back().id);
                         }

@@ -49,15 +49,9 @@ build/main.o: src/main.cpp \
   /data/data/com.termux/files/usr/include/SDL2/SDL_version.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
+  include/core/StateManager.h include/core/KanaraLink.h include/Common.h \
+  include/ui/KanaraPanel.h include/gfx/ShadowGFX.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_image.h \
-  include/gfx/ShadowGFX.h include/gfx/ShadowAudio.h \
+  include/gfx/ShadowAudio.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
-  include/ui/UIManager.h include/input/InputManager.h include/Common.h \
-  include/ui/MenuManager.h include/world/Camera.h include/world/Enemy.h \
-  include/world/Platform.h include/player/Player.h \
-  include/player/InventorySystem.h include/core/GameplayEventBus.h \
-  include/core/KanaraLink.h include/core/StateManager.h \
-  include/world/LevelLoader.h include/ui/DialogueBox.h \
-  include/core/CutsceneSystem.h include/core/InventoryState.h \
-  include/ui/KanaraPanel.h src/elements/EarthSkill.h
+  include/input/InputManager.h

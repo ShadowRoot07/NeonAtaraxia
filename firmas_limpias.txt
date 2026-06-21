@@ -1,0 +1,41 @@
+class NeonEngine { public:
+    virtual ~NeonEngine(); // <--- Implementado en el .cpp para evitar fugas     virtual void OnStart() = 0;
+    virtual void OnUpdate(float dt) = 0;     virtual void OnRender() = 0;
+class CutsceneState : public EngineState { public:
+class DialogueState : public EngineState { public:
+class Player; // Forward declaration para interactuar con las stats del jugador class GameplayBackend {
+public: class GameplayEventBus {
+public: class InventoryState : public EngineState {
+public: class KarmaLink {
+public: class EngineState {
+public:     virtual ~EngineState() = default;
+    virtual void OnEnter() = 0;     virtual void OnExit() = 0;
+    virtual void HandleInput(SDL_Event& ev) = 0;     virtual void Update(float dt) = 0;
+    virtual void Render() = 0; class StateManager {
+public: class StoryEventManager {
+public: class TimeLineGenerator {
+public: class TimeMachineState : public EngineState {
+public: class ShadowAudio {
+public: class ShadowGFX {
+public: class InputManager {
+public: class NeonTetris {
+public: class Player;
+class PhysicsEngine { public:
+class CombatSystem { public:
+class DestructionEngine { public:
+class ShadowAudio; class ElementReaction {
+public: class EnergyPhysics {
+public: class ShadowAudio;
+class FluidSimulation { public:
+class ParticleAudioConfig { public:
+class ParticlePool { public:
+class InventorySystem { public:
+class Player { public:
+class DialogueBox { public:
+class Inventory { public:
+class KarmaLink;  class Player;
+class ShadowGFX; class KanaraPanel {
+public: class MenuManager {
+public: class Player;
+class UIManager { public:
+class Camera { public:

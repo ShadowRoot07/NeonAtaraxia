@@ -1,0 +1,44 @@
+{
+    "global": {
+        "fonts": {
+            "default": "assets/fonts/m5x7.ttf"
+        },
+        "sfx": {
+            "click": "assets/audio/sfx/click.wav",
+            "blip": "assets/audio/sfx/blipSelect.wav",
+            "CHEST_OPEN":"assets/audio/sfx/CHEST_OPEN.wav"
+        }
+    },
+    "menu": {
+        "textures": {
+            "menu_bg": "assets/sprites/funds/fondo_base_default.png",
+            "btn_z": "assets/sprites/ui/buttonZ_f1_c2.png",
+            "btn_x": "assets/sprites/ui/buttonX_f1_c2.png"
+        },
+        "audio": {
+            "music": "assets/audio/bgm/menuDefault.wav"
+        }
+    },
+    "gameplay": {
+        "textures": {
+            "player_idle": "assets/sprites/player/VectorZero_indle_f2_c4.png",
+            "player_walk": "assets/sprites/player/VectorZero_walk_f2_c6.png",
+            "floor": "assets/sprites/platforms/floor_default.png"
+        },
+        "audio": {
+            "music": "assets/audio/bgm/gameplayDefault.wav",
+            "jump": "assets/audio/sfx/jump.wav"
+        }
+    },
+    "tetris": {
+        "textures": {
+            "block_blue": "assets/sprites/platforms/tetris/tetris-block-blue_f1_c1.png",
+            "block_cian": "assets/sprites/platforms/tetris/tetris-block-cian_f1_c1.png",
+            "block_green": "assets/sprites/platforms/tetris/tetris-block-green_f1_c1.png"
+        },
+        "audio": {
+            "music": "assets/audio/bgm/TETRIS_SOUND.wav",
+            "line": "assets/audio/sfx/tetris_fila_completa.wav"
+        }
+    }
+}

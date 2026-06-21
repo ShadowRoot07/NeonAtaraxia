@@ -1,0 +1,31 @@
+{
+  "map_metadata": {
+    "name": "Neon Ataraxia Tutorial Grid",
+    "total_width": 6400,
+    "total_height": 600,
+    "frames_count": 8,
+    "frame_width": 800
+  },
+  "platforms": [
+    { "type": "floor_default", "x": 0, "y": 540, "w": 6400, "h": 60 },
+    { "type": "pared_default", "x": 1200, "y": 300, "w": 80, "h": 240 }
+  ],
+  "triggers": [
+    { "id": "dialogue_frame4", "activation_x": 2500, "trigger_width": 50, "target_state": "DialogueState" }
+  ],
+  "entities": {
+    "player_spawn": { "x": 100, "y": 480 },
+    "enemies": [
+      { "type": "WALKER", "sprite": "Bug_f1_c2.png", "x": 1800, "y": 480 },
+      { "type": "WALKER", "sprite": "Bug_f1_c2.png", "x": 2000, "y": 480 },
+      { "type": "WALKER", "sprite": "Bug_f1_c2.png", "x": 2200, "y": 480 }
+    ],
+    "interactive_objects": [
+      { "type": "Tetris-computer", "sprite": "Tetris-computer_f1_c2.png", "x": 3500, "y": 480 },
+      { "type": "chest_default", "sprite": "chest_default_f1_c2.png", "x": 4300, "y": 480, "coins_contained": 5 },
+      { "type": "Pedestal", "sprite": "Pedestal_f1_c1.png", "x": 5000, "y": 480, "item_spawn": "EspadaBasica_f1_c2.png" },
+      { "type": "Pedestal", "sprite": "Pedestal_f1_c1.png", "x": 5200, "y": 480, "item_spawn": "PocionCuracion_f1_c1.png" },
+      { "type": "door_default", "sprite": "door_default_f1_c2.png", "x": 6200, "y": 480 }
+    ]
+  }
+}
