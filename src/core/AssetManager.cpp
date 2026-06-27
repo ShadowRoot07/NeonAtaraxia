@@ -1,62 +1,94 @@
 #include "core/AssetManager.h"
 #include <fstream>
 #include <iostream>
+#include <SDL.h> // Para SDL_Log
 
-// Constructor: Recibe las referencias a los sistemas que gestionan los recursos
 AssetManager::AssetManager(ShadowGFX& g, ShadowAudio& a) : gfx(g), audio(a) {}
 
-// Carga el archivo JSON maestro que contiene el manifiesto de assets
 bool AssetManager::LoadManifest(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
-        std::cerr << "[AssetManager] ERROR: No se pudo abrir el manifiesto en: " << path << std::endl;
+        SDL_Log("[AssetManager] ERROR CRÍTICO: No se pudo abrir el manifiesto en: %s", path.c_str());
         return false;
     }
     
     try {
         file >> manifest;
-        std::cout << "[AssetManager] Manifiesto cargado exitosamente desde: " << path << std::endl;
+        SDL_Log("[AssetManager] Manifiesto JSON cargado exitosamente desde: %s", path.c_str());
     } catch (const nlohmann::json::parse_error& e) {
-        std::cerr << "[AssetManager] ERROR al parsear JSON: " << e.what() << std::endl;
+        SDL_Log("[AssetManager] ERROR DE PARSEO en JSON: %s", e.what());
         return false;
     }
     
     return true;
 }
 
-// Carga todos los recursos asociados a un estado específico (ej: "menu", "gameplay")
 void AssetManager::LoadStateAssets(const std::string& stateName) {
     if (!manifest.contains(stateName)) {
-        std::cerr << "[AssetManager] Advertencia: Estado '" << stateName << "' no encontrado en el manifiesto." << std::endl;
+        SDL_Log("[AssetManager] Advertencia: Estado '%s' no encontrado en el manifiesto.", stateName.c_str());
         return;
     }
 
     auto state = manifest[stateName];
     
-    // Cargar texturas si existen
+    // 1. Cargar Texturas extrayendo metadatos (rows, cols)
     if (state.contains("textures")) {
-        for (auto& [id, path] : state["textures"].items()) {
-            // ShadowGFX::GetTexture utiliza el ID y la ruta para cachear la textura
-            gfx.GetTexture(id, path.get<std::string>());
+        for (auto& [id, data] : state["textures"].items()) {
+            std::string path = data.value("path", "");
+            int rows = data.value("rows", 1);
+            int cols = data.value("cols", 1);
+            
+            if (!path.empty()) {
+                // Pasamos toda la información inteligente a ShadowGFX
+                gfx.GetTexture(id, path, true, rows, cols);
+            }
         }
     }
     
-    // Cargar sonidos si existen
+    // 2. Cargar Sonidos redirigiendo por tipo (music o sfx)
     if (state.contains("sounds")) {
-        for (auto& [id, path] : state["sounds"].items()) {
-            audio.LoadSound(id, path.get<std::string>());
+        for (auto& [id, data] : state["sounds"].items()) {
+            std::string path = data.value("path", "");
+            std::string type = data.value("type", "sfx"); // Si no dice nada, asume SFX
+            
+            if (!path.empty()) {
+                if (type == "music") {
+                    audio.LoadMusic(id, path);
+                } else {
+                    audio.LoadSound(id, path);
+                }
+            }
         }
     }
     
-    SDL_Log("[AssetManager] Recursos cargados correctamente para el estado: %s", stateName.c_str());
+    SDL_Log("[AssetManager] => Recursos cargados completamente para el estado: %s", stateName.c_str());
 }
 
-// Libera los recursos del estado (puedes expandir esto para limpiar cachés específicos)
 void AssetManager::UnloadStateAssets(const std::string& stateName) {
     if (!manifest.contains(stateName)) return;
 
-    // Aquí podrías añadir lógica para llamar a métodos como audio.StopAll() 
-    // o gfx.ClearCacheForState(stateName) si decides implementarlos a futuro.
+    auto state = manifest[stateName];
+
+    // 1. Limpiar texturas de la RAM y del caché de ShadowGFX
+    if (state.contains("textures")) {
+        for (auto& [id, data] : state["textures"].items()) {
+            gfx.RemoveTexture(id);
+        }
+    }
+
+    // 2. Limpiar sonidos de la RAM
+    if (state.contains("sounds")) {
+        for (auto& [id, data] : state["sounds"].items()) {
+            std::string type = data.value("type", "sfx");
+            
+            if (type == "music") {
+                audio.UnloadMusic(id);
+            } else {
+                audio.UnloadSound(id);
+            }
+        }
+    }
     
-    SDL_Log("[AssetManager] Limpieza de recursos ejecutada para el estado: %s", stateName.c_str());
+    SDL_Log("[AssetManager] => Memoria liberada con éxito para el estado: %s", stateName.c_str());
 }
+

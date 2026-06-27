@@ -211,7 +211,14 @@ void NeonTetris::render(ShadowGFX& gfx) {
         for (int r = 0; r < gridHeight; ++r) {
             for (int c = 0; c < gridWidth; ++c) {
                 if (grid[r][c] != 0) {
-                    SDL_Rect dest = {offsetX + (c * cellSize), offsetY + (r * cellSize), cellSize, cellSize};
+                    // Cambia la línea 224 para que quede así:
+                    SDL_Rect dest = {
+                        static_cast<int>(offsetX + ((pieceX + c) * cellSize)), 
+                        static_cast<int>(offsetY + ((pieceY + r) * cellSize)), 
+                        cellSize, 
+                        cellSize
+                    };
+
                     gfx.DrawStatic(blockTextures[grid[r][c]], dest);
                 }
             }
@@ -221,7 +228,12 @@ void NeonTetris::render(ShadowGFX& gfx) {
         for (size_t r = 0; r < currentPiece.size(); ++r) {
             for (size_t c = 0; c < currentPiece[r].size(); ++c) {
                 if (currentPiece[r][c] != 0) {
-                    SDL_Rect dest = {offsetX + ((pieceX + c) * cellSize), offsetY + ((pieceY + r) * cellSize), cellSize, cellSize};
+                    SDL_Rect dest;
+                    dest.x = static_cast<int>(offsetX + ((pieceX + c) * cellSize));
+                    dest.y = static_cast<int>(offsetY + ((pieceY + r) * cellSize));
+                    dest.w = cellSize;
+                    dest.h = cellSize;
+
                     gfx.DrawStatic(blockTextures[pieceType], dest);
                 }
             }

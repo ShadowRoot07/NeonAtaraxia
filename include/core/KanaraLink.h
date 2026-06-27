@@ -73,8 +73,9 @@ public:
     void CreateSavePoint(const PlayerSnapshot& playerState, int currentMapID, const std::map<std::string, bool>& currentEvents, int64_t parentOverrideId = -1);
     bool LoadSavePoint(uint32_t nodeId, PlayerSnapshot& outPlayerState, int& outMapID);
     void RegisterPlayerDeath();
+
+    const std::vector<TemporalNode>& GetTemporalNodes() const { return nodes; }
     
-    const std::vector<TemporalNode>& GetTemporalNodes() const; 
     const TemporalNode* FindNode(uint32_t id) const;
     void ResetToRootNodeOnly();
 

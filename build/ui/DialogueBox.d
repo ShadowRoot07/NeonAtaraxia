@@ -50,4 +50,5 @@ build/ui/DialogueBox.o: src/ui/DialogueBox.cpp include/ui/DialogueBox.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
   include/gfx/ShadowGFX.h \
+  /data/data/com.termux/files/usr/include/SDL2/SDL_image.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h

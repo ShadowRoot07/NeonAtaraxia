@@ -50,6 +50,7 @@ build/ui/Inventory.o: src/ui/Inventory.cpp include/ui/Inventory.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
   include/gfx/ShadowGFX.h \
+  /data/data/com.termux/files/usr/include/SDL2/SDL_image.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h \
   include/gfx/ShadowAudio.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h

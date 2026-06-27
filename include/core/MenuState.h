@@ -2,14 +2,17 @@
 #define MENU_STATE_H
 
 #include "core/StateManager.h"
-#include "ui/MenuManager.h"
 #include "gfx/ShadowGFX.h"
 #include "gfx/ShadowAudio.h"
 #include "input/InputManager.h"
+#include "core/AssetManager.h"
+#include "ui/MenuManager.h"
+#include "ui/UIManager.h" // <-- Asegurar que esté incluido
 
 class MenuState : public EngineState {
 public:
-    MenuState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& i);
+    // Actualizado: Ahora recibe UIManager&
+    MenuState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in, AssetManager& am, UIManager& u);
 
     void OnEnter() override;
     void OnExit() override;
@@ -22,7 +25,10 @@ private:
     ShadowGFX& gfx;
     ShadowAudio& audio;
     InputManager& input;
-    MenuManager menuManager; // Lógica de botones y estado
+    AssetManager& assetManager;
+    UIManager& ui; // <-- NUEVA REFERENCIA PRIVADA
+
+    MenuManager menuManager;
 };
 
 #endif

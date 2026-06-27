@@ -57,4 +57,5 @@ build/world/WorldProcessor.o: src/world/WorldProcessor.cpp \
   include/core/KanaraLink.h include/world/Enemy.h \
   include/physics/Collision.h include/ui/DialogueBox.h \
   include/gfx/ShadowGFX.h \
+  /data/data/com.termux/files/usr/include/SDL2/SDL_image.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h

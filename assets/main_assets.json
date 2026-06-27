@@ -1,44 +1,146 @@
 {
     "global": {
         "fonts": {
-            "default": "assets/fonts/m5x7.ttf"
+            "default": { "path": "assets/fonts/m5x7.ttf" }
         },
-        "sfx": {
-            "click": "assets/audio/sfx/click.wav",
-            "blip": "assets/audio/sfx/blipSelect.wav",
-            "CHEST_OPEN":"assets/audio/sfx/CHEST_OPEN.wav"
+        "textures": {
+            "pantalla_carga": { "path": "assets/sprites/funds/Pantalla-carga_f1_c3.png", "rows": 1, "cols": 3 },
+            "btn_d": { "path": "assets/sprites/ui/buttonD_f1_c1.png", "rows": 1, "cols": 1 },
+            "btn_f": { "path": "assets/sprites/ui/buttonF_f1_c2.png", "rows": 1, "cols": 2 },
+            "btn_inventory": { "path": "assets/sprites/ui/buttonInventory_f1_c2.png", "rows": 1, "cols": 2 },
+            "btn_kanaralink": { "path": "assets/sprites/ui/buttonKanaraLink_f1_c2.png", "rows": 1, "cols": 2 },
+            "btn_x": { "path": "assets/sprites/ui/buttonX_f1_c2.png", "rows": 1, "cols": 2 },
+            "btn_z": { "path": "assets/sprites/ui/buttonZ_f1_c2.png", "rows": 1, "cols": 2 },
+            "joystick_base": { "path": "assets/sprites/ui/joystick_base.bmp" },
+            "joystick_knob": { "path": "assets/sprites/ui/joystick_knob.bmp" }
+        },
+        "sounds": {
+            "bgm_loading": { "path": "assets/audio/bgm/Loading.wav", "type": "music" },
+            "sfx_click": { "path": "assets/audio/sfx/click.wav", "type": "sfx" },
+            "sfx_blip": { "path": "assets/audio/sfx/blipSelect.wav", "type": "sfx" }
         }
     },
+
     "menu": {
         "textures": {
-            "menu_bg": "assets/sprites/funds/fondo_base_default.png",
-            "btn_z": "assets/sprites/ui/buttonZ_f1_c2.png",
-            "btn_x": "assets/sprites/ui/buttonX_f1_c2.png"
+            "menu_bg": { "path": "assets/sprites/funds/fondo_base_default.png" }
         },
-        "audio": {
-            "music": "assets/audio/bgm/menuDefault.wav"
+        "sounds": {
+            "bgm_menu": { "path": "assets/audio/bgm/menuDefault.wav", "type": "music" }
         }
     },
+
     "gameplay": {
         "textures": {
-            "player_idle": "assets/sprites/player/VectorZero_indle_f2_c4.png",
-            "player_walk": "assets/sprites/player/VectorZero_walk_f2_c6.png",
-            "floor": "assets/sprites/platforms/floor_default.png"
+            "player_attack": { "path": "assets/sprites/player/VectorZero_attack_f2_c3.png", "rows": 2, "cols": 3 },
+            "player_dash": { "path": "assets/sprites/player/VectorZero_dash_f2_c4.png", "rows": 2, "cols": 4 },
+            "player_defense": { "path": "assets/sprites/player/VectorZero_defense_f2_c3.png", "rows": 2, "cols": 3 },
+            "player_idle": { "path": "assets/sprites/player/VectorZero_indle_f2_c4.png", "rows": 2, "cols": 4 },
+            "player_time_travel": { "path": "assets/sprites/player/VectorZero_time_travel_f2_c5.png", "rows": 2, "cols": 5 },
+            "player_walk": { "path": "assets/sprites/player/VectorZero_walk_f2_c6.png", "rows": 2, "cols": 6 },
+            
+            "npc_spica_idle": { "path": "assets/sprites/npcs/Spica-Indle_f2_c3.png", "rows": 2, "cols": 3 },
+            "npc_spica_walk": { "path": "assets/sprites/npcs/Spica-walk_f2_c3.png", "rows": 2, "cols": 3 },
+            
+            "enemy_bug404": { "path": "assets/sprites/enemies/Bug-404_f1_c2.png", "rows": 1, "cols": 2 },
+            "enemy_bug500": { "path": "assets/sprites/enemies/BugError500_f1_c2.png", "rows": 1, "cols": 2 },
+            "enemy_bug": { "path": "assets/sprites/enemies/Bug_f1_c2.png", "rows": 1, "cols": 2 },
+            
+            "bg_tutorial": { "path": "assets/sprites/funds/Fondo_tutorial_f2_c4.png", "rows": 2, "cols": 4 },
+            "bg_gameover": { "path": "assets/sprites/funds/fondo_GameOver.png" },
+            
+            "hud_gem": { "path": "assets/sprites/huds/gem_hud.png" },
+            "hud_coin": { "path": "assets/sprites/huds/hud_coin.png" },
+            
+            "obj_flag": { "path": "assets/sprites/objets/FlagGoal_f1_c1.png", "rows": 1, "cols": 1 },
+            "obj_maniqui": { "path": "assets/sprites/objets/Maniqui_f1_c3.png", "rows": 1, "cols": 3 },
+            "obj_palanca": { "path": "assets/sprites/objets/Palanca_f1_c3.png", "rows": 1, "cols": 3 },
+            "obj_pedestal": { "path": "assets/sprites/objets/Pedestal_f1_c1.png", "rows": 1, "cols": 1 },
+            "obj_trampolin": { "path": "assets/sprites/objets/Trampolin_f1_c3.png", "rows": 1, "cols": 3 },
+            "obj_tubo_agua": { "path": "assets/sprites/objets/Tubo_agua_f1_c1.png", "rows": 1, "cols": 1 },
+            "obj_bomba": { "path": "assets/sprites/objets/bomba_f1_c2.png", "rows": 1, "cols": 2 },
+            "obj_canon_bombas": { "path": "assets/sprites/objets/canon_bombas_f1_c1.png", "rows": 1, "cols": 1 },
+            "obj_canon_fire": { "path": "assets/sprites/objets/canon_fire_f1_c1.png", "rows": 1, "cols": 1 },
+            "obj_canon_lazer": { "path": "assets/sprites/objets/canon_lazer_f1_c1.png", "rows": 1, "cols": 1 },
+            "obj_chest": { "path": "assets/sprites/objets/chest_default_f1_c2.png", "rows": 1, "cols": 2 },
+            "obj_door": { "path": "assets/sprites/objets/door_default_f1_c2.png", "rows": 1, "cols": 2 },
+            "obj_llave_agua": { "path": "assets/sprites/objets/llave_agua_f1_c4.png", "rows": 1, "cols": 4 },
+            "obj_shot_electrico": { "path": "assets/sprites/objets/shot_electrico_f1_c1.png", "rows": 1, "cols": 1 },
+            
+            "plat_lava": { "path": "assets/sprites/platforms/lava_default.png" },
+            "plat_pared": { "path": "assets/sprites/platforms/pared_default.png" },
+            "plat_pincho": { "path": "assets/sprites/platforms/pincho_default.png" },
+            "plat_edificio": { "path": "assets/sprites/platforms/edificio_parte_test.png" },
+            "plat_floor": { "path": "assets/sprites/platforms/floor_default.png" },
+            "plat_block_madera": { "path": "assets/sprites/platforms/blocks/bloque_madera_f1_c1.png", "rows": 1, "cols": 1 },
+            "plat_block_roto": { "path": "assets/sprites/platforms/blocks/bloque_roto_f1_c1.png", "rows": 1, "cols": 1 }
         },
-        "audio": {
-            "music": "assets/audio/bgm/gameplayDefault.wav",
-            "jump": "assets/audio/sfx/jump.wav"
+        "sounds": {
+            "bgm_gameplay": { "path": "assets/audio/bgm/gameplayDefault.wav", "type": "music" },
+            "bgm_tutorial": { "path": "assets/audio/bgm/Tutorial.wav", "type": "music" },
+            
+            "sfx_chest_open": { "path": "assets/audio/sfx/CHEST_OPEN.wav", "type": "sfx" },
+            "sfx_open_door": { "path": "assets/audio/sfx/OPEN_DOOR.wav", "type": "sfx" },
+            "sfx_evaporate": { "path": "assets/audio/sfx/SFX_EVAPORATE.wav", "type": "sfx" },
+            "sfx_fire_loop": { "path": "assets/audio/sfx/SFX_FIRE_LOOP.wav", "type": "sfx" },
+            "sfx_fluid_drop": { "path": "assets/audio/sfx/SFX_FLUID_DROP.wav", "type": "sfx" },
+            "sfx_gas_puff": { "path": "assets/audio/sfx/SFX_GAS_PUFF.wav", "type": "sfx" },
+            "sfx_oil_ignite": { "path": "assets/audio/sfx/SFX_OIL_IGNITE.wav", "type": "sfx" },
+            "sfx_hithurt_enemy": { "path": "assets/audio/sfx/hitHurt_enemy.wav", "type": "sfx" },
+            "sfx_hithurt": { "path": "assets/audio/sfx/hitHurt.wav", "type": "sfx" },
+            "sfx_jump": { "path": "assets/audio/sfx/jump.wav", "type": "sfx" },
+            "sfx_laser": { "path": "assets/audio/sfx/laserShoot.wav", "type": "sfx" },
+            "sfx_coin_drop": { "path": "assets/audio/sfx/moneda_cayendo.wav", "type": "sfx" },
+            "sfx_pickup": { "path": "assets/audio/sfx/pickupCoin.wav", "type": "sfx" },
+            "sfx_powerup": { "path": "assets/audio/sfx/powerUp.wav", "type": "sfx" },
+            "sfx_explosion": { "path": "assets/audio/sfx/explosion.wav", "type": "sfx" },
+            "sfx_explosion_retro": { "path": "assets/audio/sfx/explosion_retro.wav", "type": "sfx" }
         }
     },
+
+    "inventory": {
+        "textures": {
+            "item_espada": { "path": "assets/sprites/items/EspadaBasica_f1_c2.png", "rows": 1, "cols": 2 },
+            "item_pocion": { "path": "assets/sprites/items/PocionCuracion_f1_c1.png", "rows": 1, "cols": 1 },
+            "item_llave": { "path": "assets/sprites/items/llave_f1_c1.png", "rows": 1, "cols": 1 },
+            "money_gem": { "path": "assets/sprites/money/Gem_f1_c1.png", "rows": 1, "cols": 1 },
+            "money_silver": { "path": "assets/sprites/money/coinPlata_f1_c1.png", "rows": 1, "cols": 1 },
+            "money_gold": { "path": "assets/sprites/money/coinGold_f1_c1.png", "rows": 1, "cols": 1 }
+        },
+        "sounds": {
+            "sfx_inv_blip": { "path": "assets/audio/sfx/inventory_blipSelect.wav", "type": "sfx" },
+            "sfx_inv_click": { "path": "assets/audio/sfx/inventory_click.wav", "type": "sfx" },
+            "sfx_inv_move": { "path": "assets/audio/sfx/inventory_move.wav", "type": "sfx" }
+        }
+    },
+
     "tetris": {
         "textures": {
-            "block_blue": "assets/sprites/platforms/tetris/tetris-block-blue_f1_c1.png",
-            "block_cian": "assets/sprites/platforms/tetris/tetris-block-cian_f1_c1.png",
-            "block_green": "assets/sprites/platforms/tetris/tetris-block-green_f1_c1.png"
+            "obj_tetris_pc": { "path": "assets/sprites/objets/Tetris-computer_f1_c2.png", "rows": 1, "cols": 2 },
+            "tetris_blue": { "path": "assets/sprites/platforms/tetris/tetris-block-blue_f1_c1.png", "rows": 1, "cols": 1 },
+            "tetris_cian": { "path": "assets/sprites/platforms/tetris/tetris-block-cian_f1_c1.png", "rows": 1, "cols": 1 },
+            "tetris_green": { "path": "assets/sprites/platforms/tetris/tetris-block-green_f1_c1.png", "rows": 1, "cols": 1 },
+            "tetris_orange": { "path": "assets/sprites/platforms/tetris/tetris-block-orange_f1_c1.png", "rows": 1, "cols": 1 },
+            "tetris_pink": { "path": "assets/sprites/platforms/tetris/tetris-block-pink_f1_c1.png", "rows": 1, "cols": 1 },
+            "tetris_purple": { "path": "assets/sprites/platforms/tetris/tetris-block-purple_f1_c1.png", "rows": 1, "cols": 1 },
+            "tetris_yellow": { "path": "assets/sprites/platforms/tetris/tetris-block-yellow_f1_c1.png", "rows": 1, "cols": 1 }
         },
-        "audio": {
-            "music": "assets/audio/bgm/TETRIS_SOUND.wav",
-            "line": "assets/audio/sfx/tetris_fila_completa.wav"
+        "sounds": {
+            "bgm_tetris": { "path": "assets/audio/bgm/TETRIS_SOUND.wav", "type": "music" },
+            "sfx_tetris_click": { "path": "assets/audio/sfx/tetris_blocks_click.wav", "type": "sfx" },
+            "sfx_tetris_line": { "path": "assets/audio/sfx/tetris_fila_completa.wav", "type": "sfx" }
         }
+    },
+
+    "dialogue": {
+        "textures": {
+            "dlg_borde1": { "path": "assets/sprites/dialogues/Borde_1.png" },
+            "dlg_borde2": { "path": "assets/sprites/dialogues/Borde_2.png" },
+            "dlg_bark": { "path": "assets/sprites/dialogues/bark_bubble.png" },
+            "dlg_ejemplo": { "path": "assets/sprites/dialogues/Ejemplo_f1_c2.png", "rows": 1, "cols": 2 },
+            "dlg_portrait_default": { "path": "assets/sprites/objets/player_dialogue_default.png" },
+            "cinematic_default": { "path": "assets/sprites/cinematics/escene_default_f3_c5.png", "rows": 3, "cols": 5 }
+        },
+        "sounds": {}
     }
 }

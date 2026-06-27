@@ -61,7 +61,6 @@ public:
     // Carga inicial de recursos gráficos dentro del contexto de juego
 
     void loadResources(ShadowGFX& gfx);
-    void initDifficulty(int diff, ShadowAudio& audio); 
     void handleInput(InputManager& input, ShadowAudio& audio);
     void update(float deltaTime, ShadowAudio& audio);
     void render(ShadowGFX& gfx);

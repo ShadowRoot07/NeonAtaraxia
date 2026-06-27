@@ -1,79 +1,58 @@
 #include "gfx/ShadowAudio.h"
-#include <SDL.h>
-#include <iostream>
 
-ShadowAudio::ShadowAudio() : fallbackSound(nullptr) {}
+ShadowAudio::ShadowAudio() : fallbackSound(nullptr) {
+    // Si en el futuro deseas cargar un fallbackSound global por defecto, puedes hacerlo aquí
+}
 
 ShadowAudio::~ShadowAudio() {
     Clean();
 }
 
-bool ShadowAudio::Init() {
-    int flags = MIX_INIT_OGG;
-    if ((Mix_Init(flags) & flags) != flags) {
-        SDL_Log("[ShadowAudio] Advertencia Mix_Init: %s", Mix_GetError());
-    }
-
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
-        SDL_Log("[ShadowAudio] Error al inicializar SDL_mixer: %s", Mix_GetError());
-        return false;
-    }
-
-    Mix_AllocateChannels(16);
-    std::cout << "[ShadowAudio] Motor de audio iniciado correctamente." << std::endl;
-    return true;
-}
-
 void ShadowAudio::LoadSound(const std::string& id, const std::string& path) {
-    if (soundCache.count(id) || musicCache.count(id)) return;
-
-    // Detectamos si es música inspeccionando si el ID contiene la palabra "music"
-    bool isMusicTrack = (id.find("music") != std::string::npos);
-
-    std::string p1 = path;
-    std::string p2 = "audio/" + path;
-    std::string p3 = "assets/audio/" + path;
-    std::string p4 = "assets/" + path;
-    const char* paths[] = { p1.c_str(), p2.c_str(), p3.c_str(), p4.c_str() };
-
-    for (int i = 0; i < 4; ++i) {
-        SDL_RWops* rw = SDL_RWFromFile(paths[i], "rb");
-        if (rw) {
-            if (isMusicTrack) {
-                SDL_RWclose(rw); // Mix_LoadMUS maneja su propio flujo
-                Mix_Music* music = Mix_LoadMUS(paths[i]);
-                if (music) {
-                    musicCache[id] = music;
-                    SDL_Log("[ShadowAudio] EXITO MUSICAL: %s cargada desde %s", id.c_str(), paths[i]);
-                    return;
-                }
-            } else {
-                Mix_Chunk* chunk = Mix_LoadWAV_RW(rw, 1);
-                if (chunk) {
-                    soundCache[id] = chunk;
-                    SDL_Log("[ShadowAudio] EXITO SFX: %s cargado desde %s", id.c_str(), paths[i]);
-                    return;
-                }
-            }
-        }
+    if (soundCache.find(id) != soundCache.end()) {
+        return; // El sonido ya está en memoria, evitamos duplicados
     }
-    SDL_Log("[ShadowAudio] ERROR: No se pudo cargar %s", id.c_str());
+
+    Mix_Chunk* chunk = Mix_LoadWAV(path.c_str());
+    if (chunk) {
+        soundCache[id] = chunk;
+        SDL_Log("[ShadowAudio] EXITO SFX: %s cargado desde %s", id.c_str(), path.c_str());
+    } else {
+        SDL_Log("[ShadowAudio] ERROR SFX: No se pudo cargar %s. Error: %s", id.c_str(), Mix_GetError());
+    }
 }
 
-// 1. EFECTOS DE SONIDO (Lo que busca MenuManager)
+// NUEVO: El streaming de música requiere Mix_LoadMUS en lugar de Mix_LoadWAV
+void ShadowAudio::LoadMusic(const std::string& id, const std::string& path) {
+    if (musicCache.find(id) != musicCache.end()) {
+        return; 
+    }
+
+    Mix_Music* music = Mix_LoadMUS(path.c_str());
+    if (music) {
+        musicCache[id] = music;
+        SDL_Log("[ShadowAudio] EXITO BGM: %s cargado desde %s", id.c_str(), path.c_str());
+    } else {
+        SDL_Log("[ShadowAudio] ERROR BGM: No se pudo cargar %s. Error: %s", id.c_str(), Mix_GetError());
+    }
+}
+
+// MODO CLÁSICO: Reproduce chunks (Efectos cortos)
 void ShadowAudio::Play(const std::string& id, int loops) {
     if (soundCache.count(id)) {
         Mix_PlayChannel(-1, soundCache[id], loops);
     } else if (fallbackSound) {
         Mix_PlayChannel(-1, fallbackSound, loops);
+    } else {
+        SDL_Log("[ShadowAudio] ADVERTENCIA: Intentando reproducir SFX no encontrado '%s'", id.c_str());
     }
 }
 
-// 2. STREAMING DE MÚSICA (Lo que busca main.cpp)
+// MODO CLÁSICO: Reproduce streams (Música de fondo)
 void ShadowAudio::PlayMusic(const std::string& id) {
     if (musicCache.count(id)) {
-        Mix_HaltMusic();
-        Mix_PlayMusic(musicCache[id], -1); // Loop infinito nativo
+        Mix_HaltMusic(); // Detiene cualquier música anterior antes de iniciar la nueva
+        Mix_PlayMusic(musicCache[id], -1); // -1 significa Loop infinito
         SDL_Log("[ShadowAudio] Reproduciendo musica: %s", id.c_str());
     } else {
         SDL_Log("[ShadowAudio] ADVERTENCIA: No se encontro la pista '%s'", id.c_str());
@@ -84,24 +63,48 @@ void ShadowAudio::StopMusic() {
     Mix_HaltMusic();
 }
 
+// NUEVO: Destrucción selectiva de un Chunk para liberar RAM
+void ShadowAudio::UnloadSound(const std::string& id) {
+    auto it = soundCache.find(id);
+    if (it != soundCache.end()) {
+        if (it->second) {
+            Mix_FreeChunk(it->second);
+        }
+        soundCache.erase(it);
+        SDL_Log("[ShadowAudio] Liberada memoria de SFX: %s", id.c_str());
+    }
+}
+
+// NUEVO: Destrucción selectiva de un Music Stream para liberar RAM
+void ShadowAudio::UnloadMusic(const std::string& id) {
+    auto it = musicCache.find(id);
+    if (it != musicCache.end()) {
+        if (it->second) {
+            Mix_FreeMusic(it->second);
+        }
+        musicCache.erase(it);
+        SDL_Log("[ShadowAudio] Liberada memoria de BGM: %s", id.c_str());
+    }
+}
+
 void ShadowAudio::Clean() {
+    // Liberar todos los efectos de sonido
     for (auto const& [id, chunk] : soundCache) {
-        Mix_FreeChunk(chunk);
+        if (chunk) Mix_FreeChunk(chunk);
     }
     soundCache.clear();
 
+    // Liberar todas las pistas de música
     for (auto const& [id, music] : musicCache) {
-        Mix_FreeMusic(music);
+        if (music) Mix_FreeMusic(music);
     }
     musicCache.clear();
 
+    // Liberar el fallback si existe
     if (fallbackSound) {
         Mix_FreeChunk(fallbackSound);
         fallbackSound = nullptr;
     }
 
-    Mix_CloseAudio();
-    Mix_Quit();
-    std::cout << "[ShadowAudio] Memoria de audio liberada." << std::endl;
+    SDL_Log("[ShadowAudio] Cache de audio limpiado al 100%%.");
 }
-
