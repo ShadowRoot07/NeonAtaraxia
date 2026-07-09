@@ -1,7 +1,8 @@
 #include "core/StateManager.h"
 
 void StateManager::PushState(std::shared_ptr<EngineState> state) {
-    states.push_back(state);
+    // Usamos std::move para transferir la propiedad a la pila
+    states.push_back(std::move(state));
     states.back()->OnEnter();
 }
 
@@ -13,8 +14,8 @@ void StateManager::PopState() {
 }
 
 void StateManager::ChangeState(std::shared_ptr<EngineState> state) {
-    Clear();
-    PushState(state);
+    Clear(); 
+    PushState(std::move(state)); // Movimiento directo
 }
 
 void StateManager::Clear() {

@@ -3,6 +3,7 @@
 
 #include <SDL.h>
 #include <string>
+#include <memory>
 
 // Definiciones de botones para mapeo rápido
 const SDL_Scancode BTN_Z = SDL_SCANCODE_Z;
@@ -12,16 +13,24 @@ const SDL_Scancode BTN_F = SDL_SCANCODE_F;
 struct Vector2 { float x, y; };
 struct Rect { float x, y, w, h; };
 
-enum ElementType { FIRE, AIR, LIGHT, EARTH, WATER, DARKNESS, NONE };
+struct SDL_Deleter {
+    void operator()(SDL_Window* w)   const { if (w) SDL_DestroyWindow(w);   }
+    void operator()(SDL_Renderer* r) const { if (r) SDL_DestroyRenderer(r); }
+    void operator()(SDL_Texture* t)  const { if (t) SDL_DestroyTexture(t);  }
+    void operator()(SDL_Surface* s)  const { if (s) SDL_FreeSurface(s);    }
+    void operator()(TTF_Font* f)     const { if (f) TTF_CloseFont(f);      }
+    void operator()(Mix_Chunk* c)    const { if (c) Mix_FreeChunk(c);      }
+    void operator()(Mix_Music* m)    const { if (m) Mix_FreeMusic(m);      }
+};
 
-enum EquipmentSlotType {
-    EQUIP_HELMET,   // 0: Casco
-    EQUIP_CHEST,    // 1: Peto
-    EQUIP_PANTS,    // 2: Mallas
-    EQUIP_BOOTS,    // 3: Botas
-    EQUIP_WEAPON_1, // 4: Arma Principal
-    EQUIP_WEAPON_2, // 5: Arma Secundaria
-    EQUIP_COUNT     // 6 slots en total
+using WindowPtr   = std::unique_ptr<SDL_Window, SDL_Deleter>;
+using RendererPtr = std::unique_ptr<SDL_Renderer, SDL_Deleter>;
+
+
+enum class ElementType : uint8_t { FIRE, AIR, LIGHT, EARTH, WATER, DARKNESS, NONE };
+
+enum class EquipmentSlotType : uint8_t { 
+    HELMET, CHEST, PANTS, BOOTS, WEAPON_1, WEAPON_2, COUNT 
 };
 
 struct Entity {

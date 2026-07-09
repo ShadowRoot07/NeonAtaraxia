@@ -2,6 +2,7 @@
 #define PARTICLE_AUDIO_CONFIG_H
 
 #include <string>
+#include <map>
 #include <SDL2/SDL.h>
 #include "gfx/ShadowAudio.h"
 

@@ -44,23 +44,25 @@ void MenuManager::Update(InputManager& input, ShadowAudio& sfx) {
 void MenuManager::Render(ShadowGFX& gfx) {
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color neonGreen = {57, 255, 20, 255};
+    SDL_Rect bgRect = { 0, 0, 800, 600 };
+    gfx.DrawStatic("menu_bg", bgRect); // <-- ANTES DECÍA "menu_background"
 
     if (currentState == IN_MENU) {
         for (int i = 0; i < options.size(); ++i) {
             SDL_Color color = (i == selectedIndex) ? neonGreen : white;
             std::string label = (i == selectedIndex) ? "> " + options[i] : options[i];
-            gfx.DrawText(label, "pixel_font", 400, 250 + (i * 50), color, true);
+            gfx.DrawText(label, "default", 400, 250 + (i * 50), color, true);
         }
     } 
     else if (currentState == IN_SETTINGS) {
-        gfx.DrawText("SETTINGS", "pixel_font", 400, 200, neonGreen, true);
-        gfx.DrawText("AUDIO: 100%", "pixel_font", 400, 300, white, true);
-        gfx.DrawText("PRESS X TO BACK", "pixel_font", 400, 500, white, true);
+        gfx.DrawText("SETTINGS", "default", 400, 200, neonGreen, true);
+        gfx.DrawText("AUDIO: 100%", "default", 400, 300, white, true);
+        gfx.DrawText("PRESS X TO BACK", "default", 400, 500, white, true);
     }
     else if (currentState == IN_CREDITS) {
-        gfx.DrawText("CREDITS", "pixel_font", 400, 200, neonGreen, true);
-        gfx.DrawText("DEV: SHADOWROOT07", "pixel_font", 400, 300, white, true);
-        gfx.DrawText("ENGINE: ORACULO SPICA", "pixel_font", 400, 350, white, true);
-        gfx.DrawText("PRESS X TO BACK", "pixel_font", 400, 500, white, true);
+        gfx.DrawText("CREDITS", "default", 400, 200, neonGreen, true);
+        gfx.DrawText("DEV: SHADOWROOT07", "default", 400, 300, white, true);
+        gfx.DrawText("ENGINE: ORACULO SPICA", "default", 400, 350, white, true);
+        gfx.DrawText("PRESS X TO BACK", "default", 400, 500, white, true);
     }
 }

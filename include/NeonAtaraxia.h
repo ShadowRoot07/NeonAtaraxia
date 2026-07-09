@@ -5,6 +5,7 @@
 #include "input/InputManager.h"
 #include "core/StateManager.h"
 #include <string>
+#include <memory>
 
 struct EngineConfig {
     std::string windowTitle = "NeonAtaraxia Game";
@@ -17,24 +18,28 @@ struct EngineConfig {
 class NeonEngine {
 public:
     NeonEngine() : window(nullptr), renderer(nullptr), gfx(nullptr), running(true) {}
-    virtual ~NeonEngine(); // <--- Implementado en el .cpp para evitar fugas
+    virtual ~NeonEngine();
+
+    // --- BLOQUE A AGREGAR: ESCUDO CONTRA COPIAS ---
+    NeonEngine(const NeonEngine&) = delete;
+    NeonEngine& operator=(const NeonEngine&) = delete;
+
+    // Permitir movimiento para optimización
+    NeonEngine(NeonEngine&&) noexcept = default;
+    NeonEngine& operator=(NeonEngine&&) noexcept = default;
 
     bool Init(const EngineConfig& config);
-    void Run();
-
     virtual void OnStart() = 0;
-    virtual void OnUpdate(float dt) = 0;
-    virtual void OnRender() = 0;
 
 protected:
-    SDL_Window* window;
-    SDL_Renderer* renderer;
-    ShadowGFX* gfx;
+    WindowPtr window;
+    RendererPtr renderer;
+    std::unique_ptr<ShadowGFX> gfx;
+    
     InputManager input;
     StateManager stateManager;
     bool running;
-    std::string baseAssetPath; // <--- Guarda la ruta raíz de los assets activos
+    std::string baseAssetPath;
 };
 
 #endif
-

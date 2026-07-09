@@ -2,54 +2,58 @@
 #define SHADOW_GFX_H
 
 #include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_ttf.h>
+#include <SDL_ttf.h> // <-- NUEVO: Soporte para fuentes TrueType
 #include <string>
-#include <map>
-#include <iostream>
-
-// NUEVO: Estructura que envuelve la textura y sus metadatos de animación del JSON
-struct TextureResource {
-    SDL_Texture* texture = nullptr;
-    int rows = 1;
-    int cols = 1;
-};
+#include <string_view>
+#include <unordered_map>
 
 class ShadowGFX {
 public:
-    SDL_Renderer* GetRenderer() const { return renderer; }
     ShadowGFX(SDL_Renderer* renderer, const std::string& assetRoot);
     ~ShadowGFX();
 
-    // MODIFICADO: Ahora acepta filas y columnas opcionales. Retorna SDL_Texture* para retrocompatibilidad.
-    SDL_Texture* GetTexture(const std::string& id, const std::string& p_path = "", bool useColorKey = true, int rows = 1, int cols = 1);
-    
-    // NUEVO: Elimina una textura individual de la RAM y del caché
-    void RemoveTexture(const std::string& id);
+    // Gestión de Texturas Existente
+    SDL_Texture* GetTexture(std::string_view id, std::string_view path = "", bool useColorKey = false, int rows = 1, int cols = 1);
+    void RemoveTexture(std::string_view id);
+    void DrawStatic(std::string_view textureId, const SDL_Rect& destRect);
 
-    void DrawStatic(const std::string& id, SDL_Rect dest);
-    
-    // FIRMA CLÁSICA: Mantenida exactamente igual para no romper tu Player.cpp ni Enemigos
-    void DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip = false, int spriteW = 32, int spriteH = 32);
-    
-    // NUEVA FIRMA AUTOMATIZADA: El motor calcula el recorte solo con decirle qué número de frame quieres
-    void DrawAnimatedFrame(const std::string& id, SDL_Rect dest, int currentFrame, bool flip = false);
+    // =================================================================
+    // NUEVO: Métodos de Control para el Paso 1.2 e interfaz de Texto
+    // =================================================================
+    void LoadFont(std::string_view id, std::string_view path, int ptsize);
+    void RemoveFont(std::string_view id);
 
-    void DrawBackgroundInfinity(const std::string& textureId, float camX, float camY, int bgW = 800, int bgH = 600);
+    void DrawText(std::string_view fontId, 
+              std::string_view text, 
+              int x, int y, 
+              SDL_Color color, 
+              bool center = false);
 
-    bool LoadFont(const std::string& id, const std::string& path, int size);
-    void DrawText(const std::string& text, const std::string& fontId, int x, int y, SDL_Color color, bool center = false);
+    void DrawAnimatedFrame(std::string_view id, SDL_Rect dest, int frame, int row = 0);
 
-    // NUEVO: Limpieza total estructurada
+    // Mantén la que ya pusimos para el renderizado avanzado con rotación
+    void DrawAnimated(std::string_view textureId, const SDL_Rect& destRect, int frame, int row = 0, double angle = 0.0, SDL_RendererFlip flip = SDL_FLIP_NONE);
+
+    // NUEVA SOBRECARGA: Para absorber las llamadas de UIManager.cpp y main.cpp con flip booleano y dimensiones opcionales
+    void DrawAnimated(std::string_view textureId, const SDL_Rect& destRect, int frame, int row, bool flipHorizontally, int spriteW = 0, int spriteH = 0);
+
     void ClearCache();
 
 private:
     SDL_Renderer* renderer;
     std::string assetRootPath;
+
+    // Estructura interna para almacenar metadatos de texturas
+    struct TextureData {
+        SDL_Texture* texture;
+        int rows;
+        int cols;
+    };
+
+    std::unordered_map<std::string, TextureData> textureCache;
     
-    // MODIFICADO: El caché ahora guarda nuestra estructura inteligente en lugar de un puntero simple
-    std::map<std::string, TextureResource> textureCache;
-    std::map<std::string, TTF_Font*> fontCache;
+    // Cache de fuentes indexado por ID (clave única del manifiesto JSON)
+    std::unordered_map<std::string, TTF_Font*> fontCache; 
 };
 
-#endif
+#endif // SHADOW_GFX_H

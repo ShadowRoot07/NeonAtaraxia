@@ -61,6 +61,19 @@ void AssetManager::LoadStateAssets(const std::string& stateName) {
         }
     }
     
+    // 3 Cargar Fuentes (TTF) mapeadas en el Estado
+    if (state.contains("fonts")) {
+        for (auto& [id, data] : state["fonts"].items()) {
+            std::string path = data.value("path", "");
+            int ptsize = data.value("ptsize", 24); // Tamaño por defecto si no se especifica
+
+            if (!path.empty()) {
+                // Invocamos el cargador de fuentes de ShadowGFX
+                gfx.LoadFont(id, path, ptsize);
+            }
+        }
+    }
+
     SDL_Log("[AssetManager] => Recursos cargados completamente para el estado: %s", stateName.c_str());
 }
 
@@ -86,6 +99,13 @@ void AssetManager::UnloadStateAssets(const std::string& stateName) {
             } else {
                 audio.UnloadSound(id);
             }
+        }
+    }
+
+    // Limpiar fuentes de la RAM al cambiar de estado
+    if (state.contains("fonts")) {
+        for (auto& [id, data] : state["fonts"].items()) {
+            gfx.RemoveFont(id); // Asegura que limpie el fontCache de ShadowGFX
         }
     }
     

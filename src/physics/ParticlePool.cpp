@@ -49,36 +49,27 @@ void ParticlePool::Spawn(float x, float y, float vx, float vy, float size, float
 }
 
 void ParticlePool::Update(float deltaTime) {
-    for (int i = 0; i < MAX_PARTICLES; ++i) {
-        if (!m_pool[i].active) continue;
+    // Usamos iteradores modernos para mejorar la localidad de caché
+    for (auto& p : m_pool) {
+        if (!p.active) continue;
 
-        // Decrementar el ciclo de vida de la partícula
-        m_pool[i].lifeTime -= deltaTime;
-        if (m_pool[i].lifeTime <= 0.0f) {
-            m_pool[i].active = false;
-            m_pool[i].type = ParticleType::NONE;
+        p.lifeTime -= deltaTime;
+        if (p.lifeTime <= 0.0f) {
+            p.active = false;
             continue;
         }
 
-        // Movimiento rectilíneo básico uniforme por Euler (las gravedades específicas las manejan los submódulos)
-        m_pool[i].x += m_pool[i].vx * deltaTime;
-        m_pool[i].y += m_pool[i].vy * deltaTime;
+        p.x += p.vx * deltaTime;
+        p.y += p.vy * deltaTime;
     }
 }
 
 void ParticlePool::Render(SDL_Renderer* renderer) {
-    for (int i = 0; i < MAX_PARTICLES; ++i) {
-        if (!m_pool[i].active) continue;
+    for (const auto& p : m_pool) {
+        if (!p.active) continue;
 
-        SDL_SetRenderDrawColor(renderer, m_pool[i].color.r, m_pool[i].color.g, m_pool[i].color.b, m_pool[i].color.a);
-        
-        SDL_Rect rect = {
-            static_cast<int>(m_pool[i].x),
-            static_cast<int>(m_pool[i].y),
-            static_cast<int>(m_pool[i].width),
-            static_cast<int>(m_pool[i].height)
-        };
-        
-        SDL_RenderFillRect(renderer, &rect);
+        SDL_SetRenderDrawColor(renderer, p.color.r, p.color.g, p.color.b, p.color.a);
+        SDL_FRect rect = { p.x, p.y, p.width, p.height };
+        SDL_RenderFillRectF(renderer, &rect);
     }
 }

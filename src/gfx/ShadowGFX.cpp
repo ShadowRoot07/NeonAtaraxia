@@ -7,14 +7,18 @@ ShadowGFX::~ShadowGFX() {
     ClearCache();
 }
 
-SDL_Texture* ShadowGFX::GetTexture(const std::string& id, const std::string& p_path, bool useColorKey, int rows, int cols) {
-    // Si ya existe en memoria, actualizamos sus metadatos (si los pasaron) y devolvemos la textura
-    if (textureCache.find(id) != textureCache.end()) {
+SDL_Texture* ShadowGFX::GetTexture(std::string_view id, std::string_view path, bool useColorKey, int rows, int cols) {
+    // Convertimos a string solo para la búsqueda en el mapa (propiedad)
+    std::string s_id(id);
+    
+    // AAA: auto para iteradores
+    auto it = textureCache.find(s_id);
+    if (it != textureCache.end()) {
         if (rows > 1 || cols > 1) {
-            textureCache[id].rows = rows;
-            textureCache[id].cols = cols;
+            it->second.rows = rows;
+            it->second.cols = cols;
         }
-        return textureCache[id].texture;
+        return it->second.texture;
     }
 
     if (p_path.empty()) {
@@ -73,43 +77,89 @@ void ShadowGFX::DrawStatic(const std::string& id, SDL_Rect dest) {
     }
 }
 
-// MODO CLÁSICO: Funciona exactamente igual para tu código viejo
-void ShadowGFX::DrawAnimated(const std::string& id, SDL_Rect dest, int frameC, int frameF, bool flip, int spriteW, int spriteH) {
-    auto it = textureCache.find(id);
-    if (it != textureCache.end() && it->second.texture) {
-        SDL_Rect srcRect;
-        srcRect.w = spriteW;
-        srcRect.h = spriteH;
-        srcRect.x = frameC * spriteW;
-        srcRect.y = frameF * spriteH;
-
-        SDL_RendererFlip flipType = flip ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-        SDL_RenderCopyEx(renderer, it->second.texture, &srcRect, &dest, 0.0, nullptr, flipType);
+void ShadowGFX::DrawText(std::string_view fontId, std::string_view text, int x, int y, SDL_Color color, bool center) {
+    // Conversión a string necesaria para búsqueda en mapa (propiedad del recurso)
+    std::string s_fontId(fontId);
+    
+    auto it = fontCache.find(s_fontId);
+    if (it == fontCache.end() || !it->second) {
+        SDL_Log("[ShadowGFX] Error: Fuente '%s' no encontrada.", s_fontId.c_str());
+        return;
     }
+
+    // Renderizado usando SDL_ttf (UTF8 para soporte multilingüe)
+    SDL_Surface* surface = TTF_RenderUTF8_Blended(it->second, text.data(), color);
+    if (!surface) return;
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (texture) {
+        SDL_Rect dest = { x, y, surface->w, surface->h };
+        if (center) {
+            dest.x -= dest.w / 2;
+            dest.y -= dest.h / 2;
+        }
+        SDL_RenderCopy(renderer, texture, nullptr, &dest);
+        
+        // --- PROTECCIÓN RAII: Limpieza inmediata de recursos temporales ---
+        SDL_DestroyTexture(texture);
+    }
+    SDL_FreeSurface(surface);
 }
 
-// MODO AUTOMATIZADO: Aprovecha el struct y el JSON para hacer la matemática por ti
-void ShadowGFX::DrawAnimatedFrame(const std::string& id, SDL_Rect dest, int currentFrame, bool flip) {
-    auto it = textureCache.find(id);
-    if (it != textureCache.end() && it->second.texture) {
-        int texW, texH;
-        SDL_QueryTexture(it->second.texture, nullptr, nullptr, &texW, &texH);
+// 2. Agrega la implementación de DrawAnimated (Manejo de Spritesheets)
+void ShadowGFX::DrawAnimated(std::string_view textureId, const SDL_Rect& destRect, int frame, int row, double angle, SDL_RendererFlip flip) {
+    std::string s_id(textureId);
+    auto it = textureCache.find(s_id);
+    if (it == textureCache.end() || !it->second.texture) return;
 
-        TextureResource& res = it->second;
-        
-        // El motor calcula el ancho y alto real del sprite dividiendo la textura total
-        int frameW = texW / res.cols;
-        int frameH = texH / res.rows;
+    // Obtener las dimensiones reales de la textura completa
+    int texW = 0, texH = 0;
+    SDL_QueryTexture(it->second.texture, nullptr, nullptr, &texW, &texH);
 
-        // Calcula coordenadas (x, y) basándose en un index de frame lineal
-        int col = currentFrame % res.cols;
-        int row = (currentFrame / res.cols) % res.rows;
+    // Calcular el tamaño de un solo frame basado en las columnas y filas registradas en el JSON
+    int frameW = texW / it->second.cols;
+    int frameH = texH / it->second.rows;
 
-        SDL_Rect srcRect = { col * frameW, row * frameH, frameW, frameH };
-        SDL_RendererFlip flipType = flip ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-        
-        SDL_RenderCopyEx(renderer, it->second.texture, &srcRect, &dest, 0.0, nullptr, flipType);
+    // Crear el rectángulo de origen (srcRect) cortando el frame exacto
+    SDL_Rect srcRect;
+    srcRect.x = (frame % it->second.cols) * frameW;
+    srcRect.y = row * frameH;
+    srcRect.w = frameW;
+    srcRect.h = frameH;
+
+    // Renderizado avanzado con rotación y flip para las físicas del jugador/enemigos
+    SDL_RenderCopyEx(renderer, it->second.texture, &srcRect, &destRect, angle, nullptr, flip);
+}
+
+void ShadowGFX::DrawAnimated(std::string_view textureId, const SDL_Rect& destRect, int frame, int row, bool flipHorizontally, int spriteW, int spriteH) {
+    // Mapeamos el booleano simple a los flags oficiales de SDL
+    SDL_RendererFlip flip = flipHorizontally ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    
+    // Invocamos nuestra función base de renderizado pasándole 0.0 grados de ángulo y el flip correspondiente
+    DrawAnimated(textureId, destRect, frame, row, 0.0, flip);
+}
+
+void ShadowGFX::DrawAnimatedFrame(std::string_view id, SDL_Rect dest, int frame, int row) {
+    // 1. Buscamos la textura en el cache
+    auto it = textureCache.find(std::string(id));
+    if (it == textureCache.end()) {
+        SDL_Log("[ShadowGFX] Error: No se pudo renderizar frame. ID '%s' no encontrado.", id.data());
+        return;
     }
+
+    TextureData& data = it->second;
+    int texW, texH;
+    SDL_QueryTexture(data.texture, NULL, NULL, &texW, &texH);
+
+    // 2. Calculamos dimensiones del frame basado en filas/columnas almacenadas
+    int frameW = texW / data.cols;
+    int frameH = texH / data.rows;
+
+    // 3. Definimos el recorte (Source Rect)
+    SDL_Rect src = { frame * frameW, row * frameH, frameW, frameH };
+
+    // 4. Renderizamos
+    SDL_RenderCopy(renderer, data.texture, &src, &dest);
 }
 
 void ShadowGFX::DrawBackgroundInfinity(const std::string& textureId, float camX, float camY, int bgW, int bgH) {
@@ -130,48 +180,54 @@ void ShadowGFX::DrawBackgroundInfinity(const std::string& textureId, float camX,
     }
 }
 
-bool ShadowGFX::LoadFont(const std::string& id, const std::string& path, int size) {
-    if (fontCache.find(id) != fontCache.end()) return true;
+void ShadowGFX::LoadFont(std::string_view id, std::string_view path, int ptsize) {
+    std::string s_id(id);
+    
+    // Si la fuente ya está en el caché, no la cargamos de nuevo
+    if (fontCache.find(s_id) != fontCache.end()) return;
 
-    std::string finalPath = path;
-    if (path.find(assetRootPath) == std::string::npos && path.find("assets/") == std::string::npos) {
-        finalPath = assetRootPath + path;
+    std::string finalPath = std::string(path);
+    // Verificar si la ruta necesita concatenarse con el directorio base de assets
+    if (finalPath.find(assetRootPath) == std::string::npos && finalPath.find("assets/") == std::string::npos) {
+        finalPath = assetRootPath + "/" + finalPath;
     }
 
-    TTF_Font* font = TTF_OpenFont(finalPath.c_str(), size);
-    if (font) {
-        fontCache[id] = font;
-        return true;
+    TTF_Font* font = TTF_OpenFont(finalPath.c_str(), ptsize);
+    if (!font) {
+        SDL_Log("[ShadowGFX] Error crítico: No se pudo cargar la fuente '%s' desde: %s. SDL_ttf Error: %s", 
+                s_id.c_str(), finalPath.c_str(), TTF_GetError());
+        return;
     }
-    SDL_Log("[ShadowGFX] Error cargando fuente '%s': %s", id.c_str(), TTF_GetError());
-    return false;
+
+    fontCache[s_id] = font;
+    SDL_Log("[ShadowGFX] Fuente cacheada exitosamente: %s (Tamano: %d)", s_id.c_str(), ptsize);
 }
 
-void ShadowGFX::DrawText(const std::string& text, const std::string& fontId, int x, int y, SDL_Color color, bool center) {
-    auto it = fontCache.find(fontId);
-    if (it != fontCache.end() && it->second) {
-        SDL_Surface* surface = TTF_RenderUTF8_Blended(it->second, text.c_str(), color);
-        if (surface) {
-            SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-            SDL_Rect dest = { x, y, surface->w, surface->h };
-            if (center) { dest.x -= dest.w / 2; dest.y -= dest.h / 2; }
-
-            SDL_RenderCopy(renderer, texture, nullptr, &dest);
-            SDL_DestroyTexture(texture);
-            SDL_FreeSurface(surface);
+void ShadowGFX::RemoveFont(std::string_view id) {
+    std::string s_id(id);
+    auto it = fontCache.find(s_id);
+    if (it != fontCache.end()) {
+        if (it->second) {
+            TTF_CloseFont(it->second);
         }
+        fontCache.erase(it);
+        SDL_Log("[ShadowGFX] Liberada memoria de la fuente: %s", s_id.c_str());
     }
 }
+
 
 void ShadowGFX::ClearCache() {
-    for (auto& pair : textureCache) {
-        if (pair.second.texture) SDL_DestroyTexture(pair.second.texture);
+    for (auto& [id, resource] : textureCache) {
+        if (resource.texture) {
+            SDL_DestroyTexture(resource.texture);
+        }
     }
     textureCache.clear();
 
-    for (auto& pair : fontCache) {
-        if (pair.second) TTF_CloseFont(pair.second);
+    for (auto const& [id, font] : fontCache) {
+        if (font) TTF_CloseFont(font);
     }
     fontCache.clear();
+
     SDL_Log("[ShadowGFX] Cache grafico limpiado al 100 porciento.");
 }

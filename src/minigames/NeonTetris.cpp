@@ -203,8 +203,8 @@ void NeonTetris::update(float deltaTime, ShadowAudio& audio) {
 
 void NeonTetris::render(ShadowGFX& gfx) {
     if (currentState == TetrisState::SELECTOR) {
-        gfx.DrawText("TERMINAL OS: NEON TETRIS", "default", 120, 50, {0, 255, 0, 255});
-        gfx.DrawText("ACCESO ENCONTRADO", "default", 60, 100, {255, 255, 255, 255});
+        gfx.DrawText("default", "TERMINAL OS: NEON TETRIS", 120, 50, {0, 255, 0, 255});
+        gfx.DrawText("default", "ACCESO ENCONTRADO", 60, 100, {255, 255, 255, 255});
     }
     else if (currentState == TetrisState::PLAYING || currentState == TetrisState::GAME_OVER) {
         // Renderizado del tablero: CORREGIDO a DrawStatic

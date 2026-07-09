@@ -7,10 +7,9 @@
 std::map<std::string, Uint32> ParticleAudioConfig::lastTriggerTimes;
 
 void ElementReaction::ResolveInteractions(ParticlePool& pool, ShadowAudio& audio) {
-    Particle* particles = pool.GetPool();
-    int maxParticles = pool.GetMaxParticles();
-    float interactionRadius = 12.0f;
-    float radiusSq = interactionRadius * interactionRadius;
+    auto* particles = pool.GetPool();
+    const auto maxParticles = pool.GetMaxParticles();
+    constexpr float interactionRadiusSq = 12.0f * 12.0f; // Optimización: radio al cuadrado [2]
 
     for (int i = 0; i < maxParticles; ++i) {
         if (!particles[i].active) continue;
@@ -22,21 +21,15 @@ void ElementReaction::ResolveInteractions(ParticlePool& pool, ShadowAudio& audio
             float dy = particles[i].y - particles[j].y;
             float distSq = dx * dx + dy * dy;
 
-            if (distSq <= radiusSq) {
-                // --- DETECCIÓN DE AUDIO DE REACCIONES QUÍMICAS ---
-                // Agua vs Fuego = Evaporación (Tssss)
-                if ((particles[i].type == ParticleType::WATER && particles[j].type == ParticleType::FIRE) ||
-                    (particles[j].type == ParticleType::WATER && particles[i].type == ParticleType::FIRE)) {
-                    ParticleAudioConfig::TriggerSFX(audio, "SFX_EVAPORATE", 120);
+            if (distSq < interactionRadiusSq) {
+                // --- USO DE ENUM CLASS (Seguridad de Tipos) ---
+                if ((particles[i].type == ParticleType::FIRE && particles[j].type == ParticleType::WATER) ||
+                    (particles[i].type == ParticleType::WATER && particles[j].type == ParticleType::FIRE)) {
+                    
+                    particles[i].active = false;
+                    particles[j].active = false;
+                    audio.Play("SFX_EVAPORATE"); // [3]
                 }
-                // Aceite vs Fuego = Ignición Explosiva (Fwoosh)
-                else if ((particles[i].type == ParticleType::OIL && particles[j].type == ParticleType::FIRE) ||
-                         (particles[j].type == ParticleType::OIL && particles[i].type == ParticleType::FIRE)) {
-                    ParticleAudioConfig::TriggerSFX(audio, "SFX_OIL_IGNITE", 180);
-                }
-
-                // Delegamos las interacciones químicas puras al DestructionEngine
-                ElementReaction::ResolveInteractions(particles[i], particles[j]);
             }
         }
     }

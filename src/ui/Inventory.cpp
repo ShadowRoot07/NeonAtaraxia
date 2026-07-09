@@ -125,8 +125,8 @@ void Inventory::Render(ShadowGFX& gfx, SDL_Renderer* renderer, const PlayerStats
 }
 
 void Inventory::RenderItemsTab(ShadowGFX& gfx, SDL_Renderer* renderer) {
-    gfx.DrawText("MOCHILA GLOBAL", "main_font", 130, 100, {0,255,150,255}, false);
-    
+    gfx.DrawText("main_font", "MOCHILA GLOBAL", 130, 100, {0,255,150,255}, false);
+
     // Dibujar cuadrícula de slots
     for (int i = 0; i < 10; i++) {
         int slotX = 130 + (i * 55);
@@ -163,7 +163,7 @@ void Inventory::RenderEquipmentTab(ShadowGFX& gfx, SDL_Renderer* renderer) {
 }
 
 void Inventory::RenderStatsTab(ShadowGFX& gfx, SDL_Renderer* renderer, const PlayerStats& stats) {
-    gfx.DrawText("ESTADISTICAS DE AVEN", "main_font", 130, 100, {0,255,150,255}, false);
+    gfx.DrawText("main_font", "ESTADISTICAS DE AVEN", 130, 100, {0,255,150,255}, false);
 
     std::string lvlStr = "NIVEL: " + std::to_string(stats.level) + "  (EXP: " + std::to_string(stats.exp) + "/" + std::to_string(stats.nextLevelExp) + ")";
     gfx.DrawText(lvlStr, "main_font", 130, 140, {255,255,255,255}, false);

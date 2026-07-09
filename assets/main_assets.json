@@ -22,8 +22,12 @@
     },
 
     "menu": {
+        "fonts": {
+            "default": { "path": "assets/fonts/m5x7.ttf" }
+        },
         "textures": {
-            "menu_bg": { "path": "assets/sprites/funds/fondo_base_default.png" }
+            "menu_bg": { "path": "assets/sprites/funds/fondo_base_default.png", "rows": 1, "cols": 1 },
+            "pantalla_carga": { "path": "assets/sprites/funds/Pantalla-carga_f1_c3.png", "rows": 1, "cols": 3 }
         },
         "sounds": {
             "bgm_menu": { "path": "assets/audio/bgm/menuDefault.wav", "type": "music" }

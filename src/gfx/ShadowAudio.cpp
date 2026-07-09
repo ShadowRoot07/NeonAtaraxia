@@ -48,14 +48,13 @@ void ShadowAudio::Play(const std::string& id, int loops) {
     }
 }
 
-// MODO CLÁSICO: Reproduce streams (Música de fondo)
 void ShadowAudio::PlayMusic(const std::string& id) {
-    if (musicCache.count(id)) {
-        Mix_HaltMusic(); // Detiene cualquier música anterior antes de iniciar la nueva
-        Mix_PlayMusic(musicCache[id], -1); // -1 significa Loop infinito
-        SDL_Log("[ShadowAudio] Reproduciendo musica: %s", id.c_str());
+    // Busca e invoca tu lógica de reproducción de música (BGM)
+    auto it = musicCache.find(id);
+    if (it != musicCache.end() && it->second) {
+        Mix_PlayMusic(it->second, -1); // -1 para bucle infinito
     } else {
-        SDL_Log("[ShadowAudio] ADVERTENCIA: No se encontro la pista '%s'", id.c_str());
+        SDL_Log("[ShadowAudio] Advertencia: No se encontro la musica '%s'", id.c_str());
     }
 }
 

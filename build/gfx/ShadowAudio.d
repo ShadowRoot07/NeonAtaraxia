@@ -13,41 +13,4 @@ build/gfx/ShadowAudio.o: src/gfx/ShadowAudio.cpp \
   /data/data/com.termux/files/usr/include/SDL2/SDL_mutex.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_thread.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_atomic.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_version.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_main.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_assert.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_clipboard.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_cpuinfo.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_events.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_video.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_pixels.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_rect.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_surface.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_blendmode.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_keyboard.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_keycode.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_scancode.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_mouse.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_joystick.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_guid.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_gamecontroller.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_sensor.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_quit.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_gesture.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_touch.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_filesystem.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_haptic.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_hidapi.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_hints.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_loadso.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_log.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_messagebox.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_metal.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_power.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_render.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_shape.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_system.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_timer.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h
+  /data/data/com.termux/files/usr/include/SDL2/SDL_version.h

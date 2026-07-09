@@ -50,7 +50,6 @@ build/ui/MenuManager.o: src/ui/MenuManager.cpp include/ui/MenuManager.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_version.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_locale.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_misc.h \
-  /data/data/com.termux/files/usr/include/SDL2/SDL_image.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_ttf.h \
   include/gfx/ShadowAudio.h \
   /data/data/com.termux/files/usr/include/SDL2/SDL_mixer.h \
