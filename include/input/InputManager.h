@@ -1,7 +1,9 @@
+// include/input/InputManager.h
 #ifndef INPUT_MANAGER_H
 #define INPUT_MANAGER_H
 
 #include <SDL.h>
+#include <array> // Necesario para std::array
 #include "Common.h"
 
 struct JoyState {
@@ -12,52 +14,56 @@ struct JoyState {
 
 class InputManager {
 public:
-    InputManager();
-    void Update();
-    void HandleRawEvent(SDL_Event& ev, SDL_Renderer* renderer);       
+    InputManager() noexcept;
+    void Update() noexcept;
     
-    // --- FUNCIONES DE ESTADO ---
-    bool IsKeyPressed(SDL_Scancode k);
-    bool IsBtnPressed(SDL_Scancode k);
-    bool IsKeyDown(SDL_Scancode k);
+    // OPTIMIZACIÓN: Se elimina el parámetro muerto SDL_Renderer* y se marca como noexcept
+    void HandleRawEvent(const SDL_Event& ev) noexcept;
+
+    // RAII: Deshabilitar copias para asegurar un único gestor de entrada en el motor
+    InputManager(const InputManager&) = delete;
+    InputManager& operator=(const InputManager&) = delete;
+    InputManager(InputManager&&) noexcept = default;
+    InputManager& operator=(InputManager&&) noexcept = default;
+
+    // --- FUNCIONES DE ESTADO (Const y noexcept para optimización en registros) ---
+    bool IsKeyPressed(SDL_Scancode k) const noexcept;
+    bool IsBtnPressed(SDL_Scancode k) const noexcept;
+    bool IsKeyDown(SDL_Scancode k) const noexcept;
 
     // --- GETTERS PARA JOYSTICK ---
-    Vector2 GetJoyDir() const { return {joystick.x, joystick.y}; }
-    Vector2 GetJoystick() const { return {joystick.x, joystick.y}; } 
-    SDL_Point GetJoystickScreenPos() const;
+    Vector2 GetJoyDir() const noexcept { return {joystick.x, joystick.y}; }
+    Vector2 GetJoystick() const noexcept { return {joystick.x, joystick.y}; }
+    SDL_Point GetJoystickScreenPos() const noexcept;
 
-    // --- GETTERS DE HITBOXES (Para el render visual en UIManager o debug) ---
-    SDL_Rect GetBtnZArea() const { return btnZVisual; }
-    SDL_Rect GetBtnXArea() const { return btnXVisual; }
-    SDL_Rect GetBtnFArea() const { return btnFVisual; }
-    SDL_Rect GetBtnDArea() const { return btnDVisual; }
-    SDL_Rect GetBtnInvArea() const { return btnInvVisual; }
-    SDL_Rect GetBtnLinkArea() const { return btnLinkVisual; }
-    SDL_Rect GetJoyArea() const { return joystickArea; }
+    // --- GETTERS DE HITBOXES ---
+    SDL_Rect GetBtnZArea() const noexcept { return btnZVisual; }
+    SDL_Rect GetBtnXArea() const noexcept { return btnXVisual; }
+    SDL_Rect GetBtnFArea() const noexcept { return btnFVisual; }
+    SDL_Rect GetBtnDArea() const noexcept { return btnDVisual; }
+    SDL_Rect GetBtnInvArea() const noexcept { return btnInvVisual; }
+    SDL_Rect GetBtnLinkArea() const noexcept { return btnLinkVisual; }
+    SDL_Rect GetJoyArea() const noexcept { return joystickArea; }
 
-    // --- GETTERS DE ESTADO PARA ANIMACIÓN DE BOTONES ---
-    bool IsZPressed() const { return vZ; }
-    bool IsXPressed() const { return vX; }
-    bool IsFPressed() const { return vF; }
-    bool IsDPressed() const { return vD; }
-    bool IsInvPressed() const { return vInv; }
-    bool IsLinkPressed() const { return vLink; }
+    // --- GETTERS DE ESTADO PARA ANIMACIÓN ---
+    bool IsZPressed() const noexcept { return vZ; }
+    bool IsXPressed() const noexcept { return vX; }
+    bool IsFPressed() const noexcept { return vF; }
+    bool IsDPressed() const noexcept { return vD; }
+    bool IsInvPressed() const noexcept { return vInv; }
+    bool IsLinkPressed() const noexcept { return vLink; }
 
 private:
     const Uint8* state;
-    Uint8 lastState[SDL_NUM_SCANCODES];
+    
+    // OPTIMIZACIÓN RAII: std::array provee inicialización limpia y seguridad de tipos
+    std::array<Uint8, SDL_NUM_SCANCODES> lastState;
     JoyState joystick;
 
-    // Área del Joystick
     SDL_Rect joystickArea;
-
-    // Hitboxes Táctiles Reales (Súper ampliados para que no fallen el toque)
     SDL_Rect btnZTouch, btnXTouch, btnFTouch, btnDTouch, btnInvTouch, btnLinkTouch;
-
-    // Rectángulos Visuales (Dónde se dibujan los botones en pantalla estilo Deltarune)
     SDL_Rect btnZVisual, btnXVisual, btnFVisual, btnDVisual, btnInvVisual, btnLinkVisual;
 
-    // Estados virtuales de los botones
     bool vZ, vX, vF, vD, vInv, vLink;
     bool lastVZ, lastVX, lastVF, lastVD, lastVInv, lastVLink;
 };
