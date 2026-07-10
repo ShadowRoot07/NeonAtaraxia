@@ -1,17 +1,22 @@
 #include "core/StateManager.h"
+#include <utility> // Para std::move
 
+// --- OPTIMIZACIÓN: Semántica de Movimiento (Ítem 23) ---
 void StateManager::PushState(std::shared_ptr<EngineState> state) {
-    // Usamos std::move para transferir la propiedad a la pila
-    states.push_back(std::move(state));
-    states.back()->OnEnter();
+    // Usamos std::move para transferir la propiedad al vector sin incrementar el ref-count
+    states.push_back(std::move(state)); 
+    if (!states.empty()) {
+        states.back()->OnEnter();
+    }
 }
 
 void StateManager::PopState() {
     if (!states.empty()) {
         states.back()->OnExit();
-        states.pop_back();
+        states.pop_back(); // RAII: El shared_ptr se destruye y libera el estado automáticamente
     }
 }
+
 
 void StateManager::ChangeState(std::shared_ptr<EngineState> state) {
     Clear(); 
@@ -43,4 +48,3 @@ void StateManager::Render() {
         state->Render();
     }
 }
-

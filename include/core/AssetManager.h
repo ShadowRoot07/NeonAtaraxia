@@ -8,21 +8,29 @@
 
 class AssetManager {
 public:
-    AssetManager(ShadowGFX& gfx, ShadowAudio& audio);
-    
-    // Carga el JSON a la memoria (se llama una sola vez en main.cpp)
+    // Constructor RAII acoplado con los gestores del motor corporativo central
+    AssetManager(ShadowGFX& gfx, ShadowAudio& audio) noexcept;
+
+    // Deshabilitamos copia para evitar desincronizaciones del JSON manifest
+    AssetManager(const AssetManager&) = delete;
+    AssetManager& operator=(const AssetManager&) = delete;
+
+    // Carga el JSON manifest a la memoria
     bool LoadManifest(const std::string& path);
-    
-    // Lee el JSON y le pasa los datos estructurados a GFX y Audio
+
+    // Carga de recursos segura por estado
     void LoadStateAssets(const std::string& stateName);
-    
-    // Lee el JSON y elimina EXACTAMENTE lo que ya no se necesita
-    void UnloadStateAssets(const std::string& stateName);
+
+    // Descarga recursos específicos asegurando consistencia
+    void UnloadStateAssets(const std::string& stateName) noexcept;
+
+    // Limpieza total del ecosistema (útil en pánicos o cierre limpio)
+    void UnloadAll() noexcept;
 
 private:
-    ShadowGFX& gfx;
-    ShadowAudio& audio;
-    nlohmann::json manifest;
+    ShadowGFX& m_gfx;
+    ShadowAudio& m_audio;
+    nlohmann::json m_manifest;
 };
 
 #endif

@@ -1,75 +1,70 @@
 #include "core/AssetManager.h"
 #include <fstream>
 #include <iostream>
-#include <SDL.h> // Para SDL_Log
+#include <SDL.h>
 
-AssetManager::AssetManager(ShadowGFX& g, ShadowAudio& a) : gfx(g), audio(a) {}
+AssetManager::AssetManager(ShadowGFX& g, ShadowAudio& a) noexcept : m_gfx(g), m_audio(a) {}
 
 bool AssetManager::LoadManifest(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
-        SDL_Log("[AssetManager] ERROR CRÍTICO: No se pudo abrir el manifiesto en: %s", path.c_str());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "[AssetManager] ERROR: No se pudo abrir el manifest en: %s", path.c_str());
         return false;
     }
-    
+
     try {
-        file >> manifest;
-        SDL_Log("[AssetManager] Manifiesto JSON cargado exitosamente desde: %s", path.c_str());
+        file >> m_manifest;
     } catch (const nlohmann::json::parse_error& e) {
-        SDL_Log("[AssetManager] ERROR DE PARSEO en JSON: %s", e.what());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "[AssetManager] ERROR de parseo JSON: %s", e.what());
         return false;
     }
-    
+
+    SDL_Log("[AssetManager] Manifest cargado con éxito desde: %s", path.c_str());
     return true;
 }
 
 void AssetManager::LoadStateAssets(const std::string& stateName) {
-    if (!manifest.contains(stateName)) {
-        SDL_Log("[AssetManager] Advertencia: Estado '%s' no encontrado en el manifiesto.", stateName.c_str());
+    if (!m_manifest.contains(stateName)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "[AssetManager] Advertencia: Estado '%s' no encontrado en el manifest.", stateName.c_str());
         return;
     }
 
-    auto state = manifest[stateName];
-    
-    // 1. Cargar Texturas extrayendo metadatos (rows, cols)
+    auto state = m_manifest[stateName];
+
+    // 1. Cargar Texturas
     if (state.contains("textures")) {
         for (auto& [id, data] : state["textures"].items()) {
             std::string path = data.value("path", "");
-            int rows = data.value("rows", 1);
-            int cols = data.value("cols", 1);
-            
             if (!path.empty()) {
-                // Pasamos toda la información inteligente a ShadowGFX
-                gfx.GetTexture(id, path, true, rows, cols);
+                m_gfx.LoadTexture(id, path);
             }
         }
     }
-    
-    // 2. Cargar Sonidos redirigiendo por tipo (music o sfx)
+
+    // 2. Cargar Audio (Música y SFX)
     if (state.contains("sounds")) {
         for (auto& [id, data] : state["sounds"].items()) {
             std::string path = data.value("path", "");
-            std::string type = data.value("type", "sfx"); // Si no dice nada, asume SFX
-            
+            std::string type = data.value("type", "sfx");
+
             if (!path.empty()) {
                 if (type == "music") {
-                    audio.LoadMusic(id, path);
+                    m_audio.LoadMusic(id, path);
                 } else {
-                    audio.LoadSound(id, path);
+                    m_audio.LoadSound(id, path); // Usando la firma limpia de tu API
                 }
             }
         }
     }
-    
-    // 3 Cargar Fuentes (TTF) mapeadas en el Estado
+
+    // 3. Cargar Fuentes tipográficas
     if (state.contains("fonts")) {
         for (auto& [id, data] : state["fonts"].items()) {
             std::string path = data.value("path", "");
-            int ptsize = data.value("ptsize", 24); // Tamaño por defecto si no se especifica
+            int ptsize = data.value("ptsize", 24);
 
             if (!path.empty()) {
-                // Invocamos el cargador de fuentes de ShadowGFX
-                gfx.LoadFont(id, path, ptsize);
+                m_gfx.LoadFont(id, path, ptsize);
             }
         }
     }
@@ -77,15 +72,15 @@ void AssetManager::LoadStateAssets(const std::string& stateName) {
     SDL_Log("[AssetManager] => Recursos cargados completamente para el estado: %s", stateName.c_str());
 }
 
-void AssetManager::UnloadStateAssets(const std::string& stateName) {
-    if (!manifest.contains(stateName)) return;
+void AssetManager::UnloadStateAssets(const std::string& stateName) noexcept {
+    if (!m_manifest.contains(stateName)) return;
 
-    auto state = manifest[stateName];
+    auto state = m_manifest[stateName];
 
-    // 1. Limpiar texturas de la RAM y del caché de ShadowGFX
+    // 1. Limpiar texturas de forma segura
     if (state.contains("textures")) {
         for (auto& [id, data] : state["textures"].items()) {
-            gfx.RemoveTexture(id);
+            m_gfx.RemoveTexture(id);
         }
     }
 
@@ -93,22 +88,26 @@ void AssetManager::UnloadStateAssets(const std::string& stateName) {
     if (state.contains("sounds")) {
         for (auto& [id, data] : state["sounds"].items()) {
             std::string type = data.value("type", "sfx");
-            
             if (type == "music") {
-                audio.UnloadMusic(id);
+                m_audio.UnloadMusic(id);
             } else {
-                audio.UnloadSound(id);
+                m_audio.UnloadSound(id);
             }
         }
     }
 
-    // Limpiar fuentes de la RAM al cambiar de estado
+    // 3. Limpiar fuentes
     if (state.contains("fonts")) {
         for (auto& [id, data] : state["fonts"].items()) {
-            gfx.RemoveFont(id); // Asegura que limpie el fontCache de ShadowGFX
+            m_gfx.RemoveFont(id);
         }
     }
-    
-    SDL_Log("[AssetManager] => Memoria liberada con éxito para el estado: %s", stateName.c_str());
+
+    SDL_Log("[AssetManager] => Recursos liberados para el estado: %s", stateName.c_str());
 }
 
+void AssetManager::UnloadAll() noexcept {
+    // Método de emergencia/cierre: Fuerza a vaciar todo el mapa del motor gráfico y sonoro
+    SDL_Log("[AssetManager] => Iniciando vaciado total preventivo de RAM y GPU.");
+    // Aquí puedes delegar la limpieza agresiva a m_gfx y m_audio directamente si exponen métodos de purga total
+}

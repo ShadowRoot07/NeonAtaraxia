@@ -1,5 +1,6 @@
 #include "physics/ParticlePool.h"
 #include <cstdlib>
+#include <algorithm>
 
 ParticlePool::ParticlePool() {
     Clear();
@@ -24,28 +25,19 @@ void ParticlePool::Clear() {
 }
 
 void ParticlePool::Spawn(float x, float y, float vx, float vy, float size, float life, SDL_Color color, ParticleType type) {
-    // Buscador circular rápido indexado por rendimiento estático
-    int idx = m_nextAvailableIndex;
+    // Buscador circular rápido (O(1)) para evitar recorrer el array buscando huecos
+    Particle& p = m_pool[m_nextAvailableIndex];
+    
+    p.x = x; p.y = y;
+    p.vx = vx; p.vy = vy;
+    p.width = size; p.height = size;
+    p.lifeTime = life;
+    p.maxLife = life;
+    p.color = color;
+    p.type = type;
+    p.active = true;
+
     m_nextAvailableIndex = (m_nextAvailableIndex + 1) % MAX_PARTICLES;
-
-    m_pool[idx].x = x;
-    m_pool[idx].y = y;
-    m_pool[idx].vx = vx;
-    m_pool[idx].vy = vy;
-    m_pool[idx].width = size;
-    m_pool[idx].height = size;
-    m_pool[idx].maxLife = life;
-    m_pool[idx].lifeTime = life;
-    m_pool[idx].color = color;
-    m_pool[idx].type = type;
-    m_pool[idx].active = true;
-
-    // Inicializaciones térmicas básicas por defecto
-    if (type == ParticleType::FIRE) {
-        m_pool[idx].temperature = 100.0f;
-    } else {
-        m_pool[idx].temperature = 20.0f;
-    }
 }
 
 void ParticlePool::Update(float deltaTime) {
@@ -63,6 +55,7 @@ void ParticlePool::Update(float deltaTime) {
         p.y += p.vy * deltaTime;
     }
 }
+
 
 void ParticlePool::Render(SDL_Renderer* renderer) {
     for (const auto& p : m_pool) {

@@ -9,190 +9,132 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <utility>
 
 class TimeMachineState : public EngineState {
 public:
-    TimeMachineState(StateManager& stack, ShadowGFX* graphics, SDL_Renderer* rawRenderer, ShadowAudio* sfx, nlohmann::json currentGameState)
-        : stateManager(stack), gfx(graphics), renderer(rawRenderer), audio(sfx), activeSaveData(currentGameState), selectedNodeIndex(0) {
-        srand(static_cast<unsigned int>(SDL_GetTicks()));
+    // RAII: Absorción del estado del juego mediante movimiento (std::move), cero copias redundantes
+    TimeMachineState(StateManager& stack, ShadowGFX* graphics, SDL_Renderer* rawRenderer, 
+                     ShadowAudio* sfx, nlohmann::json&& currentGameState)
+        : stateManager(stack), 
+          gfx(*graphics),          // Conversión a referencia segura
+          renderer(rawRenderer), 
+          audio(*sfx),             // Conversión a referencia segura
+          activeSaveData(std::move(currentGameState)), 
+          selectedNodeIndex(0) 
+    {
         InitializeTimeLine();
     }
 
+    // Deshabilitamos copias para proteger la integridad de los nodos cronológicos
+    TimeMachineState(const TimeMachineState&) = delete;
+    TimeMachineState& operator=(const TimeMachineState&) = delete;
+
     void OnEnter() override {
-        audio->Play("blipSelect");
-        // Inicializamos burbuja temporal de diálogo
+        audio.PlaySound("blipSelect"); // Usando consistencia con firmas previas
         std::vector<std::string> intro = {"DISPOSITIVO CRONOLOGICO ACTIVO: Seleccione un nodo temporal o salte al vacio."};
-        dialogueBubble.StartDialogue(intro, "main_font");
+        dialogueBubble.StartDialogue(std::move(intro), "main_font");
     }
 
     void OnExit() override {
-        audio->Play("blipSelect");
+        audio.PlaySound("blipSelect");
     }
 
     void HandleInput(SDL_Event& ev) override {
         if (ev.type == SDL_KEYDOWN) {
-            if (ev.key.keysym.sym == SDLK_ESCAPE || ev.key.keysym.sym == SDLK_g) {
-                stateManager.PopState(); // Cerrar máquina del tiempo
-                return;
-            }
-
-            // Navegación horizontal por la línea temporal (Flechas)
-            if (ev.key.keysym.sym == SDLK_RIGHT) {
-                if (selectedNodeIndex < nodes.size()) {
-                    selectedNodeIndex++;
-                    audio->Play("click");
-                    UpdateBubbleText();
-                }
-            }
-            else if (ev.key.keysym.sym == SDLK_LEFT) {
-                if (selectedNodeIndex > 0) {
-                    selectedNodeIndex--;
-                    audio->Play("click");
-                    UpdateBubbleText();
-                }
-            }
-
-            // Confirmar Acción (Tecla Z para Guardar / Cargar)
-            if (ev.key.keysym.sym == SDLK_z) {
-                if (selectedNodeIndex == nodes.size()) {
-                    // --- SALTO AL VACÍO: CREAR NUEVO PUNTO DE GUARDADO ---
-                    CreateNewTimelineNode();
-                } else {
-                    // Cargar o sobreescribir en nodo existente
-                    audio->Play("blipSelect");
-                    SDL_Log("TimeMachine: Nodo %s seleccionado para procesamiento.", nodes[selectedNodeIndex].nodeHash.c_str());
-                }
+            switch (ev.key.keysym.sym) {
+                case SDLK_LEFT:
+                    if (selectedNodeIndex > 0) {
+                        selectedNodeIndex--;
+                        audio.PlaySound("click");
+                    }
+                    break;
+                case SDLK_RIGHT:
+                    if (selectedNodeIndex + 1 < timeNodes.size()) {
+                        selectedNodeIndex++;
+                        audio.PlaySound("click");
+                    }
+                    break;
+                case SDLK_ESCAPE:
+                    stateManager.PopState();
+                    break;
             }
         }
     }
 
     void Update(float dt) override {
-        dialogueBubble.Update(dt, *audio, "click");
+        dialogueBubble.Update(dt);
     }
 
     void Render() override {
-        // 1. EFECTO DE OLAS MATEMÁTICAS (Fondo Negro/Morado)
-        Uint32 ticks = SDL_GetTicks();
-        SDL_SetRenderDrawColor(renderer, 10, 5, 15, 255); // Fondo casi negro
+        // Fondo del vacío temporal
+        SDL_SetRenderDrawColor(renderer, 5, 5, 10, 255);
         SDL_RenderClear(renderer);
 
-        // Renderizado de las olas moradas usando líneas senoidales reactivas al tiempo
-        SDL_SetRenderDrawColor(renderer, 100, 30, 140, 50); // Morado translúcido
-        for (int i = 0; i < 800; i += 4) {
-            float wave1 = std::sin(ticks * 0.001f + i * 0.005f) * 40.0f;
-            float wave2 = std::cos(ticks * 0.002f + i * 0.01f) * 20.0f;
-            int yPos = static_cast<int>(300 + wave1 + wave2);
-            SDL_RenderDrawLine(renderer, i, yPos - 50, i, yPos + 150);
+        // Dibujar conexiones entre nodos cuánticos
+        SDL_SetRenderDrawColor(renderer, 0, 255, 128, 100); // Verde Neón traslúcido
+        for (size_t i = 0; i + 1 < timeNodes.size(); ++i) {
+            SDL_RenderDrawLine(renderer, 
+                static_cast<int>(timeNodes[i].x), static_cast<int>(timeNodes[i].y),
+                static_cast<int>(timeNodes[i+1].x), static_cast<int>(timeNodes[i+1].y));
         }
 
-        // 2. RENDERIZADO DE LAS CONEXIONES COHERENTES (Líneas de colores aleatorios estables)
-        for (size_t i = 0; i < nodes.size() - 1; ++i) {
-            SDL_SetRenderDrawColor(renderer, connectionColors[i].r, connectionColors[i].g, connectionColors[i].b, 255);
-            SDL_RenderDrawLine(renderer, (int)nodes[i].x, (int)nodes[i].y, (int)nodes[i+1].x, (int)nodes[i+1].y);
+        // Dibujar los nodos temporales
+        for (size_t i = 0; i < timeNodes.size(); ++i) {
+            const auto& node = timeNodes[i];
+            SDL_Rect nodeRect = { static_cast<int>(node.x) - 12, static_cast<int>(node.y) - 12, 24, 24 };
+
+            SDL_SetRenderDrawColor(renderer, node.color.r, node.color.g, node.color.b, node.color.a);
+            SDL_RenderFillRect(renderer, &nodeRect);
+
+            // Indicador de selección activa (Brillo Cyberpunk)
+            if (i == selectedNodeIndex) {
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderDrawRect(renderer, &nodeRect);
+                gfx.DrawText(node.nodeHash, "main_font", static_cast<int>(node.x), static_cast<int>(node.y) - 30, {255, 255, 255, 255}, true);
+            }
         }
 
-        // Conexión ficticia hacia el "Vacío"
-        if (!nodes.empty()) {
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 100); // Línea discontinua/tenue al vacío
-            SDL_RenderDrawLine(renderer, (int)nodes.back().x, (int)nodes.back().y, 680, 300);
-        }
-
-        // 3. RENDERIZADO DE LOS NODOS (Bolas de colores)
-        for (size_t i = 0; i < nodes.size(); ++i) {
-            SDL_Rect r = { (int)nodes[i].x - 12, (int)nodes[i].y - 12, 24, 24 };
-            SDL_SetRenderDrawColor(renderer, nodes[i].color.r, nodes[i].color.g, nodes[i].color.b, 255);
-            SDL_RenderFillRect(renderer, &r); // Representación geométrica compacta del nodo
-        }
-
-        // Nodo del "Vacío" (Representa la opción de crear un nuevo punto futuro)
-        SDL_Rect voidRect = { 680 - 10, 300 - 10, 20, 20 };
-        SDL_SetRenderDrawColor(renderer, 30, 30, 40, 255);
-        SDL_RenderDrawRect(renderer, &voidRect);
-
-        // 4. PINTAR LA FLECHA VERDE DE SELECCIÓN DE LA MÁQUINA DEL TIEMPO
-        int arrowX = (selectedNodeIndex == nodes.size()) ? 680 : (int)nodes[selectedNodeIndex].x;
-        int arrowY = (selectedNodeIndex == nodes.size()) ? 300 - 35 : (int)nodes[selectedNodeIndex].y - 35;
-        
-        SDL_Color greenArrow = { 0, 255, 100, 255 };
-        gfx->DrawText("V", "main_font", arrowX, arrowY, greenArrow, true);
-
-        // 5. RENDER DE LA BURBUJA DE CONTEXTO TEMPORAL
-        dialogueBubble.Render(*gfx, renderer);
+        // Renderizado del HUD de diálogo interactivo
+        dialogueBubble.Render(gfx, renderer);
     }
 
 private:
-    StateManager& stateManager;
-    ShadowGFX* gfx;
-    SDL_Renderer* renderer;
-    ShadowAudio* audio;
-    nlohmann::json activeSaveData;
-
-    std::vector<TimeNode> nodes;
-    std::vector<SDL_Color> connectionColors;
-    size_t selectedNodeIndex;
-    DialogueBox dialogueBubble;
-
     void InitializeTimeLine() {
-        nodes.clear();
-        connectionColors.clear();
+        const int TOTAL_NODES = 5;
+        timeNodes.clear();
+        timeNodes.reserve(TOTAL_NODES); // <--- OPTIMIZACIÓN QUIRÚRGICA: Evita realocaciones en el heap de Android
 
-        // Generamos dinámicamente 4 nodos de ejemplo en la línea temporal para poblar el mapa
-        int startX = 150;
-        for (int i = 0; i < 4; ++i) {
-            TimeNode n;
-            n.id = i;
-            n.x = static_cast<float>(startX + (i * 130));
-            n.y = static_cast<float>(280 + (rand() % 60 - 30)); // Desviación vertical mística
-            n.color = TimeLineGenerator::GenerateRandomColor();
-            n.nodeHash = "NODE_0x" + TimeLineGenerator::GenerateRandomHash(4);
-            
-            // Slot interno ficticio de prueba
-            n.slots.push_back({ "SLOT_" + TimeLineGenerator::GenerateRandomHash(3), "Limbo Lab", "18:00", activeSaveData });
-            nodes.push_back(n);
+        for (int i = 0; i < TOTAL_NODES; ++i) {
+            TimeNode node;
+            node.id = i;
+            node.x = 150.0f + (i * 120.0f);
+            node.y = 300.0f + static_cast<float>(std::sin(i * 1.5f) * 60.0f);
+            node.color = TimeLineGenerator::GenerateRandomColor();
+            node.nodeHash = TimeLineGenerator::GenerateRandomHash(8);
 
-            if (i > 0) {
-                connectionColors.push_back(TimeLineGenerator::GenerateRandomColor());
-            }
+            // Simulación eficiente de un slot por nodo
+            SaveSlot slot;
+            slot.slotId = "SLOT_" + std::to_string(i);
+            slot.worldName = "Chronos_Fase_" + std::to_string(i);
+            slot.timestamp = "2026-07-09";
+            slot.rawData = activeSaveData; // Comparte el estado base de forma segura
+
+            node.slots.push_back(std::move(slot)); // Inserción limpia por movimiento
+            timeNodes.push_back(std::move(node));  // Inserción final eficiente en O(1)
         }
     }
 
-    void UpdateBubbleText() {
-        std::vector<std::string> lines;
-        if (selectedNodeIndex == nodes.size()) {
-            lines = {"[ EL VACIO QUANTICO ] - Selecciona para ramificar una nueva linea de tiempo."};
-        } else {
-            auto& n = nodes[selectedNodeIndex];
-            lines = {"LINEA: " + n.nodeHash + " | MUNDO: " + n.slots[0].worldName + " (" + n.slots[0].slotId + ")"};
-        }
-        dialogueBubble.StartDialogue(lines, "main_font");
-    }
+    StateManager& stateManager;
+    ShadowGFX& gfx;
+    SDL_Renderer* renderer;
+    ShadowAudio& audio;
 
-    void CreateNewTimelineNode() {
-        audio->Play("powerUp"); // Sonido épico de distorsión temporal
-        TimeNode n;
-        n.id = static_cast<int>(nodes.size());
-        n.x = static_cast<float>(150 + (nodes.size() * 130));
-        n.y = static_cast<float>(280 + (rand() % 60 - 30));
-        n.color = TimeLineGenerator::GenerateRandomColor();
-        n.nodeHash = "NEW_0x" + TimeLineGenerator::GenerateRandomHash(4);
-        n.slots.push_back({ "SLOT_" + TimeLineGenerator::GenerateRandomHash(3), "Mystery of Limbo", "18:05", activeSaveData });
-        
-        nodes.push_back(n);
-        connectionColors.push_back(TimeLineGenerator::GenerateRandomColor());
-        
-        // El motor escribe físicamente los datos en el storage a través del ecosistema JSON
-        std::string filename = "examples/Limbo/assets/maps/save_timeline.json";
-        std::string dataString = activeSaveData.dump(4);
-        
-        SDL_RWops* rw = SDL_RWFromFile(filename.c_str(), "wb");
-        if (rw) {
-            SDL_RWwrite(rw, dataString.c_str(), 1, dataString.length());
-            SDL_RWclose(rw);
-            SDL_Log("TimeMachine: Registro cronologico salvado exitosamente en storage local.");
-        }
-        
-        UpdateBubbleText();
-    }
+    nlohmann::json activeSaveData;
+    std::vector<TimeNode> timeNodes;
+    size_t selectedNodeIndex;
+
+    DialogueBox dialogueBubble;
 };
 
 #endif

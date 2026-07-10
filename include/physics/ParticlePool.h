@@ -22,6 +22,8 @@ struct Particle {
     float temperature = 0.0f;
 };
 
+
+
 class ParticlePool {
 public:
     ParticlePool();
@@ -31,17 +33,24 @@ public:
     ParticlePool(const ParticlePool&) = delete;
     ParticlePool& operator=(const ParticlePool&) = delete;
 
-    void Spawn(float x, float y, float vx, float vy, float size, float life, SDL_Color color, ParticleType type);
+    // Permitimos mover el pool si es necesario
+    ParticlePool(ParticlePool&&) noexcept = default;
+    ParticlePool& operator=(ParticlePool&&) noexcept = default;
+
+    // --- API OPTIMIZADA ---
+    void Spawn(float x, float y, float vx, float vy, float size, float life, 
+               SDL_Color color, ParticleType type);
     void Update(float deltaTime);
     void Render(SDL_Renderer* renderer);
     void Clear();
 
-    // Retornamos un puntero al pool interno de forma segura
-    Particle* GetPool() { return m_pool.data(); }
-    static constexpr int GetMaxParticles() { return MAX_PARTICLES; }
+    // Getters constantes para el WorldProcessor
+    [[nodiscard]] Particle* GetPool() { return m_pool.data(); }
+    [[nodiscard]] static constexpr int GetMaxParticles() { return MAX_PARTICLES; }
+
 
 private:
-    static constexpr int MAX_PARTICLES = 2048; // constexpr para optimización [1]
+    static constexpr int MAX_PARTICLES = 2048; // Optimización en tiempo de compilación
     std::array<Particle, MAX_PARTICLES> m_pool; 
     int m_nextAvailableIndex = 0;
 };

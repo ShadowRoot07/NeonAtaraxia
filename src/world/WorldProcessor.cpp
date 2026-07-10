@@ -8,22 +8,24 @@
 #include <vector>
 #include <cmath>
 #include <SDL.h>
+#include <algorithm>
 
-void ProcessWorld(
-        Player& p,
-        std::vector<Platform>& level,
-        std::vector<Enemy>& enemies,
-        std::vector<Projectile>& bullets,
-        std::vector<WorldItem>& items,
-        std::vector<InteractiveObject>& objects,
-        InputManager& input,
-        ShadowAudio& sfx,
-        float dt,
-        bool& outDialogueActive,
-        DialogueBox& outDialogueBox
-) {
+void ProcessWorld(                                                  Player& p,
+    std::vector<Platform>& level,
+    std::vector<Enemy>& enemies,
+    std::vector<Projectile>& bullets,
+    std::vector<WorldItem>& items,
+    std::vector<InteractiveObject>& objects,                        InputManager& input,
+    ShadowAudio& sfx,
+    float dt,
+    bool& outDialogueActive,                                        DialogueBox& outDialogueBox) noexcept 
+{
+    // OPTIMIZACIÓN RAII/MEMORIA: Evita reasignaciones dinámicas del vector en pleno gameplay
+    if (bullets.capacity() < 100) {
+        bullets.reserve(128); 
+    }
+    
     p.isGrounded = false;
-
     // ============================================================================
     // 1. PROCESAMIENTO DE PLATAFORMAS (TEMPORALES, COLISIONES Y LAVA)
     // ============================================================================
@@ -193,11 +195,17 @@ void ProcessWorld(
         else if (it->type == TURRET) {
             if (canSeePlayer) {
                 it->timer += dt;
-                if (it->timer > 1.5f) {
-                    float dx = (p.pos.x + 16) - it->pos.x;
-                    float dy = (p.pos.y + 24) - it->pos.y;
-                    float angle = std::atan2(dy, dx);
-                    bullets.push_back({{it->pos.x + 10, it->pos.y + 10}, {std::cos(angle)*300, std::sin(angle)*300}, {0,0,12,12}, true});
+                if (it->timer >= 2.0f) {
+                    float angle = std::atan2(p.pos.y - it->pos.y, p.pos.x - it->pos.x);
+    
+                    // OPTIMIZACIÓN: emplace_back construye el objeto directamente dentro de la memoria del vector
+                    // eliminando copias temporales en la pila (Stack) de Termux.
+                    bullets.emplace_back(
+                        Vector2{it->pos.x + 16.0f, it->pos.y + 16.0f}, 
+                        Vector2{std::cos(angle) * 300.0f, std::sin(angle) * 300.0f}, 
+                        Rect{it->pos.x + 16.0f, it->pos.y + 16.0f, 12.0f, 12.0f}, 
+                        true
+                    );
                     it->timer = 0;
                 }
             }
@@ -236,7 +244,16 @@ void ProcessWorld(
             if (PhysicsEngine::AABB(it->hitbox, plat.bounds)) { destroyed = true; break; }
         }
 
-        if (destroyed || !it->active || std::abs(it->pos.x - p.pos.x) > 1200) it = bullets.erase(it);
-        else ++it;
+        if (it->pos.x < 0 || it->pos.x > 5000 || it->pos.y < 0 || it->pos.y > 600) {
+            destroyed = true;
+        }
+
+        if (destroyed) {
+            it->active = false;      // Garantía RAII: Forzamos el estado de desactivación explícito
+            it = bullets.erase(it);  // Libera de forma segura y llama al destructor
+        } else {
+            ++it;
+        }
     }
 }
+

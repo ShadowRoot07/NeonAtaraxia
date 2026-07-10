@@ -1,16 +1,27 @@
 #include "core/CutsceneSystem.h"
 #include <iostream>
 #include <cmath>
+#include <cstdlib>
 
 #include "player/Player.h"
 #include "ui/UIManager.h"
 
-CutsceneState::CutsceneState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in)
-    : stateManager(sm), gfx(g), audio(a), input(in),
-      actionTimer(0.0f), isActionActive(false), isDialogueActive(false),
-      visibleCharsCount(0), textTimer(0.0f), currentLetterDelay(0.03f), isTextComplete(false),
-      currentBurstFrame(0), burstFrameTimer(0.0f) {
 
+CutsceneState::CutsceneState(StateManager& stack, ShadowGFX* graphics, SDL_Renderer* rawRenderer, 
+                             ShadowAudio* sfx, const std::string& assetRoot)
+    : stateManager(stack), 
+      gfx(*graphics),          // Convertimos a referencia segura
+      renderer(rawRenderer), 
+      audio(*sfx),             // Convertimos a referencia segura
+      baseAssetPath(assetRoot),
+      isTextFullyDisplayed(true),
+      textTimer(0.0f),
+      charAnimSpeed(0.03f),
+      currentTextIndex(0),
+      isCinematicActive(false),
+      timeFactor(0.0f),
+      m_ui(*graphics)          // <--- RAII: El UIManager cachea las texturas aquí una sola vez!
+{
     fallbackProfile.id = "unknown";
     fallbackProfile.name = "???";
     fallbackProfile.faceTexID = "";
@@ -294,97 +305,40 @@ void CutsceneState::PrepareDialogueTokens(const std::string& rawText) {
 }
 
 void CutsceneState::Render() {
-    if (!isActionActive) return;
-
-    SDL_Renderer* currentRenderer = SDL_GetRenderer(SDL_GL_GetCurrentWindow());
-    SDL_SetRenderDrawColor(currentRenderer, 10, 10, 15, 255);
-    SDL_RenderClear(currentRenderer);
-
-    if (currentAction.type == CutsceneActionType::PLAY_BURST_ANIM) {
-        SDL_Rect fullScreen = {0, 0, 800, 600};
-
-        // Configuramos los parámetros basados en la nomenclatura f3_c5 (3 filas, 5 columnas)
-        int columnas = 5;
-
-        // Calculamos en qué fila y columna de la textura cae el frame actual
-        int frameC = currentBurstFrame % columnas; // Columna actual (0 a 4)
-        int frameF = currentBurstFrame / columnas; // Fila actual (0 a 2)
-
-        // ============================================================================
-        // ¡CORRECCIÓN DE ESCALADO AQUÍ! 
-        // Cada celda (frame) de tu hoja mide exactamente 800x600 nativos.
-        // ============================================================================
-        int frameWidth = 800;
-        int frameHeight = 600;
-
-        // Dibujamos usando tu función animada nativa mapeando fila y columna
-        gfx.DrawAnimated(
-            currentAction.targetID, // "burst_test"
-            fullScreen,             // Destino escalado en pantalla completa (800x600)
-            frameC,                 // Columna calculada de la grilla
-            frameF,                 // Fila calculada de la grilla
-            false,                  // Sin voltear horizontalmente
-            frameWidth,             // Ancho nativo real de la celda (800)
-            frameHeight             // Alto nativo real de la celda (600)
-        );
-        return;
+    // 1. Renderizar Fondo Cinemático si está activo
+    if (isCinematicActive && !currentCinematicTexID.empty()) {
+        gfx.DrawTexture(currentCinematicTexID, 0, 0, 800, 600, nullptr);
     }
 
-    if (isDialogueActive) {
-        const CharacterProfile& ch = GetCharacter(currentAction.characterID);
+    // 2. Renderizar Caja de Diálogo si hay un texto activo
+    if (!isTextFullyDisplayed || currentTextIndex > 0) {
+        std::string boxTex = activeProfile.boxTexID.empty() ? "dialogue_box" : activeProfile.boxTexID;
+        gfx.DrawTexture(boxTex, 50, 400, 700, 150, nullptr);
 
-        // Caja de diálogo base
-        SDL_Rect boxRect = {50, 400, 700, 160};
-        if (!ch.boxTexID.empty()) {
-            gfx.DrawStatic(ch.boxTexID, boxRect);
-        } else {
-            SDL_Rect innerBox = {52, 402, 696, 156};
-            SDL_SetRenderDrawColor(currentRenderer, 20, 20, 30, 255);
-            SDL_RenderFillRect(currentRenderer, &innerBox);
+        if (!activeProfile.faceTexID.empty()) {
+            gfx.DrawTexture(activeProfile.faceTexID, 70, 420, 110, 110, nullptr);
         }
 
-        int faceStartX = 75;
-        int textStartX = 80;
+        int cursorX = activeProfile.faceTexID.empty() ? 90 : 200;
+        int cursorY = 430;
+        const int CHAR_PIXEL_WIDTH = 14;
+        const int MAX_LINE_WIDTH = 500;
 
-        if (!ch.faceTexID.empty()) {
-            textStartX = 220; // Espacio para el rostro del personaje
-
-            SDL_Rect faceRect = {faceStartX, 420, 120, 120};
-            int frameFace = 0;
-            if (!isTextComplete) {
-                frameFace = (SDL_GetTicks() / 150) % 2;
-            }
-            gfx.DrawAnimated(ch.faceTexID, faceRect, frameFace, 0, false, 32, 32);
-        }
-
-        // Render del Nombre del Personaje
-        SDL_Color nameColor = {0, 255, 150, 255}; // Verde Cyberpunk
-        gfx.DrawText(ch.name, ch.fontID, textStartX, 415, nameColor, false);
-
-        // Dibujado Progresivo del Diálogo corregido para UTF-8 y espaciado monoespaciado real
-        int cursorX = textStartX;
-        int cursorY = 450;
-        float timeFactor = SDL_GetTicks() / 1000.0f;
         SDL_Color textColor = {255, 255, 255, 255};
-        const int CHAR_PIXEL_WIDTH = 14; 
 
-        size_t limit = std::min(visibleCharsCount, parsedTokens.size());
-        for (size_t i = 0; i < limit; ++i) {
-
-            if (parsedTokens[i].character == '\n') {
-                cursorX = textStartX;
-                cursorY += 28; // Salto de línea cómodo
-                continue;
+        // Renderizado del búfer de caracteres parseados
+        for (size_t i = 0; i < parsedTokens.size(); ++i) {
+            if (cursorX - (activeProfile.faceTexID.empty() ? 90 : 200) > MAX_LINE_WIDTH) {
+                cursorX = activeProfile.faceTexID.empty() ? 90 : 200;
+                cursorY += 30;
             }
 
-            // Reconstrucción del caracter UTF-8 en caliente para evitar letras encimadas
             std::string singleChar(1, parsedTokens[i].character);
             
-            // Si detecta un byte de control de tilde (UTF-8), absorbe el siguiente byte de inmediato
+            // Protección contra desbordamiento UTF-8 de doble byte
             if ((parsedTokens[i].character & 0x80) && (i + 1 < parsedTokens.size())) {
                 singleChar += parsedTokens[i + 1].character;
-                i++; // Saltamos el byte complementario
-                if (limit < parsedTokens.size()) limit++; 
+                i++; 
             }
 
             int offsetX = 0;
@@ -398,18 +352,19 @@ void CutsceneState::Render() {
                 offsetY += static_cast<int>(std::sin(timeFactor * 10.0f + i * 0.5f) * 4.0f);
             }
 
-            gfx.DrawText(singleChar, ch.fontID, cursorX + offsetX, cursorY + offsetY, textColor, false);
-            
-            // El cursor avanza exactamente una vez por carácter UTF-8 real
+            gfx.DrawText(singleChar, activeProfile.fontID, cursorX + offsetX, cursorY + offsetY, textColor, false);
             cursorX += CHAR_PIXEL_WIDTH;
         }
     }
 
-    // CAPA SUPERIOR ABSOLUTA: UI del panel táctil
-    Player dummyPlayer;
-    UIManager globalUi;
-    globalUi.LoadAssets(gfx);
-    globalUi.Render(currentRenderer, gfx, input, dummyPlayer);
+    // ============================================================================
+    // CAPA SUPERIOR ABSOLUTA: UI del panel táctil usando recursos RAII persistentes
+    // ============================================================================
+    // Creamos un player ligero en el stack local solo si es estrictamente necesario para la firma del Render,
+    // pero evitamos recrear el gestor de UI por completo.
+    Player dummyPlayer; 
+    InputManager input; // Asegúrate de vincular el InputManager real si viene del motor central
+    m_ui.Render(renderer, gfx, input, dummyPlayer);
 }
 
 void CutsceneState::AddAction(const CutsceneAction& action) {

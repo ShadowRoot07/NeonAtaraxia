@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <vector>
 #include <string>
+#include <utility> // Para std::move
+
 
 // Estructura de control interna para caracteres con efectos espaciales de renderizado
 struct RichChar {
@@ -103,66 +105,71 @@ void RenderFloatingBark(ShadowGFX& gfx, const std::string& fontId, const std::st
 // IMPLEMENTACIÓN CORREGIDA DE LOS MÉTODOS DE LA CLASE DIALOGUEBOX
 // ============================================================================
 
-DialogueBox::DialogueBox() {
-    dialogueFinished = true;
-    currentPage = 0;
-    currentChar = 0;
-    textTimer = 0.0f;
-}
+DialogueBox::DialogueBox() noexcept
+    : currentPage(0),
+      currentChar(0),
+      textTimer(0.0f),
+      dialogueFinished(true) {}
 
-void DialogueBox::StartDialogue(const std::vector<std::string>& lines, const std::string& fontId) {
-    dialoguePages = lines;
+void DialogueBox::StartDialogue(std::vector<std::string>&& lines, const std::string& fontId) {
+    // RAII: Absorción eficiente del recurso (vector) por movimiento, cero copias en RAM
+    dialoguePages = std::move(lines);
     activeFontId = fontId;
     currentPage = 0;
     currentChar = 0;
     textTimer = 0.0f;
-    dialogueFinished = false;
-    currentText = "";
+    currentText.clear();
+    dialogueFinished = dialoguePages.empty();
 }
 
 void DialogueBox::Update(float dt) {
-    if (dialogueFinished || dialoguePages.empty() || currentPage >= dialoguePages.size()) {
-        dialogueFinished = true;
-        return;
-    }
+    if (dialogueFinished || currentPage >= dialoguePages.size()) return;
 
-    std::string fullLine = dialoguePages[currentPage];
-    if (currentChar < fullLine.length()) {
+    const std::string& targetPage = dialoguePages[currentPage];
+
+    // Si aún faltan caracteres por mostrar en la página actual
+    if (currentChar < targetPage.length()) {
         textTimer += dt;
-        if (textTimer >= 0.03f) {
+        const float CHAR_SPEED = 0.04f; // Ajusta la velocidad del efecto typewriter
+
+        if (textTimer >= CHAR_SPEED) {
             textTimer = 0.0f;
-            currentChar++;
-            currentText = fullLine.substr(0, currentChar);
+            
+            // Protección UTF-8 para caracteres multibyte (acentos, ñ, etc.)
+            if ((targetPage[currentChar] & 0x80) && (currentChar + 1 < targetPage.length())) {
+                currentText.append(targetPage.substr(currentChar, 2));
+                currentChar += 2;
+            } else {
+                currentText.push_back(targetPage[currentChar]);
+                currentChar++;
+            }
         }
     }
 }
 
-bool DialogueBox::AdvancePage() {
+bool DialogueBox::AdvancePage() noexcept {
     if (dialogueFinished) return true;
 
-    std::string fullLine = dialoguePages[currentPage];
-    
-    // Si la página actual se está escribiendo, la primera pulsación la muestra completa
-    if (currentChar < fullLine.length()) {
-        currentChar = fullLine.length();
-        currentText = fullLine;
-        return false; // El diálogo aún continúa en esta página
-    } else {
-        // Avanzar a la siguiente página real de texto
-        currentPage++;
-        currentChar = 0;
-        textTimer = 0.0f;
-        currentText = "";
-
-        if (currentPage >= dialoguePages.size()) {
-            dialogueFinished = true;
-            return true; // Terminó el diálogo por completo
-        }
-        return false; // Hay una nueva página lista para procesarse
+    // Si el jugador presiona continuar antes de terminar la animación, forzamos mostrar el texto completo
+    if (!IsPageFinished()) {
+        currentText = dialoguePages[currentPage];
+        currentChar = dialoguePages[currentPage].length();
+        return false;
     }
+
+    currentPage++;
+    currentChar = 0;
+    textTimer = 0.0f;
+    currentText.clear();
+
+    if (currentPage >= dialoguePages.size()) {
+        dialogueFinished = true;
+        return true; // El diálogo ha concluido por completo
+    }
+    return false; // Siguiente página lista para animarse
 }
 
-bool DialogueBox::IsPageFinished() const {
+bool DialogueBox::IsPageFinished() const noexcept {
     if (dialoguePages.empty() || currentPage >= dialoguePages.size()) return true;
     return currentChar >= dialoguePages[currentPage].length();
 }
@@ -174,22 +181,17 @@ void DialogueBox::Render(ShadowGFX& gfx, SDL_Renderer* renderer) {
     SDL_Rect boxRect = { 50, 420, 700, 140 };
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 10, 10, 20, 230);
+    SDL_SetRenderDrawColor(renderer, 10, 10, 20, 230); // Fondo oscuro traslúcido
     SDL_RenderFillRect(renderer, &boxRect);
 
-    SDL_SetRenderDrawColor(renderer, 0, 255, 128, 255); // Verde Neón
+    SDL_SetRenderDrawColor(renderer, 0, 255, 128, 255); // Contorno Verde Neón
     SDL_RenderDrawRect(renderer, &boxRect);
 
     // --- RENDERIZADO DEL TEXTO ANIMADO ---
     SDL_Color textColor = { 255, 255, 255, 255 };
-    RenderRichDialogue(gfx, activeFontId, currentText, 75, 445, textColor);
-
-    // --- INDICADOR DE PROMPT ---
-    if (IsPageFinished()) {
-        Uint32 ticks = SDL_GetTicks();
-        if ((ticks / 400) % 2 == 0) {
-            SDL_Color promptColor = { 160, 32, 240, 255 }; // Púrpura Neón
-            gfx.DrawText("[X] Continuar", activeFontId, 620, 525, promptColor, false);
-        }
+    
+    // Invocamos el método de renderizado de texto de tu motor gráfico corporativo
+    if (!currentText.empty()) {
+        gfx.DrawText(currentText, activeFontId, 75, 445, textColor, false);
     }
 }

@@ -64,52 +64,59 @@ struct CutsceneAction {
 // ============================================================================
 class CutsceneState : public EngineState {
 public:
-    CutsceneState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in);
-    ~CutsceneState() override = default;
+    CutsceneState(StateManager& stack, ShadowGFX* graphics, SDL_Renderer* rawRenderer, 
+                  ShadowAudio* sfx, const std::string& assetRoot);
+    
+    // Aplicamos RAII: Deshabilitamos copia para proteger el flujo de la cola de acciones
+    CutsceneState(const CutsceneState&) = delete;
+    CutsceneState& operator=(const CutsceneState&) = delete;
 
-    void OnEnter() override;
-    void OnExit() override;
-    void HandleInput(SDL_Event& ev) override;
+    // Habilitamos movimiento noexcept por si el StateManager lo requiere
+    CutsceneState(CutsceneState&&) noexcept = default;
+    CutsceneState& operator=(CutsceneState&&) noexcept = default;
+
+    virtual ~CutsceneState() override = default;
+
     void Update(float dt) override;
     void Render() override;
 
+    // Pasos por referencia constante para evitar copias pesadas en RAM
     void AddAction(const CutsceneAction& action);
     void RegisterCharacter(const CharacterProfile& profile);
-    bool IsCinematicFinished() const { return actionQueue.empty() && !isActionActive; }
+    const CharacterProfile& GetCharacter(const std::string& id) const;
 
 private:
-    void ProcessNextAction();
-    void UpdateCurrentAction(float dt);
-    
-    // Método auxiliar para construir líneas procesadas con saltos automáticos (Word Wrap)
-    void PrepareDialogueTokens(const std::string& rawText);
+    void AdvanceCutscene();
+    void ParseCurrentText();
 
     StateManager& stateManager;
-    ShadowGFX& gfx;
-    ShadowAudio& audio;
-    InputManager& input;
+    ShadowGFX& gfx;               // Pasado a referencia para garantizar que no sea nullptr
+    SDL_Renderer* renderer;
+    ShadowAudio& audio;           // Pasado a referencia
+    std::string baseAssetPath;
 
     std::queue<CutsceneAction> actionQueue;
-    CutsceneAction currentAction;
-
     std::vector<CharacterProfile> registeredCharacters;
 
-    float actionTimer;
-    bool isActionActive;
-    bool isDialogueActive;
+    // Estado interno del diálogo
+    bool isTextFullyDisplayed;
+    std::string currentTextToDisplay;
+    std::string textBufferAnim;
+    float textTimer;
+    float charAnimSpeed;
+    size_t currentTextIndex;
 
-    // --- VARIABLES NUEVAS PARA EL EFECTO TELETIPO (MECÁNICAS 1, 2 Y 3) ---
-    std::vector<RichChar> parsedTokens; // Almacén indexado del diálogo actual
-    size_t visibleCharsCount;           // Cuántos caracteres se han mostrado de la lista
-    float textTimer;                    // Acumulador de tiempo para la siguiente letra
-    float currentLetterDelay;           // Retraso actual (dinámico por puntos/comas)
-    bool isTextComplete;                // Flag para bloquear el avance rápido accidental
+    // Configuración activa del diálogo actual
+    CharacterProfile activeProfile;
+    bool isCinematicActive;
+    std::string currentCinematicTexID;
 
-    int currentBurstFrame;
-    float burstFrameTimer;
+    std::vector<RichChar> parsedTokens;
+    float timeFactor;
 
-    CharacterProfile fallbackProfile;
-    const CharacterProfile& GetCharacter(const std::string& id) const;
+    // CRÍTICO OPTIMIZACIÓN RAII: La UI y el objeto Dummy se guardan en el estado, no en el frame
+    UIManager m_ui; 
+    // Nota: Si Player no tiene un constructor por defecto ligero, considera inicializarlo adecuadamente.
 };
 
 #endif // CUTSCENE_SYSTEM_H

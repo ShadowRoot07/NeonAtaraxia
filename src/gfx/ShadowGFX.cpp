@@ -21,6 +21,7 @@ SDL_Texture* ShadowGFX::GetTexture(std::string_view id, std::string_view path, b
         return it->second.texture;
     }
 
+
     if (p_path.empty()) {
         SDL_Log("[ShadowGFX] Error: Se intento cargar ID '%s' sin ruta.", id.c_str());
         return nullptr;
@@ -81,29 +82,33 @@ void ShadowGFX::DrawText(std::string_view fontId, std::string_view text, int x, 
     // Conversión a string necesaria para búsqueda en mapa (propiedad del recurso)
     std::string s_fontId(fontId);
     
-    auto it = fontCache.find(s_fontId);
+    auto it = fontCache.find(std::string(fontId));
     if (it == fontCache.end() || !it->second) {
         SDL_Log("[ShadowGFX] Error: Fuente '%s' no encontrada.", s_fontId.c_str());
         return;
     }
 
-    // Renderizado usando SDL_ttf (UTF8 para soporte multilingüe)
-    SDL_Surface* surface = TTF_RenderUTF8_Blended(it->second, text.data(), color);
+    // RAII temporal para la superficie
+    std::unique_ptr<SDL_Surface, SDL_Deleter> surface(
+        TTF_RenderUTF8_Blended(it->second.get(), text.data(), color)
+    );
+
     if (!surface) return;
 
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+    // RAII temporal para la textura de texto (evita memory leaks por frame)
+    std::unique_ptr<SDL_Texture, SDL_Deleter> texture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+
     if (texture) {
         SDL_Rect dest = { x, y, surface->w, surface->h };
         if (center) {
             dest.x -= dest.w / 2;
             dest.y -= dest.h / 2;
         }
-        SDL_RenderCopy(renderer, texture, nullptr, &dest);
-        
-        // --- PROTECCIÓN RAII: Limpieza inmediata de recursos temporales ---
-        SDL_DestroyTexture(texture);
+        SDL_RenderCopy(renderer, texture.get(), nullptr, &dest);
     }
-    SDL_FreeSurface(surface);
 }
 
 // 2. Agrega la implementación de DrawAnimated (Manejo de Spritesheets)
@@ -215,7 +220,7 @@ void ShadowGFX::RemoveFont(std::string_view id) {
     }
 }
 
-
+/*
 void ShadowGFX::ClearCache() {
     for (auto& [id, resource] : textureCache) {
         if (resource.texture) {
@@ -230,4 +235,11 @@ void ShadowGFX::ClearCache() {
     fontCache.clear();
 
     SDL_Log("[ShadowGFX] Cache grafico limpiado al 100 porciento.");
+}
+*/
+
+void ShadowGFX::ClearCache() {
+    textureCache.clear(); // RAII: Llama automáticamente a los destructores de unique_ptr
+    fontCache.clear();
+    SDL_Log("[ShadowGFX] Caché purgada automáticamente mediante RAII.");
 }
