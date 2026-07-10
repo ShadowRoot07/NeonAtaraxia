@@ -364,11 +364,11 @@ void CutsceneState::Render() {
     // pero evitamos recrear el gestor de UI por completo.
     Player dummyPlayer; 
     InputManager input; // Asegúrate de vincular el InputManager real si viene del motor central
-    m_ui.Render(renderer, gfx, input, dummyPlayer);
+    m_ui.Render(renderer, gfx, m_input, m_dummyPlayer);
 }
 
-void CutsceneState::AddAction(const CutsceneAction& action) {
-    actionQueue.push(action);
+void CutsceneState::AddAction(CutsceneAction&& action) noexcept {
+    actionQueue.push(std::move(action));
 }
 
 void CutsceneState::RegisterCharacter(const CharacterProfile& profile) {

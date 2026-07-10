@@ -60,6 +60,7 @@ include_directories(
     include/ui
     include/world
     include/core
+    include/states  # <--- AGREGAR ESTA LÍNEA
     src
 )
 

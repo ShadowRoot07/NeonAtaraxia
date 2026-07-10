@@ -10,14 +10,14 @@ GameplayBackend::GameplayBackend() {
 }
 
 // Fórmula de mitigación por porcentaje (Estilo MOBA/RPG Clásico)
-float GameplayBackend::CalculateMitigatedDamage(float incomingDamage, float defense) {
+float GameplayBackend::CalculateMitigatedDamage(float incomingDamage, float defense) const noexcept {
     if (defense < 0) return incomingDamage; // Defensa negativa aumenta el daño de forma lineal
     float mitigationFactor = 100.0f / (100.0f + defense);
     return incomingDamage * mitigationFactor;
 }
 
 // Curva de experiencia exponencial limpia y escalable
-int GameplayBackend::CalculateRequiredEXP(int currentLevel) {
+int GameplayBackend::CalculateRequiredEXP(int currentLevel) const noexcept {
     return static_cast<int>(expBase * std::pow(static_cast<float>(currentLevel), expExponent));
 }
 
@@ -64,7 +64,7 @@ void GameplayBackend::UpdateEffects(float dt, Player& player) {
     }
 }
 
-bool GameplayBackend::HasEffect(StatusEffectType type) const {
+bool GameplayBackend::HasEffect(StatusEffectType type) const noexcept {
     for (const auto& effect : activeEffects) {
         if (effect.type == type) return true;
     }
@@ -72,7 +72,7 @@ bool GameplayBackend::HasEffect(StatusEffectType type) const {
 }
 
 // Procesador de desgaste situacional
-float GameplayBackend::ProcessDurabilityLoss(float baseCost, ItemUsageContext context, float materialFragility) {
+float GameplayBackend::ProcessDurabilityLoss(float baseCost, ItemUsageContext context, float materialFragility) const noexcept {
     float multiplier = 1.0f;
 
     switch (context) {

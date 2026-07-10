@@ -1,4 +1,4 @@
-#include "core/StateManager.h"
+#include "states/StateManager.h"
 #include <utility> // Para std::move
 
 // --- OPTIMIZACIÓN: Semántica de Movimiento (Ítem 23) ---

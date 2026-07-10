@@ -22,13 +22,16 @@ struct RichChar {
 // ============================================================================
 // 1. PERFIL DE PERSONAJE (CONFIGURACIÓN ESTILO UNDERTALE / CELESTE)
 // ============================================================================
+
 struct CharacterProfile {
-    std::string id;          // Ej: "vector_zero", "oracle_spica"
-    std::string name;        // Nombre legible que se dibujará en la caja
-    std::string faceTexID;   // ID de la textura del portrait cargada en ShadowGFX
-    std::string fontID;      // ID de la fuente cargada (por defecto "pixel_font")
-    std::string sfxID;       // Sonido tipo "chirp" o "click" exclusivo al hablar
-    std::string boxTexID;    // Sprite personalizado para el borde de su caja
+    std::string id, name, faceTexID, fontID, sfxID, boxTexID;
+
+    // Permitimos movimiento, prohibimos copia para evitar duplicar recursos de GPU
+    CharacterProfile() = default;
+    CharacterProfile(CharacterProfile&&) noexcept = default;
+    CharacterProfile& operator=(CharacterProfile&&) noexcept = default;
+    CharacterProfile(const CharacterProfile&) = delete;
+    CharacterProfile& operator=(const CharacterProfile&) = delete;
 };
 
 // ============================================================================
@@ -81,9 +84,13 @@ public:
     void Render() override;
 
     // Pasos por referencia constante para evitar copias pesadas en RAM
-    void AddAction(const CutsceneAction& action);
-    void RegisterCharacter(const CharacterProfile& profile);
-    const CharacterProfile& GetCharacter(const std::string& id) const;
+    void AddAction(CutsceneAction&& action) noexcept;
+
+    void RegisterCharacter(CharacterProfile&& profile) noexcept {
+        m_characters.push_back(std::move(profile));
+    }
+
+    const CharacterProfile* GetCharacter(const std::string& id) const noexcept;
 
 private:
     void AdvanceCutscene();
@@ -96,7 +103,7 @@ private:
     std::string baseAssetPath;
 
     std::queue<CutsceneAction> actionQueue;
-    std::vector<CharacterProfile> registeredCharacters;
+    std::vector<CharacterProfile> m_characters;
 
     // Estado interno del diálogo
     bool isTextFullyDisplayed;
@@ -115,8 +122,10 @@ private:
     float timeFactor;
 
     // CRÍTICO OPTIMIZACIÓN RAII: La UI y el objeto Dummy se guardan en el estado, no en el frame
-    UIManager m_ui; 
-    // Nota: Si Player no tiene un constructor por defecto ligero, considera inicializarlo adecuadamente.
+    UIManager m_ui;
+    Player m_dummyPlayer;
+    InputManager m_input;
+    CharacterProfile fallbackProfile;
 };
 
 #endif // CUTSCENE_SYSTEM_H

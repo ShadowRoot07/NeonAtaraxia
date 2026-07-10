@@ -20,11 +20,11 @@ struct PlayerSnapshot {
     int karmaPoints; // <-- NUEVO: Puntuación de Karma del jugador (-100 a +100 por ejemplo)
 };
 
-// Nodo de la línea temporal (Mantiene tus físicas cuánticas estables)
+// Nodo de la línea temporal optimizado para rendimiento multiversal
 struct TemporalNode {
     uint32_t id;
     uint32_t parentId;
-    std::vector<uint32_t> childrenIds;
+    std::vector<uint32_t> childrenIds; // Recurso dinámico pesado
 
     int treeX;
     int treeY;
@@ -39,7 +39,52 @@ struct TemporalNode {
 
     int mapID;
     PlayerSnapshot playerState;
-    std::map<std::string, bool> worldEventFlags; // Clonación de flags del universo en este punto
+    std::map<std::string, bool> worldFlags; // Recurso dinámico pesado (Copia costosa)
+
+    // Constructor por defecto necesario para inicializaciones limpias
+    TemporalNode() = default;
+
+    // RAII / Modern C++: Semántica de movimiento explícita en O(1)
+    TemporalNode(TemporalNode&& other) noexcept 
+        : id(other.id),
+          parentId(other.parentId),
+          childrenIds(std::move(other.childrenIds)),
+          treeX(other.treeX),
+          treeY(other.treeY),
+          currentAngle(other.currentAngle),
+          rotationSpeed(other.rotationSpeed),
+          rotationDirection(other.rotationDirection),
+          color(other.color),
+          deathCount(other.deathCount),
+          isEstablished(other.isEstablished),
+          mapID(other.mapID),
+          playerState(other.playerState),
+          worldFlags(std::move(other.worldFlags)) {}
+
+    TemporalNode& operator=(TemporalNode&& other) noexcept {
+        if (this != &other) {
+            id = other.id;
+            parentId = other.parentId;
+            childrenIds = std::move(other.childrenIds);
+            treeX = other.treeX;
+            treeY = other.treeY;
+            currentAngle = other.currentAngle;
+            rotationSpeed = other.rotationSpeed;
+            rotationDirection = other.rotationDirection;
+            color = other.color;
+            deathCount = other.deathCount;
+            isEstablished = other.isEstablished;
+            mapID = other.mapID;
+            playerState = other.playerState;
+            worldFlags = std::move(other.worldFlags);
+        }
+        return *this;
+    }
+
+    // Permitimos copias explícitas por defecto por si el serializador las requiere,
+    // pero el compilador priorizará el movimiento gracias al modificador noexcept.
+    TemporalNode(const TemporalNode&) = default;
+    TemporalNode& operator=(const TemporalNode&) = default;
 };
 
 // Estructura de una Opción o Decisión en los diálogos del juego

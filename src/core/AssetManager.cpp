@@ -73,20 +73,26 @@ void AssetManager::LoadStateAssets(const std::string& stateName) {
 }
 
 void AssetManager::UnloadStateAssets(const std::string& stateName) noexcept {
-    if (!m_manifest.contains(stateName)) return;
+    // Usamos find() para realizar una única búsqueda en el mapa de nlohmann::json
+    auto it = m_manifest.find(stateName);
+    
+    // Si no existe, salimos inmediatamente sin realizar operaciones costosas
+    if (it == m_manifest.end()) return;
 
-    auto state = m_manifest[stateName];
+    // Obtenemos una referencia al objeto JSON una sola vez
+    const auto& stateData = it.value();
 
     // 1. Limpiar texturas de forma segura
-    if (state.contains("textures")) {
-        for (auto& [id, data] : state["textures"].items()) {
+    if (stateData.contains("textures")) {
+        for (auto& [id, data] : stateData["textures"].items()) {
             m_gfx.RemoveTexture(id);
         }
     }
 
-    // 2. Limpiar sonidos de la RAM
-    if (state.contains("sounds")) {
-        for (auto& [id, data] : state["sounds"].items()) {
+    // 2. Limpiar sonidos
+    if (stateData.contains("sounds")) {
+        for (auto& [id, data] : stateData["sounds"].items()) {
+            // value() es seguro si la clave falta
             std::string type = data.value("type", "sfx");
             if (type == "music") {
                 m_audio.UnloadMusic(id);
@@ -97,14 +103,15 @@ void AssetManager::UnloadStateAssets(const std::string& stateName) noexcept {
     }
 
     // 3. Limpiar fuentes
-    if (state.contains("fonts")) {
-        for (auto& [id, data] : state["fonts"].items()) {
+    if (stateData.contains("fonts")) {
+        for (auto& [id, data] : stateData["fonts"].items()) {
             m_gfx.RemoveFont(id);
         }
     }
 
     SDL_Log("[AssetManager] => Recursos liberados para el estado: %s", stateName.c_str());
 }
+
 
 void AssetManager::UnloadAll() noexcept {
     // Método de emergencia/cierre: Fuerza a vaciar todo el mapa del motor gráfico y sonoro

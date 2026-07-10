@@ -1,5 +1,5 @@
-#include "core/MenuState.h"
-#include "core/GameplayState.h"
+#include "states/MenuState.h"
+#include "states/GameplayState.h"
 
 // NUEVO: Inicialización del AssetManager en la lista de inicialización del constructor
 MenuState::MenuState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in, AssetManager& am, UIManager& u)

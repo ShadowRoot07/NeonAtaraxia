@@ -24,7 +24,7 @@
 #include "ui/DialogueBox.h"
 
 // Estados
-#include "core/MenuState.h"
+#include "states/MenuState.h"
 
 // Declaración del procesador del mundo (Como lo tenías en tu main antiguo)
 extern void ProcessWorld(Player& p, std::vector<Platform>& level, std::vector<Enemy>& enemies, std::vector<Projectile>& bullets, std::vector<WorldItem>& items, std::vector<InteractiveObject>& objects, InputManager& input, ShadowAudio& sfx, float dt, bool& outDialogueActive, DialogueBox& outDialogueBox);

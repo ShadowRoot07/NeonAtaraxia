@@ -1,4 +1,4 @@
-#include "core/InventoryState.h"
+#include "states/InventoryState.h"
 #include <cmath>
 
 // Constructor
