@@ -33,14 +33,14 @@ public:
     void DrawText(std::string_view fontId, std::string_view text, int x, int y, 
                   SDL_Color color, bool center = false); // Firma unificada [5]
     
-    void RemoveTexture(std::string_view id);
+    void RemoveTexture(std::string_view id) noexcept;
     void DrawStatic(std::string_view textureId, const SDL_Rect& destRect);
 
     // =================================================================
     // NUEVO: Métodos de Control para el Paso 1.2 e interfaz de Texto
     // =================================================================
     void LoadFont(std::string_view id, std::string_view path, int ptsize);
-    void RemoveFont(std::string_view id);
+    void RemoveFont(std::string_view id) noexcept;
 
     void DrawAnimatedFrame(std::string_view id, SDL_Rect dest, int frame, int row = 0);
 
@@ -50,7 +50,7 @@ public:
     // NUEVA SOBRECARGA: Para absorber las llamadas de UIManager.cpp y main.cpp con flip booleano y dimensiones opcionales
     void DrawAnimated(std::string_view textureId, const SDL_Rect& destRect, int frame, int row, bool flipHorizontally, int spriteW = 0, int spriteH = 0);
 
-    void ClearCache();
+    void ClearCache() noexcept;
 
 private:
     SDL_Renderer* renderer;

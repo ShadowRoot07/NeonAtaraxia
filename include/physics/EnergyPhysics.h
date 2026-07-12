@@ -1,15 +1,20 @@
+// include/physics/EnergyPhysics.h
 #ifndef ENERGY_PHYSICS_H
 #define ENERGY_PHYSICS_H
 
-#include "ParticlePool.h"
+#include "physics/ParticlePool.h"
 
 class EnergyPhysics {
 public:
-    // Aplica retroceso al emisor y calcula el vector de empuje cinético continuo
-    static void ApplyLaserForce(float& entityVx, float& entityVy, float angle, float force, bool isRecoil, float deltaTime);
+    // RAII: Prevenir instanciación de una clase que solo agrupa funciones matemáticas
+    EnergyPhysics() = delete;
+    EnergyPhysics(const EnergyPhysics&) = delete;
+    EnergyPhysics& operator=(const EnergyPhysics&) = delete;
+
+    // Marcados como noexcept para optimización de caché y registros
+    static void ApplyLaserForce(float& entityVx, float& entityVy, float angleDeg, float force, bool isRecoil, float deltaTime) noexcept;
     
-    // Propagación térmica: Genera partículas de fuego y vapor instantáneo
-    static void TriggerExplosion(ParticlePool& pool, float x, float y, float radius, int particleCount);
+    static void TriggerExplosion(ParticlePool& pool, float x, float y, float radius, int particleCount) noexcept;
 };
 
 #endif

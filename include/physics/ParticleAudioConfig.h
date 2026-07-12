@@ -1,30 +1,27 @@
+// include/physics/ParticleAudioConfig.h
 #ifndef PARTICLE_AUDIO_CONFIG_H
 #define PARTICLE_AUDIO_CONFIG_H
 
 #include <string>
-#include <map>
-#include <SDL2/SDL.h>
+#include <string_view>
+#include <unordered_map> // Rendimiento: Búsqueda O(1) en lugar de O(log N) del std::map
+#include <SDL.h>
 #include "gfx/ShadowAudio.h"
 
 class ParticleAudioConfig {
 public:
-    // Filtro regulador: Solo reproduce el sonido si pasó el cooldown (en ms)
-    static void TriggerSFX(ShadowAudio& audio, const std::string& id, Uint32 cooldownMs) {
-        Uint32 currentTime = SDL_GetTicks();
-        
-        // Inicializar o buscar la última marca de tiempo del efecto
-        if (lastTriggerTimes.find(id) == lastTriggerTimes.end()) {
-            lastTriggerTimes[id] = 0;
-        }
+    // RAII/Modern C++: Evitar la instanciación de una clase puramente estática
+    ParticleAudioConfig() = delete;
+    ParticleAudioConfig(const ParticleAudioConfig&) = delete;
+    ParticleAudioConfig& operator=(const ParticleAudioConfig&) = delete;
 
-        if (currentTime - lastTriggerTimes[id] >= cooldownMs) {
-            audio.Play(id, 0); // Ejecución One-Shot estándar
-            lastTriggerTimes[id] = currentTime;
-        }
-    }
+    // Filtro regulador: Usamos string_view para evitar copias si pasamos literales ("fire_hiss")
+    static void TriggerSFX(ShadowAudio& audio, std::string_view id, Uint32 cooldownMs);
 
 private:
-    static std::map<std::string, Uint32> lastTriggerTimes;
+    // Caché de cooldowns optimizada
+    static std::unordered_map<std::string, Uint32> lastTriggerTimes;
 };
 
 #endif
+

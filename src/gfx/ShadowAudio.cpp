@@ -1,9 +1,7 @@
 #include "gfx/ShadowAudio.h"
 #include <SDL_log.h>
 
-ShadowAudio::ShadowAudio() : fallbackSound(nullptr) {
-    // Si en el futuro deseas cargar un fallbackSound global por defecto, puedes hacerlo aquí
-}
+ShadowAudio::ShadowAudio() noexcept : fallbackSound(nullptr) {}
 
 ShadowAudio::~ShadowAudio() {
     Clean();
@@ -54,36 +52,32 @@ void ShadowAudio::PlayMusic(std::string_view id) {
     }
 }
 
-void ShadowAudio::StopMusic() {
-    Mix_HaltMusic();
-}
-
 // NUEVO: Destrucción selectiva de un Chunk para liberar RAM
-void ShadowAudio::UnloadSound(const std::string& id) {
-    auto it = soundCache.find(id);
+void ShadowAudio::UnloadSound(std::string_view id) noexcept {
+    auto it = soundCache.find(std::string(id));
     if (it != soundCache.end()) {
-        if (it->second) {
-            Mix_FreeChunk(it->second);
-        }
+        // ELIMINADO: Mix_FreeChunk(it->second);
+        // RAII: .erase() desencadena automáticamente el SDL_Deleter
         soundCache.erase(it);
-        SDL_Log("[ShadowAudio] Liberada memoria de SFX: %s", id.c_str());
+        SDL_Log("[ShadowAudio] Liberada memoria de SFX: %s", std::string(id).c_str());
     }
 }
 
 // NUEVO: Destrucción selectiva de un Music Stream para liberar RAM
-void ShadowAudio::UnloadMusic(const std::string& id) {
-    auto it = musicCache.find(id);
+void ShadowAudio::UnloadMusic(std::string_view id) noexcept {
+    auto it = musicCache.find(std::string(id));
     if (it != musicCache.end()) {
-        if (it->second) {
-            Mix_FreeMusic(it->second);
-        }
+        // ELIMINADO: Mix_FreeMusic(it->second);
         musicCache.erase(it);
-        SDL_Log("[ShadowAudio] Liberada memoria de BGM: %s", id.c_str());
+        SDL_Log("[ShadowAudio] Liberada memoria de BGM: %s", std::string(id).c_str());
     }
 }
 
-void ShadowAudio::Clean() {
-    // RAII: La limpieza de la RAM es automática al vaciar los mapas
+void ShadowAudio::StopMusic() noexcept {
+    Mix_HaltMusic();
+}
+
+void ShadowAudio::Clean() noexcept {
     soundCache.clear();
     musicCache.clear();
     SDL_Log("[ShadowAudio] Memoria de audio purgada mediante RAII.");

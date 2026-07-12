@@ -63,6 +63,11 @@ namespace Assets {
     const std::string JOY_KNOB_PATH = "sprites/ui/joystick_knob.bmp";
 }
 
+namespace Physics {
+    // Definimos el límite global aquí para poder cambiarlo de forma centralizada
+    static constexpr float GLOBAL_FLOOR_Y = 520.0f;
+}
+
 // include/Common.h (Agregar al final, antes del #endif)
 
 // Tipos de efectos de estado soportados por el motor

@@ -3,14 +3,14 @@
 
 #include "physics/ParticlePool.h"
 
-// Forward declaration limpia
-class ShadowAudio;
-
 class ElementReaction {
 public:
-    static void ResolveInteractions(ParticlePool& pool);
-    static void ResolveInteractions(ParticlePool& pool, ShadowAudio& audio);
-    static void ResolveInteractions(Particle& p1, Particle& p2);
+    // Clase utilitaria estática
+    ElementReaction() = delete;
+    ElementReaction(const ElementReaction&) = delete;
+    ElementReaction& operator=(const ElementReaction&) = delete;
+
+    static void ResolveInteractions(Particle& p1, Particle& p2) noexcept;
 };
 
-#endif // ELEMENT_REACTION_H
+#endif

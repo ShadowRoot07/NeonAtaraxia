@@ -1,52 +1,44 @@
-#include "physics/ElementReaction.h"
+#include "physics/DestructionEngine.h"
 #include <cmath>
-#include <cstdlib>
 
-void ElementReaction::ResolveInteractions(Particle& p1, Particle& p2) {
-    // --- REACCIÓN 1: FUEGO + AGUA = Evaporación instantánea ---
-    if ((p1.type == ParticleType::FIRE && p2.type == ParticleType::WATER) ||
-        (p1.type == ParticleType::WATER && p2.type == ParticleType::FIRE)) {
+void DestructionEngine::FragmentPlatform(ParticlePool& pool, DestructiblePlatform& platform, 
+                                         float explosionX, float explosionY, float force) noexcept {
+    
+    // Si ya está destruida, evitamos procesar de nuevo
+    if (platform.isDestroyed) return;
 
-        // Determinamos con precisión cuál es el fuego y cuál es el agua
-        Particle& fire = (p1.type == ParticleType::FIRE) ? p1 : p2;
-        Particle& water = (p1.type == ParticleType::WATER) ? p1 : p2;
+    // Tamaño de los fragmentos (ej: 8x8 píxeles por bloque de escombro)
+    constexpr float FRAGMENT_SIZE = 8.0f;
+    
+    int cols = static_cast<int>(platform.bounds.w / FRAGMENT_SIZE);
+    int rows = static_cast<int>(platform.bounds.h / FRAGMENT_SIZE);
 
-        // Transformamos el agua en Gas/Vapor gris que sube térmicamente
-        water.type = ParticleType::GAS;
-        water.color = {150, 150, 150, 180}; // Gris nube térmica
-        water.maxLife = 0.7f;
-        water.lifeTime = 0.7f;
-        water.vy = -80.0f; // Impulso ascendente
-        water.vx = static_cast<float>(rand() % 40 - 20);
+    SDL_Color debrisColor = {100, 100, 100, 255}; // Gris asfalto por defecto
 
-        // Apagamos la partícula de fuego (extinción)
-        fire.active = false;
-        fire.type = ParticleType::NONE;
-        return;
+    for (int y = 0; y < rows; ++y) {
+        for (int x = 0; x < cols; ++x) {
+            float fragX = platform.bounds.x + (x * FRAGMENT_SIZE);
+            float fragY = platform.bounds.y + (y * FRAGMENT_SIZE);
+
+            // Calcular el vector de fuerza desde el epicentro (explosión) hasta el fragmento
+            float dirX = fragX - explosionX;
+            float dirY = fragY - explosionY;
+            
+            // Distancia Euclidiana
+            float distance = std::sqrt(dirX * dirX + dirY * dirY);
+            if (distance == 0.0f) distance = 1.0f; // Prevenir división por cero
+
+            // Normalizamos el vector y aplicamos la fuerza (inversamente proporcional a la distancia)
+            float forceMultiplier = force / distance;
+            float vx = (dirX / distance) * forceMultiplier;
+            float vy = (dirY / distance) * forceMultiplier;
+
+            // Spawn del escombro. Se comporta como gas temporalmente para aprovechar
+            // tu sistema de física (o puedes crear un ParticleType::DEBRIS si quieres gravedad de bloque)
+            pool.Spawn(fragX, fragY, vx, vy, FRAGMENT_SIZE, 1.5f, debrisColor, ParticleType::GAS);
+        }
     }
 
-    // --- REACCIÓN 2: FUEGO + ACEITE = Ignición invasiva masiva ---
-    if (p1.type == ParticleType::OIL && p2.type == ParticleType::FIRE) {
-        p1.type = ParticleType::FIRE;
-        p1.maxLife = 1.2f;
-        p1.lifeTime = 1.2f;
-        p1.color = {255, 60, 0, 255};
-    }
-    else if (p2.type == ParticleType::OIL && p1.type == ParticleType::FIRE) {
-        p2.type = ParticleType::FIRE;
-        p2.maxLife = 1.2f;
-        p2.lifeTime = 1.2f;
-        p2.color = {255, 60, 0, 255};
-    }
-
-    // --- REACCIÓN 3: AGUA + ACEITE = Separación por densidad ---
-    else if (p1.type == ParticleType::WATER && p2.type == ParticleType::OIL) {
-        // El aceite es menos denso, se le da un micro-impulso hacia arriba, el agua baja
-        p2.y -= 1.0f;
-        p1.y += 1.0f;
-    }
-    else if (p2.type == ParticleType::WATER && p1.type == ParticleType::OIL) {
-        p1.y -= 1.0f;
-        p2.y += 1.0f;
-    }
+    // Cambiar estado a destruida para que el motor de render la ignore
+    platform.isDestroyed = true;
 }

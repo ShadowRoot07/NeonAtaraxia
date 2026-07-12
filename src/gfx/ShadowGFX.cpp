@@ -8,29 +8,25 @@ ShadowGFX::~ShadowGFX() {
 }
 
 SDL_Texture* ShadowGFX::GetTexture(std::string_view id, std::string_view path, bool useColorKey, int rows, int cols) {
-    // Convertimos a string solo para la búsqueda en el mapa (propiedad)
     std::string s_id(id);
-    
-    // AAA: auto para iteradores
     auto it = textureCache.find(s_id);
+
     if (it != textureCache.end()) {
         if (rows > 1 || cols > 1) {
             it->second.rows = rows;
             it->second.cols = cols;
         }
-        return it->second.texture;
+        return it->second.texture.get(); // get() porque ahora está completamente encapsulado
     }
 
-
-    if (p_path.empty()) {
-        SDL_Log("[ShadowGFX] Error: Se intento cargar ID '%s' sin ruta.", id.c_str());
+    std::string finalPath = std::string(path); // CORRECCIÓN: variable p_path no existía
+    if (finalPath.empty()) {
+        SDL_Log("[ShadowGFX] Error: Se intento cargar ID '%s' sin ruta.", s_id.c_str());
         return nullptr;
     }
 
-    // Adaptabilidad de rutas: previene concatenar "assets/assets/..."
-    std::string finalPath = p_path;
-    if (p_path.find(assetRootPath) == std::string::npos && p_path.find("assets/") == std::string::npos) {
-        finalPath = assetRootPath + p_path;
+    if (finalPath.find(assetRootPath) == std::string::npos && finalPath.find("assets/") == std::string::npos) {
+        finalPath = assetRootPath + finalPath;
     }
 
     SDL_Surface* surface = IMG_Load(finalPath.c_str());
@@ -40,7 +36,6 @@ SDL_Texture* ShadowGFX::GetTexture(std::string_view id, std::string_view path, b
     }
 
     if (useColorKey) {
-        // Usa Magenta (255,0,255) como Color Key estándar. Modifícalo si usas otro color en tus sprites.
         Uint32 colorkey = SDL_MapRGB(surface->format, 255, 0, 255);
         SDL_SetColorKey(surface, SDL_TRUE, colorkey);
     }
@@ -50,25 +45,17 @@ SDL_Texture* ShadowGFX::GetTexture(std::string_view id, std::string_view path, b
 
     if (texture) {
         TextureResource resource;
-        resource.texture = texture;
+        resource.texture.reset(texture); // CORRECCIÓN: Inyección segura en el unique_ptr
         resource.rows = rows > 0 ? rows : 1;
         resource.cols = cols > 0 ? cols : 1;
-        textureCache[id] = resource;
-        SDL_Log("[ShadowGFX] Textura cacheada: %s (Metadatos -> F: %d, C: %d)", id.c_str(), resource.rows, resource.cols);
+        
+        textureCache[s_id] = std::move(resource); // Transferencia limpia al mapa
+        SDL_Log("[ShadowGFX] Textura cacheada: %s (Metadatos -> F: %d, C: %d)", s_id.c_str(), resource.rows, resource.cols);
+        
+        return textureCache[s_id].texture.get();
     }
 
-    return texture;
-}
-
-void ShadowGFX::RemoveTexture(const std::string& id) {
-    auto it = textureCache.find(id);
-    if (it != textureCache.end()) {
-        if (it->second.texture) {
-            SDL_DestroyTexture(it->second.texture);
-        }
-        textureCache.erase(it);
-        SDL_Log("[ShadowGFX] Liberada memoria de textura: %s", id.c_str());
-    }
+    return nullptr;
 }
 
 void ShadowGFX::DrawStatic(const std::string& id, SDL_Rect dest) {
@@ -145,26 +132,23 @@ void ShadowGFX::DrawAnimated(std::string_view textureId, const SDL_Rect& destRec
 }
 
 void ShadowGFX::DrawAnimatedFrame(std::string_view id, SDL_Rect dest, int frame, int row) {
-    // 1. Buscamos la textura en el cache
     auto it = textureCache.find(std::string(id));
     if (it == textureCache.end()) {
-        SDL_Log("[ShadowGFX] Error: No se pudo renderizar frame. ID '%s' no encontrado.", id.data());
+        SDL_Log("[ShadowGFX] Error: No se pudo renderizar frame. ID '%s' no encontrado.", std::string(id).c_str());
         return;
     }
 
-    TextureData& data = it->second;
+    TextureResource& data = it->second; // CORRECCIÓN: Era TextureResource, no TextureData
     int texW, texH;
-    SDL_QueryTexture(data.texture, NULL, NULL, &texW, &texH);
+    
+    // Obtenemos del puntero gestionado
+    SDL_QueryTexture(data.texture.get(), NULL, NULL, &texW, &texH); 
 
-    // 2. Calculamos dimensiones del frame basado en filas/columnas almacenadas
     int frameW = texW / data.cols;
     int frameH = texH / data.rows;
 
-    // 3. Definimos el recorte (Source Rect)
     SDL_Rect src = { frame * frameW, row * frameH, frameW, frameH };
-
-    // 4. Renderizamos
-    SDL_RenderCopy(renderer, data.texture, &src, &dest);
+    SDL_RenderCopy(renderer, data.texture.get(), &src, &dest);
 }
 
 void ShadowGFX::DrawBackgroundInfinity(const std::string& textureId, float camX, float camY, int bgW, int bgH) {
@@ -187,56 +171,42 @@ void ShadowGFX::DrawBackgroundInfinity(const std::string& textureId, float camX,
 
 void ShadowGFX::LoadFont(std::string_view id, std::string_view path, int ptsize) {
     std::string s_id(id);
-    
-    // Si la fuente ya está en el caché, no la cargamos de nuevo
     if (fontCache.find(s_id) != fontCache.end()) return;
 
     std::string finalPath = std::string(path);
-    // Verificar si la ruta necesita concatenarse con el directorio base de assets
     if (finalPath.find(assetRootPath) == std::string::npos && finalPath.find("assets/") == std::string::npos) {
         finalPath = assetRootPath + "/" + finalPath;
     }
 
     TTF_Font* font = TTF_OpenFont(finalPath.c_str(), ptsize);
     if (!font) {
-        SDL_Log("[ShadowGFX] Error crítico: No se pudo cargar la fuente '%s' desde: %s. SDL_ttf Error: %s", 
-                s_id.c_str(), finalPath.c_str(), TTF_GetError());
+        SDL_Log("[ShadowGFX] Error crítico: No se pudo cargar la fuente '%s'. Error: %s",
+                s_id.c_str(), TTF_GetError());
         return;
     }
 
-    fontCache[s_id] = font;
+    // CORRECCIÓN: Envolver el puntero bruto en el unique_ptr antes de guardar
+    fontCache[s_id] = std::unique_ptr<TTF_Font, SDL_Deleter>(font);
     SDL_Log("[ShadowGFX] Fuente cacheada exitosamente: %s (Tamano: %d)", s_id.c_str(), ptsize);
 }
 
-void ShadowGFX::RemoveFont(std::string_view id) {
-    std::string s_id(id);
-    auto it = fontCache.find(s_id);
+void ShadowGFX::RemoveTexture(std::string_view id) noexcept {
+    auto it = textureCache.find(std::string(id));
+    if (it != textureCache.end()) {
+        // ¡No llamar a SDL_DestroyTexture! erase lo hace todo
+        textureCache.erase(it);
+        SDL_Log("[ShadowGFX] Liberada memoria de textura: %s", std::string(id).c_str());
+    }
+}
+
+void ShadowGFX::RemoveFont(std::string_view id) noexcept {
+    auto it = fontCache.find(std::string(id));
     if (it != fontCache.end()) {
-        if (it->second) {
-            TTF_CloseFont(it->second);
-        }
+        // ¡No llamar a TTF_CloseFont!
         fontCache.erase(it);
-        SDL_Log("[ShadowGFX] Liberada memoria de la fuente: %s", s_id.c_str());
+        SDL_Log("[ShadowGFX] Liberada memoria de la fuente: %s", std::string(id).c_str());
     }
 }
-
-/*
-void ShadowGFX::ClearCache() {
-    for (auto& [id, resource] : textureCache) {
-        if (resource.texture) {
-            SDL_DestroyTexture(resource.texture);
-        }
-    }
-    textureCache.clear();
-
-    for (auto const& [id, font] : fontCache) {
-        if (font) TTF_CloseFont(font);
-    }
-    fontCache.clear();
-
-    SDL_Log("[ShadowGFX] Cache grafico limpiado al 100 porciento.");
-}
-*/
 
 void ShadowGFX::ClearCache() {
     textureCache.clear(); // RAII: Llama automáticamente a los destructores de unique_ptr

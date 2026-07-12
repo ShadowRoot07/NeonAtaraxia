@@ -1,36 +1,55 @@
 #include "physics/ElementReaction.h"
-#include "physics/ParticleAudioConfig.h"
-#include <cmath>
-#include <cstdlib>
+#include <random>
 
-// Inicialización del mapa estático de control de tiempos para los cooldowns
-std::map<std::string, Uint32> ParticleAudioConfig::lastTriggerTimes;
+void ElementReaction::ResolveInteractions(Particle& p1, Particle& p2) noexcept {
+    // Si alguna partícula ya está inactiva, salimos inmediatamente para ahorrar CPU
+    if (!p1.active || !p2.active) return;
 
-void ElementReaction::ResolveInteractions(ParticlePool& pool, ShadowAudio& audio) {
-    auto* particles = pool.GetPool();
-    const auto maxParticles = pool.GetMaxParticles();
-    constexpr float interactionRadiusSq = 12.0f * 12.0f; // Optimización: radio al cuadrado [2]
+    // --- REACCIÓN 1: FUEGO + AGUA (Evaporación) ---
+    if ((p1.type == ParticleType::FIRE && p2.type == ParticleType::WATER) ||
+        (p1.type == ParticleType::WATER && p2.type == ParticleType::FIRE)) {
+        
+        Particle& fire = (p1.type == ParticleType::FIRE) ? p1 : p2;
+        Particle& water = (p1.type == ParticleType::WATER) ? p1 : p2;
 
-    for (int i = 0; i < maxParticles; ++i) {
-        if (!particles[i].active) continue;
+        thread_local std::mt19937 gen(std::random_device{}());
+        std::uniform_real_distribution<float> velDist(-20.0f, 20.0f);
 
-        for (int j = i + 1; j < maxParticles; ++j) {
-            if (!particles[j].active) continue;
+        water.type = ParticleType::GAS;
+        water.color = {150, 150, 150, 180}; 
+        water.maxLife = 0.7f;
+        water.lifeTime = 0.7f;
+        water.vy = -80.0f; 
+        water.vx = velDist(gen); // Optimizado sin usar rand() % 40
 
-            float dx = particles[i].x - particles[j].x;
-            float dy = particles[i].y - particles[j].y;
-            float distSq = dx * dx + dy * dy;
+        fire.active = false;
+        fire.type = ParticleType::NONE;
+        return;
+    }
 
-            if (distSq < interactionRadiusSq) {
-                // --- USO DE ENUM CLASS (Seguridad de Tipos) ---
-                if ((particles[i].type == ParticleType::FIRE && particles[j].type == ParticleType::WATER) ||
-                    (particles[i].type == ParticleType::WATER && particles[j].type == ParticleType::FIRE)) {
-                    
-                    particles[i].active = false;
-                    particles[j].active = false;
-                    audio.Play("SFX_EVAPORATE"); // [3]
-                }
-            }
-        }
+    // --- REACCIÓN 2: FUEGO + ACEITE (Ignición) ---
+    if ((p1.type == ParticleType::OIL && p2.type == ParticleType::FIRE) ||
+        (p1.type == ParticleType::WATER && p2.type == ParticleType::FIRE)) {
+        
+        Particle& oil = (p1.type == ParticleType::OIL) ? p1 : p2;
+        
+        oil.type = ParticleType::FIRE;
+        oil.maxLife = 1.2f;
+        oil.lifeTime = 1.2f;
+        oil.color = {255, 60, 0, 255};
+        return;
+    }
+
+    // --- REACCIÓN 3: AGUA + ACEITE (Densidad) ---
+    if ((p1.type == ParticleType::WATER && p2.type == ParticleType::OIL) ||
+        (p1.type == ParticleType::OIL && p2.type == ParticleType::WATER)) {
+        
+        Particle& oil = (p1.type == ParticleType::OIL) ? p1 : p2;
+        Particle& water = (p1.type == ParticleType::WATER) ? p1 : p2;
+
+        // Movimiento branchless sin reasignaciones cruzadas
+        oil.y -= 1.0f;
+        water.y += 1.0f;
     }
 }
+
