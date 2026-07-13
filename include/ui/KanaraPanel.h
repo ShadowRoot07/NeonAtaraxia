@@ -1,17 +1,13 @@
-#pragma once
+#ifndef KANARA_PANEL_H
+#define KANARA_PANEL_H
 
 #include <SDL.h>
 #include <vector>
 #include <string>
-#include <cmath>
-#include <algorithm>
-
 #include "gfx/ShadowGFX.h"
 
-// Forward declaration corregida al nombre actual de la clase
-class KarmaLink; 
+class KarmaLink;
 class Player;
-class ShadowGFX;
 
 struct MenuOption {
     std::string name;
@@ -25,81 +21,77 @@ struct TouchFinger {
 };
 
 class KanaraPanel {
+public:
+    KanaraPanel() noexcept;
+    ~KanaraPanel() = default;
+
+    // RAII: Bloqueamos copias de la UI
+    KanaraPanel(const KanaraPanel&) = delete;
+    KanaraPanel& operator=(const KanaraPanel&) = delete;
+
+    void SetActive(bool active) noexcept { isActive = active; }
+    [[nodiscard]] bool IsActive() const noexcept { return isActive; }
+
+    // APIs protegidas
+    void Update(float deltaTime, KarmaLink& core) noexcept;
+    void Render(SDL_Renderer* renderer, ShadowGFX* gfx, KarmaLink& core) noexcept;
+    void HandleTouchInput(const SDL_Event& ev, KarmaLink& core, Player& player) noexcept;
+
 private:
     bool isActive = false;
-
-    // Variables de Viewport (Cámara y Transformación)
+    
     float offsetX = 0.0f;
     float offsetY = 0.0f;
     float zoomScale = 1.0f;
-    const float MIN_ZOOM = 0.4f;
-    const float MAX_ZOOM = 3.0f;
+    static constexpr float MIN_ZOOM = 0.4f;
+    static constexpr float MAX_ZOOM = 3.0f;
 
-    // Estado del arrastre (Drag) con un solo dedo
     bool isDragging = false;
     float lastTouchX = 0.0f;
     float lastTouchY = 0.0f;
 
-    // Control de la interacción táctil y Zoom
     std::vector<TouchFinger> activeFingers;
     float lastFingerDistance = 0.0f;
     bool isZooming = false;
 
-    // Nodo seleccionado en el grafo
     int selectedNodeId = -1;
-    const float NODE_SIZE = 32.0f;
+    static constexpr float NODE_SIZE = 32.0f;
 
-    // --- VARIABLES PARA LA VENTANA DE OPERACIONES ---
     std::vector<MenuOption> menuOptions;
     int hoveredOption = -1;
-    void InitializeMenuOptions();
+    void InitializeMenuOptions() noexcept;
 
-    // --- VARIABLES DE ESTADO DE CONFIGURACIÓN MODULAR ---
     bool isConfigOpen = false;
-    int activeTab = 0;           // 0: Gráficos, 1: Audio, 2: Memoria
-    int chunkDistance = 8;       // Chunks por defecto
+    int activeTab = 0;           
+    int chunkDistance = 8;
     bool musicEnabled = true;
     bool sfxEnabled = true;
 
-    enum ResetState {
-        RESET_IDLE,
-        RESET_CONFIRM_1,
-        RESET_CONFIRM_2,
-        RESET_CONFIRM_3,
-        RESET_LOADING
+    enum ResetState : uint8_t { // Optimización de tamaño de enum
+        RESET_IDLE, RESET_CONFIRM_1, RESET_CONFIRM_2, RESET_CONFIRM_3, RESET_LOADING
     };
     ResetState currentResetState = RESET_IDLE;
 
     float resetTimer = 0.0f;
-    const float RESET_TOTAL_TIME = 7.0f;
+    static constexpr float RESET_TOTAL_TIME = 7.0f;
 
-    // Control del efecto de Glitch Neón al cancelar
     bool isGlitchActive = false;
     float glitchTimer = 0.0f;
-    const float GLITCH_DURATION = 0.6f;
+    static constexpr float GLITCH_DURATION = 0.6f;
 
-    // Variables de control para la ventana emergente temporal
     bool showNotification = false;
-    std::string notificationText = "";
+    std::string notificationText;
     float notificationTimer = 0.0f;
-    const float NOTIFICATION_DURATION = 3.0f;
+    static constexpr float NOTIFICATION_DURATION = 3.0f;
 
-    // Métodos internos de renderizado (Actualizados a KarmaLink)
-    void RenderConfigScreen(SDL_Renderer* renderer, ShadowGFX* gfx, KarmaLink& core);
-    void RenderResetWindow(SDL_Renderer* renderer, ShadowGFX* gfx);
-    void RenderGlitchEffect(SDL_Renderer* renderer);
-    void RenderRotatedSquare(SDL_Renderer* renderer, float centerX, float centerY, float size, float angle, SDL_Color color);
-    void DrawGrid(SDL_Renderer* renderer);
+    // Constantes matemáticas en tiempo de compilación
+    static constexpr float DEG_TO_RAD = 3.14159265359f / 180.0f;
 
-public:
-    KanaraPanel();
-    ~KanaraPanel() = default;
-
-    void SetActive(bool active) { isActive = active; }
-    bool IsActive() const { return isActive; }
-
-    // Métodos públicos de interfaz (Actualizados a KarmaLink)
-    void Update(float deltaTime, KarmaLink& core);
-    void Render(SDL_Renderer* renderer, ShadowGFX* gfx, KarmaLink& core);
-    void HandleTouchInput(SDL_Event& ev, KarmaLink& core, Player& player);
+    void RenderConfigScreen(SDL_Renderer* renderer, ShadowGFX* gfx, KarmaLink& core) noexcept;
+    void RenderResetWindow(SDL_Renderer* renderer, ShadowGFX* gfx) noexcept;
+    void RenderGlitchEffect(SDL_Renderer* renderer) noexcept;
+    void RenderRotatedSquare(SDL_Renderer* renderer, float centerX, float centerY, float size, float angle, SDL_Color color) noexcept;
+    void DrawGrid(SDL_Renderer* renderer) noexcept;
 };
+
+#endif

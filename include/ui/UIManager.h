@@ -2,46 +2,37 @@
 #define UIMANAGER_H
 
 #include <SDL.h>
-#include "input/InputManager.h"
-#include "gfx/ShadowGFX.h"
+#include <string>
+#include <string_view>
 
+// Forward declarations para acelerar compilación cruzada
+class InputManager;
+class ShadowGFX;
 class Player;
 
 class UIManager {
 public:
-    // RAII: El constructor inicializa y precacha los assets necesarios directamente.
-    explicit UIManager(ShadowGFX& gfx);
-    
-    // Destructor encargado de la limpieza automática
-    ~UIManager();
+    UIManager() noexcept;
+    ~UIManager() = default;
 
-    // Deshabilitar Copia para evitar duplicación de referencias de texturas y fallos RAII
+    // RAII: Bloqueamos copias de un gestor único global
     UIManager(const UIManager&) = delete;
     UIManager& operator=(const UIManager&) = delete;
 
-    // Habilitar Movimiento Eficiente (Move Semantics)
-    UIManager(UIManager&& other) noexcept;
-    UIManager& operator=(UIManager&& other) noexcept;
+    // Movimiento seguro y rápido
+    UIManager(UIManager&& other) noexcept = default;
+    UIManager& operator=(UIManager&& other) noexcept = default;
 
-    // Render Optimizado: Ya no busca en el mapa de ShadowGFX por cada frame. Usa los punteros locales cacheados.
-    void Render(SDL_Renderer* renderer, ShadowGFX& gfx, const InputManager& input, const Player& player) const noexcept;
-
-    // Mantenemos Clean() por compatibilidad si el ciclo de vida del motor lo requiere antes de salir, pero el destructor ya lo hace.
-    void Clean() noexcept;
+    // Const y noexcept aseguran un renderizado sin efectos secundarios ni excepciones
+    void Render(SDL_Renderer* renderer, ShadowGFX& gfx, const InputManager& input, const Player& player) noexcept;
 
 private:
-    // Punteros directos a texturas cacheadas localmente para optimizar el Frame-Rate (O(1) directo)
-    SDL_Texture* m_texBtnZ         = nullptr;
-    SDL_Texture* m_texBtnX         = nullptr;
-    SDL_Texture* m_texBtnF         = nullptr;
-    SDL_Texture* m_texBtnD         = nullptr;
-    SDL_Texture* m_texBtnInv       = nullptr;
-    SDL_Texture* m_texBtnLink      = nullptr;
-    SDL_Texture* m_texCoinIcon     = nullptr;
-    SDL_Texture* m_texGemIcon      = nullptr;
-
-    // Método privado auxiliar para resolver las referencias
-    void CacheTextures(ShadowGFX& gfx) noexcept;
+    // Variables de "Dirty State" (Caché local de textos dinámicos)
+    // Nos protegen de alojar memoria RAM 60 veces por segundo.
+    int lastKnownCoins;
+    int lastKnownGems;
+    std::string cachedCoinText;
+    std::string cachedGemText;
 };
 
 #endif // UIMANAGER_H
