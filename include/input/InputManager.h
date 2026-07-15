@@ -1,71 +1,67 @@
-// include/input/InputManager.h
 #ifndef INPUT_MANAGER_H
 #define INPUT_MANAGER_H
 
 #include <SDL.h>
-#include <array> // Necesario para std::array
-#include "Common.h"
+#include <vector>
 
-struct JoyState {
-    float x, y;
-    bool isActive;
-    SDL_FingerID fingerID;
+// OPTIMIZACIÓN: Enum estricto de 1 byte para identificar botones virtuales
+enum class VirtualButton : uint8_t {
+    BTN_Z, BTN_X, BTN_F, BTN_D, BTN_INV, BTN_LINK
 };
 
 class InputManager {
 public:
     InputManager() noexcept;
-    void Update() noexcept;
-    
-    // OPTIMIZACIÓN: Se elimina el parámetro muerto SDL_Renderer* y se marca como noexcept
-    void HandleRawEvent(const SDL_Event& ev) noexcept;
+    ~InputManager() = default;
 
-    // RAII: Deshabilitar copias para asegurar un único gestor de entrada en el motor
     InputManager(const InputManager&) = delete;
     InputManager& operator=(const InputManager&) = delete;
-    InputManager(InputManager&&) noexcept = default;
-    InputManager& operator=(InputManager&&) noexcept = default;
 
-    // --- FUNCIONES DE ESTADO (Const y noexcept para optimización en registros) ---
+    void Update() noexcept;
+    void HandleEvent(const SDL_Event& event) noexcept;
+
+    // --- FUNCIONES DE ESTADO DE TECLADO ---
     bool IsKeyPressed(SDL_Scancode k) const noexcept;
-    bool IsBtnPressed(SDL_Scancode k) const noexcept;
     bool IsKeyDown(SDL_Scancode k) const noexcept;
 
-    // --- GETTERS PARA JOYSTICK ---
-    Vector2 GetJoyDir() const noexcept { return {joystick.x, joystick.y}; }
-    Vector2 GetJoystick() const noexcept { return {joystick.x, joystick.y}; }
+    // --- FUNCIONES HÍBRIDAS (Touch + Teclado unificado) ---
+    // IsBtnPressed = True SOLO en el frame exacto en que se toca la pantalla o tecla
+    bool IsBtnPressed(VirtualButton btn) const noexcept;
+    // IsBtnDown = True MIENTRAS el dedo o tecla siga manteniéndose presionado
+    bool IsBtnDown(VirtualButton btn) const noexcept;
+
+    // --- JOYSTICK ANALÓGICO ---
+    bool IsJoyActive() const noexcept { return joyActive; }
+    float GetJoyDirX() const noexcept { return joyDirX; }
+    float GetJoyDirY() const noexcept { return joyDirY; }
     SDL_Point GetJoystickScreenPos() const noexcept;
 
-    // --- GETTERS DE HITBOXES ---
-    SDL_Rect GetBtnZArea() const noexcept { return btnZVisual; }
-    SDL_Rect GetBtnXArea() const noexcept { return btnXVisual; }
-    SDL_Rect GetBtnFArea() const noexcept { return btnFVisual; }
-    SDL_Rect GetBtnDArea() const noexcept { return btnDVisual; }
-    SDL_Rect GetBtnInvArea() const noexcept { return btnInvVisual; }
-    SDL_Rect GetBtnLinkArea() const noexcept { return btnLinkVisual; }
-    SDL_Rect GetJoyArea() const noexcept { return joystickArea; }
-
-    // --- GETTERS DE ESTADO PARA ANIMACIÓN ---
-    bool IsZPressed() const noexcept { return vZ; }
-    bool IsXPressed() const noexcept { return vX; }
-    bool IsFPressed() const noexcept { return vF; }
-    bool IsDPressed() const noexcept { return vD; }
-    bool IsInvPressed() const noexcept { return vInv; }
-    bool IsLinkPressed() const noexcept { return vLink; }
+    // --- GETTERS DE ÁREAS (Para el UIManager) ---
+    SDL_Rect GetBtnZArea() const noexcept { return btnZArea; }
+    SDL_Rect GetBtnXArea() const noexcept { return btnXArea; }
+    SDL_Rect GetBtnFArea() const noexcept { return btnFArea; }
+    SDL_Rect GetBtnDArea() const noexcept { return btnDArea; }
+    SDL_Rect GetBtnInvArea() const noexcept { return btnInvArea; }
+    SDL_Rect GetBtnLinkArea() const noexcept { return btnLinkArea; }
+    SDL_Rect GetJoyArea() const noexcept { return joyArea; }
 
 private:
-    const Uint8* state;
-    
-    // OPTIMIZACIÓN RAII: std::array provee inicialización limpia y seguridad de tipos
-    std::array<Uint8, SDL_NUM_SCANCODES> lastState;
-    JoyState joystick;
+    const Uint8* keystates;
+    std::vector<Uint8> prevKeystates;
 
-    SDL_Rect joystickArea;
-    SDL_Rect btnZTouch, btnXTouch, btnFTouch, btnDTouch, btnInvTouch, btnLinkTouch;
-    SDL_Rect btnZVisual, btnXVisual, btnFVisual, btnDVisual, btnInvVisual, btnLinkVisual;
+    bool joyActive;
+    SDL_FingerID joyFingerId;
+    float joyStartX, joyStartY;
+    float joyCurrentX, joyCurrentY;
+    float joyDirX, joyDirY;
 
-    bool vZ, vX, vF, vD, vInv, vLink;
-    bool lastVZ, lastVX, lastVF, lastVD, lastVInv, lastVLink;
+    // Matrices booleanas para rastrear estados de toque actuales y previos
+    bool btnDown[6] = {false};
+    bool prevBtnDown[6] = {false};
+    SDL_FingerID btnFingerId[6] = {-1, -1, -1, -1, -1, -1};
+
+    SDL_Rect joyArea;
+    SDL_Rect btnZArea, btnXArea, btnFArea, btnDArea, btnInvArea, btnLinkArea;
 };
 
 #endif

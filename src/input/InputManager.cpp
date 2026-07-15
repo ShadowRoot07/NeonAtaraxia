@@ -1,153 +1,147 @@
-// src/input/InputManager.cpp
 #include "input/InputManager.h"
 #include <cmath>
 
-// OPTIMIZACIÓN: Inicialización limpia de estructuras en el constructor mediante listas
-InputManager::InputManager() noexcept 
-    : state(nullptr),
-      lastState{}, // Auto-inicializa el std::array en cero
-      joystick{0.0f, 0.0f, false, -1},
-      vZ(false), vX(false), vF(false), vD(false), vInv(false), vLink(false),
-      lastVZ(false), lastVX(false), lastVF(false), lastVD(false), lastVInv(false), lastVLink(false) 
+InputManager::InputManager() noexcept
+    : joyActive(false), joyFingerId(-1),
+      joyStartX(0), joyStartY(0), joyCurrentX(0), joyCurrentY(0),
+      joyDirX(0), joyDirY(0) 
 {
-    joystickArea = {40, 360, 200, 200};
+    keystates = SDL_GetKeyboardState(nullptr);
+    prevKeystates.assign(SDL_NUM_SCANCODES, 0);
 
-    // Layout estilo Deltarune (Matriz Virtual 800x600)
-    btnZVisual = {680, 460, 80, 80};  btnZTouch  = {660, 440, 120, 120};
-    btnXVisual = {600, 390, 80, 80};  btnXTouch  = {580, 370, 120, 120};
-    btnFVisual = {680, 320, 80, 80};  btnFTouch  = {660, 300, 120, 120};
-
-    // Grupo de Menús
-    btnDVisual = {710, 30, 60, 60};   btnDTouch  = {690, 10, 100, 90};
-    btnInvVisual = {630, 30, 60, 60}; btnInvTouch  = {610, 10, 100, 90};
-    btnLinkVisual = {550, 30, 60, 60}; btnLinkTouch = {530, 10, 100, 90};
+    // Hitboxes lógicas (800x600)
+    joyArea     = { 50,  380, 160, 160 };
+    btnZArea    = { 650, 450, 64,  64  };
+    btnXArea    = { 570, 480, 64,  64  };
+    btnFArea    = { 720, 380, 64,  64  };
+    btnDArea    = { 500, 520, 64,  64  };
+    btnInvArea  = { 720, 20,  64,  64  };
+    btnLinkArea = { 20,  20,  64,  64  };
 }
 
 void InputManager::Update() noexcept {
-    if (state) {
-        // Copia directa y segura hacia el búfer del std::array
-        std::dynamic_pointer_cast<void>(void* (nullptr)); // Control de flujo interno opcional
-        std::copy(state, state + SDL_NUM_SCANCODES, lastState.begin());
-    }
-    
-    lastVZ = vZ; lastVX = vX; lastVF = vF;
-    lastVD = vD; lastVInv = vInv; lastVLink = vLink;
-
-    state = SDL_GetKeyboardState(nullptr);
-}
-
-// OPTIMIZACIÓN: Estructura basada en Switch para un procesamiento de eventos táctiles ultrarrápido
-void InputManager::HandleRawEvent(const SDL_Event& ev) noexcept {
-    if (ev.type != SDL_FINGERDOWN && ev.type != SDL_FINGERMOTION && ev.type != SDL_FINGERUP) {
-        return;
+    // 1. Clonar estado de teclado físico
+    if (keystates) {
+        std::copy(keystates, keystates + SDL_NUM_SCANCODES, prevKeystates.begin());
     }
 
-    // Mapeo porcentual absoluto a resolución virtual fija 800x600
-    int mx = static_cast<int>(ev.tfinger.x * 800.0f);
-    int my = static_cast<int>(ev.tfinger.y * 600.0f);
-
-    SDL_Point p = {mx, my};
-    SDL_FingerID fid = ev.tfinger.fingerId;
-
-    float centerX = joystickArea.x + (joystickArea.w / 2.0f);
-    float centerY = joystickArea.y + (joystickArea.h / 2.0f);
-    float maxRadius = joystickArea.w / 2.0f;
-
-    switch (ev.type) {
-        case SDL_FINGERDOWN: {
-            float deltaX = mx - centerX;
-            float deltaY = my - centerY;
-            float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
-
-            if (!joystick.isActive && distance <= maxRadius + 15.0f) {
-                joystick.isActive = true;
-                joystick.fingerID = fid;
-
-                if (distance == 0.0f) {
-                    joystick.x = 0.0f;
-                    joystick.y = 0.0f;
-                } else {
-                    joystick.x = (distance >= maxRadius) ? (deltaX / distance) : (deltaX / maxRadius);
-                    joystick.y = (distance >= maxRadius) ? (deltaY / distance) : (deltaY / maxRadius);
-                }
-            }
-
-            if (SDL_PointInRect(&p, &btnZTouch)) vZ = true;
-            if (SDL_PointInRect(&p, &btnXTouch)) vX = true;
-            if (SDL_PointInRect(&p, &btnFTouch)) vF = true;
-            if (SDL_PointInRect(&p, &btnDTouch)) vD = true;
-            if (SDL_PointInRect(&p, &btnInvTouch)) vInv = true;
-            if (SDL_PointInRect(&p, &btnLinkTouch)) vLink = true;
-            break;
-        }
-
-        case SDL_FINGERMOTION: {
-            if (joystick.isActive && fid == joystick.fingerID) {
-                float deltaX = mx - centerX;
-                float deltaY = my - centerY;
-                float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
-
-                if (distance == 0.0f) {
-                    joystick.x = 0.0f;
-                    joystick.y = 0.0f;
-                } else {
-                    joystick.x = (distance >= maxRadius) ? (deltaX / distance) : (deltaX / maxRadius);
-                    joystick.y = (distance >= maxRadius) ? (deltaY / distance) : (deltaY / maxRadius);
-                }
-            }
-            break;
-        }
-
-        case SDL_FINGERUP: {
-            if (joystick.isActive && fid == joystick.fingerID) {
-                joystick.isActive = false;
-                joystick.fingerID = -1;
-                joystick.x = 0.0f;
-                joystick.y = 0.0f;
-            }
-
-            if (SDL_PointInRect(&p, &btnZTouch)) vZ = false;
-            if (SDL_PointInRect(&p, &btnXTouch)) vX = false;
-            if (SDL_PointInRect(&p, &btnFTouch)) vF = false;
-            if (SDL_PointInRect(&p, &btnDTouch)) vD = false;
-            if (SDL_PointInRect(&p, &btnInvTouch)) vInv = false;
-            if (SDL_PointInRect(&p, &btnLinkTouch)) vLink = false;
-
-            // Gestión de bordes de pantalla físicos fuera de rango
-            if (ev.tfinger.x < 0.02f || ev.tfinger.x > 0.98f || ev.tfinger.y < 0.02f || ev.tfinger.y > 0.98f) {
-                vZ = vX = vF = vD = vInv = vLink = false;
-            }
-            break;
-        }
+    // 2. Clonar estado de los botones virtuales del frame anterior
+    for (int i = 0; i < 6; ++i) {
+        prevBtnDown[i] = btnDown[i];
     }
 }
 
-SDL_Point InputManager::GetJoystickScreenPos() const noexcept {
-    float centerX = joystickArea.x + (joystickArea.w / 2.0f);
-    float centerY = joystickArea.y + (joystickArea.h / 2.0f);
-    float visualRadius = (joystickArea.w / 2.0f) - 20.0f;
-
-    return {
-        static_cast<int>(centerX + (joystick.x * visualRadius)),
-        static_cast<int>(centerY + (joystick.y * visualRadius))
+void InputManager::HandleEvent(const SDL_Event& event) noexcept {
+    auto GetLogicalTouchPos = [](float tfX, float tfY) {
+        return SDL_Point{ static_cast<int>(tfX * 800.0f), static_cast<int>(tfY * 600.0f) };
     };
-}
 
-bool InputManager::IsKeyDown(SDL_Scancode k) const noexcept {
-    if (k == SDL_SCANCODE_LEFT  && joystick.x < -0.3f) return true;
-    if (k == SDL_SCANCODE_RIGHT && joystick.x > 0.3f)  return true;
-    if (k == SDL_SCANCODE_UP    && joystick.y < -0.3f) return true;
-    if (k == SDL_SCANCODE_DOWN  && joystick.y > 0.3f)  return true;
-    return (state && state[k]);
-}
+    if (event.type == SDL_FINGERDOWN) {
+        SDL_Point p = GetLogicalTouchPos(event.tfinger.x, event.tfinger.y);
 
-bool InputManager::IsBtnPressed(SDL_Scancode k) const noexcept {
-    return IsKeyPressed(k);
+        if (!joyActive && SDL_PointInRect(&p, &joyArea)) {
+            joyActive = true;
+            joyFingerId = event.tfinger.fingerId;
+            joyStartX = p.x; joyStartY = p.y;
+            joyCurrentX = p.x; joyCurrentY = p.y;
+        }
+        else if (!btnDown[0] && SDL_PointInRect(&p, &btnZArea))    { btnDown[0] = true; btnFingerId[0] = event.tfinger.fingerId; }
+        else if (!btnDown[1] && SDL_PointInRect(&p, &btnXArea))    { btnDown[1] = true; btnFingerId[1] = event.tfinger.fingerId; }
+        else if (!btnDown[2] && SDL_PointInRect(&p, &btnFArea))    { btnDown[2] = true; btnFingerId[2] = event.tfinger.fingerId; }
+        else if (!btnDown[3] && SDL_PointInRect(&p, &btnDArea))    { btnDown[3] = true; btnFingerId[3] = event.tfinger.fingerId; }
+        else if (!btnDown[4] && SDL_PointInRect(&p, &btnInvArea))  { btnDown[4] = true; btnFingerId[4] = event.tfinger.fingerId; }
+        else if (!btnDown[5] && SDL_PointInRect(&p, &btnLinkArea)) { btnDown[5] = true; btnFingerId[5] = event.tfinger.fingerId; }
+    }
+    else if (event.type == SDL_FINGERMOTION) {
+        if (joyActive && event.tfinger.fingerId == joyFingerId) {
+            SDL_Point p = GetLogicalTouchPos(event.tfinger.x, event.tfinger.y);
+            joyCurrentX = p.x;
+            joyCurrentY = p.y;
+
+            float dx = joyCurrentX - joyStartX;
+            float dy = joyCurrentY - joyStartY;
+            float distance = std::sqrt(dx * dx + dy * dy);
+            float maxRadius = joyArea.w / 2.0f;
+
+            if (distance > maxRadius) {
+                joyDirX = dx / distance;
+                joyDirY = dy / distance;
+            } else if (distance > 5.0f) { 
+                joyDirX = (dx / maxRadius);
+                joyDirY = (dy / maxRadius);
+            } else {
+                joyDirX = 0.0f; joyDirY = 0.0f;
+            }
+        }
+    }
+    else if (event.type == SDL_FINGERUP) {
+        SDL_FingerID id = event.tfinger.fingerId;
+
+        if (joyActive && id == joyFingerId) {
+            joyActive = false; joyFingerId = -1; 
+            joyDirX = 0.0f; joyDirY = 0.0f;
+        }
+
+        for (int i = 0; i < 6; ++i) {
+            if (btnDown[i] && id == btnFingerId[i]) {
+                btnDown[i] = false;
+                btnFingerId[i] = -1;
+            }
+        }
+    }
 }
 
 bool InputManager::IsKeyPressed(SDL_Scancode k) const noexcept {
-    if (k == SDL_SCANCODE_Z) return (vZ && !lastVZ) || (state && state[k] && !lastState[k]);
-    if (k == SDL_SCANCODE_X) return (vX && !lastVX) || (state && state[k] && !lastState[k]);
-    if (k == SDL_SCANCODE_F) return (vF && !lastVF) || (state && state[k] && !lastState[k]);
-    return (state && state[k] && !lastState[k]);
+    return keystates != nullptr && keystates[k] == 1 && prevKeystates[k] == 0;
+}
+
+bool InputManager::IsKeyDown(SDL_Scancode k) const noexcept {
+    return keystates != nullptr && keystates[k] == 1;
+}
+
+// ====================================================================
+// MÉTODOS HÍBRIDOS OPTIMIZADOS (Teclado Físico + Touch)
+// ====================================================================
+
+bool InputManager::IsBtnDown(VirtualButton btn) const noexcept {
+    int idx = static_cast<int>(btn);
+    
+    // Mapeo automático de botón virtual a tecla de PC para testeo multiplataforma
+    SDL_Scancode mappedKey = SDL_SCANCODE_UNKNOWN;
+    switch(btn) {
+        case VirtualButton::BTN_Z: mappedKey = SDL_SCANCODE_Z; break;
+        case VirtualButton::BTN_X: mappedKey = SDL_SCANCODE_X; break;
+        case VirtualButton::BTN_F: mappedKey = SDL_SCANCODE_F; break;
+        case VirtualButton::BTN_D: mappedKey = SDL_SCANCODE_D; break;
+        case VirtualButton::BTN_INV: mappedKey = SDL_SCANCODE_I; break;
+        case VirtualButton::BTN_LINK: mappedKey = SDL_SCANCODE_ESCAPE; break;
+    }
+
+    return btnDown[idx] || IsKeyDown(mappedKey);
+}
+
+bool InputManager::IsBtnPressed(VirtualButton btn) const noexcept {
+    int idx = static_cast<int>(btn);
+    
+    SDL_Scancode mappedKey = SDL_SCANCODE_UNKNOWN;
+    switch(btn) {
+        case VirtualButton::BTN_Z: mappedKey = SDL_SCANCODE_Z; break;
+        case VirtualButton::BTN_X: mappedKey = SDL_SCANCODE_X; break;
+        case VirtualButton::BTN_F: mappedKey = SDL_SCANCODE_F; break;
+        case VirtualButton::BTN_D: mappedKey = SDL_SCANCODE_D; break;
+        case VirtualButton::BTN_INV: mappedKey = SDL_SCANCODE_I; break;
+        case VirtualButton::BTN_LINK: mappedKey = SDL_SCANCODE_ESCAPE; break;
+    }
+
+    // La magia anti-metralleta: True SOLO si el touch está activo AHORA y NO estaba activo en el frame anterior
+    bool touchJustPressed = (btnDown[idx] && !prevBtnDown[idx]);
+    
+    return touchJustPressed || IsKeyPressed(mappedKey);
+}
+
+SDL_Point InputManager::GetJoystickScreenPos() const noexcept {
+    if (!joyActive) {
+        return { joyArea.x + joyArea.w / 2, joyArea.y + joyArea.h / 2 };
+    }
+    return { static_cast<int>(joyCurrentX), static_cast<int>(joyCurrentY) };
 }

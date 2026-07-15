@@ -7,28 +7,34 @@
 #include "input/InputManager.h"
 #include "core/AssetManager.h"
 #include "ui/MenuManager.h"
-#include "ui/UIManager.h" // <-- Asegurar que esté incluido
 
 class MenuState : public EngineState {
 public:
-    // Actualizado: Ahora recibe UIManager&
-    MenuState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, InputManager& in, AssetManager& am, UIManager& u);
+    // API Sincronizada con el ecosistema actual
+    MenuState(StateManager& sm, ShadowGFX& g, ShadowAudio& a, const InputManager& in, AssetManager& am) noexcept;
+    ~MenuState() override = default;
 
+    // RAII: Bloqueo de copias para mantener el estado único
+    MenuState(const MenuState&) = delete;
+    MenuState& operator=(const MenuState&) = delete;
+    MenuState(MenuState&&) noexcept = default;
+    MenuState& operator=(MenuState&&) noexcept = default;
+
+    // Métodos heredados de EngineState
     void OnEnter() override;
     void OnExit() override;
-    void HandleInput(SDL_Event& ev) override;
+    void HandleInput(const InputManager& input) override;
     void Update(float dt) override;
     void Render() override;
 
 private:
-    StateManager& stateManager;
-    ShadowGFX& gfx;
-    ShadowAudio& audio;
-    InputManager& input;
-    AssetManager& assetManager;
-    UIManager& ui; // <-- NUEVA REFERENCIA PRIVADA
+    StateManager& m_stateManager;
+    ShadowGFX& m_gfx;
+    ShadowAudio& m_audio;
+    const InputManager& m_input;
+    AssetManager& m_assetManager;
 
-    MenuManager menuManager;
+    MenuManager m_menuManager;
 };
 
 #endif
