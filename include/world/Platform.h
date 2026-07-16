@@ -3,43 +3,53 @@
 
 #include "Common.h"
 #include <string>
+#include <string_view>
+#include <cstdint>
 
-enum PlatformType { NORMAL, SPIKE, TEMPORARY, LAVA };
+// ============================================================================
+// ENUMS ESTRICTOS OPTIMIZADOS (Forzados a 1 byte para ahorrar RAM)
+// ============================================================================
+enum class PlatformType : uint8_t { NORMAL, SPIKE, TEMPORARY, LAVA };
+enum class WorldItemType : uint8_t { COIN_GOLD, COIN_SILVER, GEM };
+enum class ObjectType : uint8_t { CHEST, DOOR };
+
+// ============================================================================
+// ESTRUCTURAS DE DATOS (PODs con inicialización garantizada)
+// ============================================================================
 
 struct Platform {
-    std::string textureID; // <<-- SIEMPRE AL INICIO (Evita corrupción RAM)
-    Rect bounds;           // 16 bytes
-    PlatformType type;     // 4 bytes
-    float lifetime;        // 4 bytes
-    float damage;          // 4 bytes
+    std::string textureID; // Objeto dinámico al inicio
+    Rect bounds;
+    PlatformType type;
+    float lifetime;
+    float damage;
+
+    // Constructores explícitos (RAII y Zero-Initialization)
+    Platform() noexcept;
+    Platform(std::string_view tex, const Rect& b, PlatformType t, float dmg = 0.0f, float life = 0.0f) noexcept;
 };
-
-// ============================================================================
-// NUEVAS ENTIDADES DEL MUNDO DE VECTORZERO (ALINEACIÓN REPARADA)
-// ============================================================================
-
-// 2. Sistema de Coleccionables del Mundo (Monedas, Gemas en el Mapa)
-enum class WorldItemType { COIN_GOLD, COIN_SILVER, GEM };
 
 struct WorldItem {
-    std::string textureID; // Objeto complejo dinámico SIEMPRE AL INICIO
-    Rect hitbox;           // 16 bytes
-    Vector2 pos;           // 8 bytes
-    WorldItemType type;    // 4 bytes
-    int value;             // 4 bytes
-    bool active;           // 1 byte (Primitivo al final)
-};
+    std::string textureID;
+    Rect hitbox;
+    Vector2 pos;
+    WorldItemType type;
+    int value;
+    bool active;
 
-// 3. Sistema de Objetos Interactivos (Cofres, Puertas)
-enum ObjectType { CHEST, DOOR };
+    WorldItem() noexcept;
+    WorldItem(std::string_view tex, const Rect& box, const Vector2& p, WorldItemType t, int val) noexcept;
+};
 
 struct InteractiveObject {
-    std::string textureID; // Objeto complejo dinámico SIEMPRE AL INICIO
-    Rect hitbox;           // 16 bytes
-    Vector2 pos;           // 8 bytes
-    ObjectType type;       // 4 bytes
-    bool isOpen;           // 1 byte (Primitivo al final)
+    std::string textureID;
+    Rect hitbox;
+    Vector2 pos;
+    ObjectType type;
+    bool isOpen;
+
+    InteractiveObject() noexcept;
+    InteractiveObject(std::string_view tex, const Rect& box, const Vector2& p, ObjectType t) noexcept;
 };
 
-#endif
-
+#endif // PLATFORM_H
