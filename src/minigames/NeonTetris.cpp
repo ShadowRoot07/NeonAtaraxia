@@ -11,18 +11,17 @@ const std::vector<std::vector<int>> TETROMINOS_SHADOW[7] = {
     {{0, 1, 1}, {1, 1, 0}}  // S (Verde)
 };
 
-NeonTetris::NeonTetris() {
-    currentState = TetrisState::SELECTOR;
-    selectedDifficulty = 0;
-    score = 0;
-    dropTimer = 0.0f;
-    dropInterval = 0.5f;
-    pieceType = 0;
-    assetsLoaded = false;
-    std::srand(std::time(nullptr));
+NeonTetris::NeonTetris() noexcept
+    : gridWidth(10), gridHeight(20), cellSize(24), offsetX(0), offsetY(0),
+      pieceX(0), pieceY(0), pieceType(0),
+      currentState(TetrisState::SELECTOR), selectedDifficulty(0), score(0),
+      dropTimer(0.0f), dropInterval(0.5f), assetsLoaded(false)
+{
+    // Inicialización del generador aleatorio moderno Mersenne Twister
+    std::random_device rd;
+    rng.seed(rd());
 
-    // Mapeo de IDs vacíos o índices correspondientes a tus archivos físicos de assets
-    blockTextures[0] = ""; // Espacio libre en grilla
+    blockTextures[0] = "";
     blockTextures[1] = "tetris-block-cian";
     blockTextures[2] = "tetris-block-purple";
     blockTextures[3] = "tetris-block-orange";
@@ -32,10 +31,9 @@ NeonTetris::NeonTetris() {
     blockTextures[7] = "tetris-block-green";
 }
 
-void NeonTetris::loadResources(ShadowGFX& gfx) {
+void NeonTetris::loadResources(ShadowGFX& gfx) noexcept {
     if (assetsLoaded) return;
-
-    // Carga de las texturas pixel art desde tu árbol de directorios de assets verificado
+    
     gfx.GetTexture("tetris-block-cian",   "assets/sprites/platforms/tetris/tetris-block-cian_f1_c1.png");
     gfx.GetTexture("tetris-block-purple", "assets/sprites/platforms/tetris/tetris-block-purple_f1_c1.png");
     gfx.GetTexture("tetris-block-orange", "assets/sprites/platforms/tetris/tetris-block-orange_f1_c1.png");
@@ -47,34 +45,37 @@ void NeonTetris::loadResources(ShadowGFX& gfx) {
     assetsLoaded = true;
 }
 
-void NeonTetris::initDifficulty(int diff, ShadowAudio& audio) {
+void NeonTetris::initDifficulty(int diff, ShadowAudio& audio) noexcept {
     selectedDifficulty = diff;
+    
     if (diff == 0) {
         gridWidth = 10; gridHeight = 20; cellSize = 24; dropInterval = 0.50f;
     } else if (diff == 1) {
         gridWidth = 20; gridHeight = 40; cellSize = 12; dropInterval = 0.35f;
-    } else { // Hardcore (Matriz Global)
+    } else { 
         gridWidth = 40; gridHeight = 80; cellSize = 6;  dropInterval = 0.18f;
     }
 
-    // Alinear al centro en la resolución virtual del motor de juego
     offsetX = (800 - (gridWidth * cellSize)) / 2;
     offsetY = (600 - (gridHeight * cellSize)) / 2;
 
-    grid.assign(gridHeight, std::vector<int>(gridWidth, 0));
+    // Asignación de memoria contigua ultra-rápida (Zero Fragmentation)
+    grid.assign(gridHeight * gridWidth, 0);
+    
     score = 0;
     currentState = TetrisState::PLAYING;
-
-    // Lanzar el bucle musical continuo usando tu asset cargado
     audio.PlayMusic("TETRIS_SOUND");
     spawnPiece();
 }
 
-void NeonTetris::spawnPiece() {
-    int type = std::rand() % 7;
-    currentPiece = TETROMINOS_SHADOW[type];
-    pieceType = type + 1; // Índices 1-7 vinculados a blockTextures
+void NeonTetris::spawnPiece() noexcept {
+    // Generación justa con mt19937
+    std::uniform_int_distribution<int> dist(0, 6);
+    int type = dist(rng);
     
+    currentPiece = TETROMINOS_SHADOW[type];
+    pieceType = type + 1;
+
     pieceX = (gridWidth - currentPiece[0].size()) / 2;
     pieceY = 0;
 
@@ -83,7 +84,7 @@ void NeonTetris::spawnPiece() {
     }
 }
 
-bool NeonTetris::checkCollision(int nextX, int nextY, const std::vector<std::vector<int>>& piece) {
+bool NeonTetris::checkCollision(int nextX, int nextY, const std::vector<std::vector<int>>& piece) const noexcept {
     for (size_t r = 0; r < piece.size(); ++r) {
         for (size_t c = 0; c < piece[r].size(); ++c) {
             if (piece[r][c] != 0) {
@@ -91,18 +92,21 @@ bool NeonTetris::checkCollision(int nextX, int nextY, const std::vector<std::vec
                 int targetY = nextY + r;
 
                 if (targetX < 0 || targetX >= gridWidth || targetY >= gridHeight) return true;
-                if (targetY >= 0 && grid[targetY][targetX] != 0) return true;
+                
+                // Uso del método In-line para vector 1D
+                if (targetY >= 0 && GetGridValue(targetY, targetX) != 0) return true;
             }
         }
     }
     return false;
 }
 
-void NeonTetris::rotatePiece(ShadowAudio& audio) {
+void NeonTetris::rotatePiece(ShadowAudio& audio) noexcept {
     size_t r = currentPiece.size();
     size_t c = currentPiece[0].size();
+    
     std::vector<std::vector<int>> rotated(c, std::vector<int>(r, 0));
-
+    
     for (size_t i = 0; i < r; ++i) {
         for (size_t j = 0; j < c; ++j) {
             rotated[j][r - 1 - i] = currentPiece[i][j];
@@ -111,86 +115,97 @@ void NeonTetris::rotatePiece(ShadowAudio& audio) {
 
     if (!checkCollision(pieceX, pieceY, rotated)) {
         currentPiece = rotated;
-        audio.Play("tetris_blocks_click"); // Feedback de rotación con tu SFX
+        audio.Play("tetris_blocks_click", 0);
     }
 }
 
-void NeonTetris::mergePiece(ShadowAudio& audio) {
+void NeonTetris::mergePiece(ShadowAudio& audio) noexcept {
     for (size_t r = 0; r < currentPiece.size(); ++r) {
         for (size_t c = 0; c < currentPiece[r].size(); ++c) {
             if (currentPiece[r][c] != 0) {
                 int targetY = pieceY + r;
                 int targetX = pieceX + c;
                 if (targetY >= 0 && targetY < gridHeight && targetX >= 0 && targetX < gridWidth) {
-                    grid[targetY][targetX] = pieceType;
+                    SetGridValue(targetY, targetX, pieceType);
                 }
             }
         }
     }
-    audio.Play("tetris_blocks_click"); // Sonido al asentarse el bloque en el suelo
+    audio.Play("tetris_blocks_click", 0);
 }
 
-void NeonTetris::checkLines(ShadowAudio& audio) {
+void NeonTetris::checkLines(ShadowAudio& audio) noexcept {
     int clearedLines = 0;
+    
     for (int r = gridHeight - 1; r >= 0; --r) {
         bool full = true;
         for (int c = 0; c < gridWidth; ++c) {
-            if (grid[r][c] == 0) { full = false; break; }
+            if (GetGridValue(r, c) == 0) { 
+                full = false;
+                break; 
+            }
         }
+        
         if (full) {
-            grid.erase(grid.begin() + r);
-            grid.insert(grid.begin(), std::vector<int>(gridWidth, 0));
+            // Lógica para vector 1D: Borramos el trozo de la fila y metemos ceros al inicio
+            auto startIdx = grid.begin() + (r * gridWidth);
+            grid.erase(startIdx, startIdx + gridWidth);
+            grid.insert(grid.begin(), gridWidth, 0);
+            
             clearedLines++;
-            r++; // Evaluar la línea superior desplazada
+            r++; // Re-evaluar la fila que acaba de caer
         }
     }
+    
     if (clearedLines > 0) {
         score += clearedLines * 100 * (selectedDifficulty + 1);
-        audio.Play("tetris_fila_completa"); // SFX exacto de tu lista al romper líneas
+        audio.Play("tetris_fila_completa", 0);
     }
 }
 
-void NeonTetris::handleInput(InputManager& input, ShadowAudio& audio) {
+void NeonTetris::handleInput(const InputManager& input, ShadowAudio& audio) noexcept {
     if (currentState == TetrisState::SELECTOR) {
-        if (input.IsKeyPressed(SDL_SCANCODE_DOWN) || input.GetJoyDir().y > 0.5f) {
+        if (input.IsKeyPressed(SDL_SCANCODE_DOWN) || input.GetJoyDirY() > 0.5f) {
             selectedDifficulty = (selectedDifficulty + 1) % 3;
         }
-        if (input.IsKeyPressed(SDL_SCANCODE_UP) || input.GetJoyDir().y < -0.5f) {
+        if (input.IsKeyPressed(SDL_SCANCODE_UP) || input.GetJoyDirY() < -0.5f) {
             selectedDifficulty = (selectedDifficulty - 1 + 3) % 3;
         }
-        if (input.IsZPressed()) { 
+        if (input.IsBtnPressed(VirtualButton::BTN_Z) || input.IsKeyPressed(SDL_SCANCODE_Z)) {
             initDifficulty(selectedDifficulty, audio);
         }
-        if (input.IsFPressed()) { 
+        if (input.IsBtnPressed(VirtualButton::BTN_F) || input.IsKeyPressed(SDL_SCANCODE_F)) {
             currentState = TetrisState::GAME_OVER;
         }
-    } 
+    }
     else if (currentState == TetrisState::PLAYING) {
-        if (input.IsKeyPressed(SDL_SCANCODE_LEFT) || input.GetJoyDir().x < -0.5f) {
+        // Cooldown lógico para input para evitar que la pieza resbale al presionar
+        if (input.IsKeyPressed(SDL_SCANCODE_LEFT) || input.GetJoyDirX() < -0.5f) {
             if (!checkCollision(pieceX - 1, pieceY, currentPiece)) pieceX--;
         }
-        if (input.IsKeyPressed(SDL_SCANCODE_RIGHT) || input.GetJoyDir().x > 0.5f) {
+        if (input.IsKeyPressed(SDL_SCANCODE_RIGHT) || input.GetJoyDirX() > 0.5f) {
             if (!checkCollision(pieceX + 1, pieceY, currentPiece)) pieceX++;
         }
-        if (input.IsKeyPressed(SDL_SCANCODE_DOWN) || input.GetJoyDir().y > 0.5f) {
+        if (input.IsKeyPressed(SDL_SCANCODE_DOWN) || input.GetJoyDirY() > 0.5f) {
             if (!checkCollision(pieceX, pieceY + 1, currentPiece)) pieceY++;
         }
-        if (input.IsZPressed()) { // Rotar en el sentido de las agujas del reloj
+        if (input.IsBtnPressed(VirtualButton::BTN_Z) || input.IsKeyPressed(SDL_SCANCODE_Z)) {
             rotatePiece(audio);
         }
-        if (input.IsFPressed()) { // Botón F para salir de la terminal virtual
+        if (input.IsBtnPressed(VirtualButton::BTN_F) || input.IsKeyPressed(SDL_SCANCODE_F)) {
             audio.StopMusic();
             currentState = TetrisState::GAME_OVER;
         }
     }
 }
 
-void NeonTetris::update(float deltaTime, ShadowAudio& audio) {
+void NeonTetris::update(float deltaTime, ShadowAudio& audio) noexcept {
     if (currentState != TetrisState::PLAYING) return;
-
+    
     dropTimer += deltaTime;
     if (dropTimer >= dropInterval) {
         dropTimer = 0.0f;
+        
         if (!checkCollision(pieceX, pieceY + 1, currentPiece)) {
             pieceY++;
         } else {
@@ -201,30 +216,39 @@ void NeonTetris::update(float deltaTime, ShadowAudio& audio) {
     }
 }
 
-void NeonTetris::render(ShadowGFX& gfx) {
+void NeonTetris::render(ShadowGFX& gfx) noexcept {
     if (currentState == TetrisState::SELECTOR) {
-        gfx.DrawText("default", "TERMINAL OS: NEON TETRIS", 120, 50, {0, 255, 0, 255});
-        gfx.DrawText("default", "ACCESO ENCONTRADO", 60, 100, {255, 255, 255, 255});
+        gfx.DrawText("TERMINAL OS: NEON TETRIS", "main_font", 120, 50, {0, 255, 0, 255}, false);
+        
+        // Puntero de selección de dificultad
+        gfx.DrawText("Fácil", "main_font", 160, 100, (selectedDifficulty == 0) ? SDL_Color{0, 255, 0, 255} : SDL_Color{255, 255, 255, 255}, false);
+        gfx.DrawText("Normal", "main_font", 160, 130, (selectedDifficulty == 1) ? SDL_Color{0, 255, 0, 255} : SDL_Color{255, 255, 255, 255}, false);
+        gfx.DrawText("Hardcore", "main_font", 160, 160, (selectedDifficulty == 2) ? SDL_Color{0, 255, 0, 255} : SDL_Color{255, 255, 255, 255}, false);
     }
     else if (currentState == TetrisState::PLAYING || currentState == TetrisState::GAME_OVER) {
-        // Renderizado del tablero: CORREGIDO a DrawStatic
+        // Render del marco del tablero para contexto visual
+        SDL_Rect boardBorder = { offsetX - 2, offsetY - 2, (gridWidth * cellSize) + 4, (gridHeight * cellSize) + 4 };
+        SDL_SetRenderDrawColor(gfx.GetRenderer(), 57, 255, 20, 255);
+        SDL_RenderDrawRect(gfx.GetRenderer(), &boardBorder);
+
+        // Renderizado del tablero 1D
         for (int r = 0; r < gridHeight; ++r) {
             for (int c = 0; c < gridWidth; ++c) {
-                if (grid[r][c] != 0) {
-                    // Cambia la línea 224 para que quede así:
+                int blockValue = GetGridValue(r, c);
+                if (blockValue != 0) {
+                    // BUG CORREGIDO: Usabas pieceX/pieceY para dibujar el fondo congelado
                     SDL_Rect dest = {
-                        static_cast<int>(offsetX + ((pieceX + c) * cellSize)), 
-                        static_cast<int>(offsetY + ((pieceY + r) * cellSize)), 
-                        cellSize, 
+                        static_cast<int>(offsetX + (c * cellSize)),
+                        static_cast<int>(offsetY + (r * cellSize)),
+                        cellSize,
                         cellSize
                     };
-
-                    gfx.DrawStatic(blockTextures[grid[r][c]], dest);
+                    gfx.DrawStatic(blockTextures[blockValue], dest);
                 }
             }
         }
 
-        // Renderizado pieza activa: CORREGIDO a DrawStatic
+        // Renderizado de la pieza viva (activa)
         for (size_t r = 0; r < currentPiece.size(); ++r) {
             for (size_t c = 0; c < currentPiece[r].size(); ++c) {
                 if (currentPiece[r][c] != 0) {
@@ -239,14 +263,14 @@ void NeonTetris::render(ShadowGFX& gfx) {
             }
         }
 
-        // HUD: CORREGIDO a SDL_Color
-        gfx.DrawText("NEXUS SCORE", "default", 620, 80, {0, 255, 0, 255});
-        gfx.DrawText(std::to_string(score), "default", 620, 105, {255, 255, 255, 255});
-        gfx.DrawText("[F] ABORTAR", "default", 620, 520, {255, 0, 85, 255});
-
+        // HUD Actualizado
+        gfx.DrawText("NEXUS SCORE", "main_font", 620, 80, {0, 255, 0, 255}, false);
+        gfx.DrawText(std::to_string(score), "main_font", 620, 105, {255, 255, 255, 255}, false);
+        gfx.DrawText("[F] ABORTAR", "main_font", 620, 520, {255, 0, 85, 255}, false);
+        
         if (currentState == TetrisState::GAME_OVER) {
-            gfx.DrawText("LINK CAIDO", "default", offsetX + 15, offsetY + (gridHeight * cellSize) / 2 - 15, {255, 0, 85, 255});
-            gfx.DrawText("Z/F: RETORNAR", "default", offsetX + 15, offsetY + (gridHeight * cellSize) / 2 + 5, {255, 255, 255, 255});
+            gfx.DrawText("LINK CAIDO", "main_font", offsetX + 15, offsetY + (gridHeight * cellSize) / 2 - 15, {255, 0, 85, 255}, false);
+            gfx.DrawText("Z/F: RETORNAR", "main_font", offsetX + 15, offsetY + (gridHeight * cellSize) / 2 + 5, {255, 255, 255, 255}, false);
         }
     }
 }
