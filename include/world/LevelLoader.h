@@ -2,19 +2,25 @@
 #define LEVEL_LOADER_H
 
 #include <string>
+#include <string_view>
 #include <vector>
+#include <nlohmann/json.hpp>
 #include "world/Platform.h"
 #include "world/Enemy.h"
-#include "player/Player.h"
+#include "world/WorldContext.h" // Usamos el contenedor de contexto ya refactorizado
 
-// Firma del cargador de niveles actualizada a la nueva nomenclatura del mapa
-std::vector<Platform> LoadLevel(
-    const std::string& jsonPath,
-    const std::string& assetRoot,
-    std::vector<Enemy>& enemies,
-    Player& player,
-    std::vector<WorldItem>& items, // <<-- CAMBIADO: De Item a WorldItem
-    std::vector<InteractiveObject>& objects
-);
+class LevelLoader {
+public:
+    // RAII: El cargador es un objeto estático o de corta duración
+    LevelLoader() = default;
+    
+    // Método principal de carga: usa referencias al WorldContext para inyección directa
+    static bool LoadLevel(std::string_view jsonPath, WorldContext& context) noexcept;
+
+private:
+    // Métodos privados para limpiar el código principal
+    static void ParsePlatforms(const nlohmann::json& data, std::vector<Platform>& platforms);
+    static void ParseEnemies(const nlohmann::json& data, std::vector<Enemy>& enemies);
+};
 
 #endif

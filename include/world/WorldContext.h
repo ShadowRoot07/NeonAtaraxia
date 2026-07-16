@@ -2,33 +2,47 @@
 #define WORLD_CONTEXT_H
 
 #include <vector>
-#include "player/Player.h"
-#include "world/Platform.h"
-#include "world/Enemy.h"
-#include "input/InputManager.h"
-#include "gfx/ShadowAudio.h"
-#include "ui/DialogueBox.h"
 
-// En lugar de structs ligeros genéricos duplicados, usamos las entidades reales de NeonAtaraxia
+// ============================================================================
+// FORWARD DECLARATIONS (Optimización masiva del tiempo de compilación)
+// Al usar referencias, el compilador no necesita saber qué hay dentro de estas clases,
+// solo necesita saber que existen.
+// ============================================================================
+class Player;
+class Platform;
+class Enemy;
+class InputManager;
+class ShadowAudio;
+class DialogueBox;
+
+// ============================================================================
+// ESTRUCTURAS DE DATOS (PODs Seguros con Inicialización Cero)
+// ============================================================================
 struct Projectile {
-    float x, y;
-    float vx, vy;
-    bool active;
+    float x = 0.0f;
+    float y = 0.0f;
+    float vx = 0.0f;
+    float vy = 0.0f;
+    bool active = false;
 };
 
 struct WorldItem {
-    int id;
-    float x, y;
-    bool collected;
+    int id = 0;
+    float x = 0.0f;
+    float y = 0.0f;
+    bool collected = false;
 };
 
 struct InteractiveObject {
-    int id;
-    float x, y;
-    bool active;
+    int id = 0;
+    float x = 0.0f;
+    float y = 0.0f;
+    bool active = false;
 };
 
-// Contenedor quirúrgico para evitar firmas masivas en el bucle principal
+// ============================================================================
+// CONTENEDOR DE CONTEXTO GLOBAL
+// ============================================================================
 struct WorldContext {
     Player& player;
     std::vector<Platform>& level;
@@ -36,13 +50,17 @@ struct WorldContext {
     std::vector<Projectile>& bullets;
     std::vector<WorldItem>& items;
     std::vector<InteractiveObject>& objects;
-    InputManager& input;
+    
+    // El InputManager debe ser const para evitar que el mundo altere el hardware
+    const InputManager& input; 
+    
     ShadowAudio& audio;
     DialogueBox& dialogueBox;
+    
     bool dialogueActive = false;
 };
 
-// Nueva firma del procesador optimizado (O(1) en el stack de parámetros)
+// Firma del procesador optimizado (O(1) en el stack de parámetros)
 void ProcessWorldOptimized(WorldContext& context, float dt) noexcept;
 
-#endif
+#endif // WORLD_CONTEXT_H

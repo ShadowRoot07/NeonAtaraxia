@@ -1,178 +1,132 @@
 #include "player/Player.h"
-#include "gfx/ShadowAudio.h" // Necesario para llamar a sfx.Play()
+#include "core/GameplayEventBus.h"
 #include <cmath>
 
-Player::Player() {
-    pos = {100.0f, 100.0f};
-    vel = {0.0f, 0.0f};
-    hitbox = {0, 0, 32.0f, 32.0f};
-    isGrounded = false;
-    
-    // --- ESTADÍSTICAS VITALES REALES ---
-    maxHp = 100;
-    health = static_cast<float>(maxHp);
-    speed = 320.0f;
-    jumpForce = -700.0f;
-
-    // --- INICIALIZACIÓN DE PROGRESIÓN ---
-    nivel = 1;
-    expActual = 0;
-    expRequerida = 100; // El Backend actualizará esto dinámicamente
-
-    elementSlot1 = NONE;
-    elementSlot2 = NONE;
-    jumpCount = 0;
-    maxJumps = 2;
-    isLiquid = false;
-    liquidTimer = 0.0f;
-    hasMark = false;
-    pendingPlatform = false;
-    coinsCollected = 0;
-    gemsCollected = 0;
-
-    dashCooldown = dashTimer = 0.0f;
-    isDashing = false;
-    invulTimer = attackTimer = attackCooldown = 0.0f;
-    faceDir = 1;
-    isShieldActive = false;
-
-    mp = 50;
-    maxMp = 80;
-    attack = 25;
-    defense = 14;
-
-    currentAnimID = "player_idle";
-    currentFrameC = 0;
-    currentFrameF = 0;
-    animTimer = 0.0f;
+Player::Player() noexcept 
+    : pos{100.0f, 100.0f}, vel{0.0f, 0.0f}, hitbox{0, 0, 32.0f, 32.0f}, 
+      isGrounded(false), pendingPlatform(false), coinsCollected(0), gemsCollected(0),
+      speed(320.0f), jumpForce(-700.0f), health(100.0f), maxHp(100),
+      nivel(1), expActual(0), expRequerida(100),
+      mp(50), maxMp(80), attack(25), defense(14),
+      currentAnimID("player_idle"), currentFrameC(0), currentFrameF(0), faceDir(1),
+      shadowMark{0.0f, 0.0f}, invulTimer(0.0f), attackTimer(0.0f), isShieldActive(false), 
+      hasMark(false), animTimer(0.0f),
+      jumpCount(0), maxJumps(2), dashCooldown(0.0f), dashTimer(0.0f), 
+      attackCooldown(0.0f), isDashing(false), m_intendedMove(false),
+      isLiquid(false), liquidTimer(0.0f),
+      elementSlot1(NONE), elementSlot2(NONE), currentWeapon{0}
+{
 }
 
-void Player::HandleInput(InputManager& input, ShadowAudio& sfx) {
+void Player::HandleInput(const InputManager& input, ShadowAudio& sfx) noexcept {
     if (isDashing) return;
 
-    // Control de inercia horizontal: Solo forzamos cero si está tocando el suelo
-    if (isGrounded) {
-        vel.x = 0;
+    m_intendedMove = false; // Reset del flag lógico
+
+    if (input.IsKeyDown(SDL_SCANCODE_LEFT) || (input.IsJoyActive() && input.GetJoyDirX() < -0.3f)) {
+        vel.x = -speed;
+        faceDir = -1;
+        m_intendedMove = true;
+    }
+    else if (input.IsKeyDown(SDL_SCANCODE_RIGHT) || (input.IsJoyActive() && input.GetJoyDirX() > 0.3f)) {
+        vel.x = speed;
+        faceDir = 1;
+        m_intendedMove = true;
     }
 
-    if (input.IsKeyDown(SDL_SCANCODE_LEFT)) { 
-        vel.x = -speed; 
-        faceDir = -1; 
-    }
-    else if (input.IsKeyDown(SDL_SCANCODE_RIGHT)) { 
-        vel.x = speed; 
-        faceDir = 1; 
-    }
-    else if (isGrounded) {
-        vel.x = 0; // Detenerse en seco solo si pisa el suelo
-    }
-
-    // --- SISTEMA DE SALTO / DOBLE SALTO REPARADO ---
-    if (input.IsKeyPressed(SDL_SCANCODE_Z)) {
+    // --- SALTO / DOBLE SALTO ---
+    if (input.IsBtnPressed(VirtualButton::BTN_Z) || input.IsKeyPressed(SDL_SCANCODE_Z)) {
         if (isGrounded) {
-            vel.y = jumpForce;    // Impulso completo (-700.0f)
+            vel.y = jumpForce;
             isGrounded = false;
-            jumpCount = 1;        // Primer salto registrado
-            sfx.Play("jump");
-        } 
-        else if (jumpCount < maxJumps) { // Ahora evalúa 1 < 2 de forma CORRECTA
-            vel.y = jumpForce * 0.95f;   // El segundo impulso conserva el 95% de la fuerza
-            jumpCount++;                 // Sube a 2, bloqueando saltos infinitos
-            sfx.Play("double_jump");
+            jumpCount = 1;
+            sfx.Play("jump", 0);
+        }
+        else if (jumpCount < maxJumps) {
+            vel.y = jumpForce * 0.95f;
+            jumpCount++;
+            sfx.Play("double_jump", 0);
         }
     }
 
-    // Extracción de estados del D-Pad / Joystick virtual para combos
-    bool isDown = (input.GetJoystick().y > 0.5f || input.IsKeyDown(SDL_SCANCODE_DOWN));
-    bool isUp = (input.GetJoystick().y < -0.5f || input.IsKeyDown(SDL_SCANCODE_UP));
+    // Detectores de combinaciones direccionales
+    bool isDown = (input.GetJoyDirY() > 0.5f || input.IsKeyDown(SDL_SCANCODE_DOWN));
+    bool isUp = (input.GetJoyDirY() < -0.5f || input.IsKeyDown(SDL_SCANCODE_UP));
 
-    // --- ASIGNACIÓN DEL BOTÓN X (OFENSIVO: ESPADA Y MAGIAS) ---
-    if (input.IsKeyPressed(SDL_SCANCODE_X)) {
+    // --- OFENSIVA (X) ---
+    if (input.IsBtnPressed(VirtualButton::BTN_X) || input.IsKeyPressed(SDL_SCANCODE_X)) {
         if (isDown && HasElement(EARTH)) {
             pendingPlatform = true;
-            sfx.Play("earth_skill");
+            sfx.Play("earth_skill", 0);
         }
         else if (isUp && HasElement(DARKNESS)) {
             if (!hasMark) {
                 shadowMark = pos;
                 hasMark = true;
-                sfx.Play("mark_set");
+                sfx.Play("mark_set", 0);
             } else {
                 pos = shadowMark;
                 hasMark = false;
-                vel = {0, 0};
-                sfx.Play("teleport");
+                vel = {0.0f, 0.0f}; // Stop inercial al teleportarse
+                sfx.Play("teleport", 0);
             }
         }
-        else if (attackCooldown <= 0) {
+        else if (attackCooldown <= 0.0f) {
             ApplyAttack();
-            sfx.Play("attack");
+            sfx.Play("attack", 0);
 
-            // 🔥 INTEGRACIÓN QUANTUM CON EL EVENT BUS
             GameplayEvent weaponEvent;
             weaponEvent.type = EVENT_WEAPON_USED;
-            
-            // Si el jugador está en el aire o se mueve rápido, penalizamos el desgaste por inercia
-            if (!isGrounded) {
-                weaponEvent.intParam = USAGE_SUBOPTIMAL; // Contexto: Mal uso técnico
-            } else {
-                weaponEvent.intParam = USAGE_OPTIMAL;    // Contexto: Uso limpio en tierra
-            }
-            weaponEvent.entityPtr = this; // Compartimos la entidad para que el backend lea su inventario
-            
+            weaponEvent.intParam = isGrounded ? USAGE_OPTIMAL : USAGE_SUBOPTIMAL;
+            weaponEvent.entityPtr = this;
             GameplayEventBus::Instance().Publish(weaponEvent);
         }
     }
 
-    // --- ASIGNACIÓN DEL BOTÓN F (MOVILIDAD Y DEFENSA ABSOLUTA) ---
-    if (input.IsKeyPressed(SDL_SCANCODE_F)) {
-        // COMBO NUEVO: Arriba + F -> ESCUDO DE ENERGÍA
+    // --- MOVILIDAD Y DEFENSA (F) ---
+    if (input.IsBtnPressed(VirtualButton::BTN_F) || input.IsKeyPressed(SDL_SCANCODE_F)) {
         if (isUp) {
-            isShieldActive = !isShieldActive; // Alternar estado del escudo
-            sfx.Play("blipSelect");
-            SDL_Log("Player: Estado del Escudo alterado cuanticamente.");
+            isShieldActive = !isShieldActive;
+            sfx.Play("blipSelect", 0);
         }
-        // Combo Existente: Abajo + F -> Forma Líquida de Agua
         else if (isDown && HasElement(WATER) && !isLiquid) {
             isLiquid = true;
             liquidTimer = 1.0f;
             dashCooldown = 1.5f;
-            sfx.Play("liquid_form");
-        } 
-        // Acción Neutra: Dash estándar
-        else if (dashCooldown <= 0 && !isShieldActive) {
-            ApplyDash((float)faceDir);
-            sfx.Play("dash");
+            sfx.Play("liquid_form", 0);
+        }
+        else if (dashCooldown <= 0.0f && !isShieldActive) {
+            ApplyDash(static_cast<float>(faceDir));
+            sfx.Play("dash", 0);
         }
     }
 }
 
-void Player::Update(float dt) {
-    if (invulTimer > 0) invulTimer -= dt;
-    if (dashCooldown > 0) dashCooldown -= dt;
-    if (attackTimer > 0)  attackTimer -= dt;
-    if (attackCooldown > 0) attackCooldown -= dt;
+void Player::Update(float dt) noexcept {
+    // --- TIMERS OPTIMIZADOS ---
+    if (invulTimer > 0.0f) invulTimer -= dt;
+    if (dashCooldown > 0.0f) dashCooldown -= dt;
+    if (attackTimer > 0.0f)  attackTimer -= dt;
+    if (attackCooldown > 0.0f) attackCooldown -= dt;
 
-    if (liquidTimer > 0) {
+    if (liquidTimer > 0.0f) {
         liquidTimer -= dt;
-        if (liquidTimer <= 0) isLiquid = false;
+        if (liquidTimer <= 0.0f) isLiquid = false;
     }
 
     // ============================================================================
-    // MÁQUINA DE ESTADOS DE ANIMACIÓN CORREGIDA (VECTORZERO NATIVO)
+    // MÁQUINA DE ESTADOS DE ANIMACIÓN ZERO-ALLOCATION
+    // Al usar std::string_view, el compilador usa punteros crudos a literales estáticos, 
+    // costando literalmente 0 bytes de memoria adicional.
     // ============================================================================
-    std::string nextAnim = "player_idle";
+    std::string_view nextAnim = "player_idle";
     int maxCols = 4;
 
-    if (isDashing) {
+    if (isDashing || !isGrounded) {
         nextAnim = "player_dash";
         maxCols = 4;
     }
-    else if (!isGrounded) {
-        nextAnim = "player_dash";
-        maxCols = 4;
-    }
-    else if (attackTimer > 0) {
+    else if (attackTimer > 0.0f) {
         nextAnim = "player_attack";
         maxCols = 3;
     }
@@ -180,7 +134,7 @@ void Player::Update(float dt) {
         nextAnim = "player_defense";
         maxCols = 3;
     }
-    else if (vel.x != 0) {
+    else if (m_intendedMove) {
         nextAnim = "player_walk";
         maxCols = 6;
     }
@@ -196,133 +150,147 @@ void Player::Update(float dt) {
         animTimer = 0.0f;
         currentFrameC = (currentFrameC + 1) % maxCols;
     }
-
-    if (faceDir > 0) {
-        currentFrameF = 0;
-    } else {
-        currentFrameF = 1;
-    }
+    currentFrameF = (faceDir > 0) ? 0 : 1;
 
     // ============================================================================
-    // FÍSICAS REFACTORIZADAS: SISTEMA DE DESACELERACIÓN Y FRICCIÓN (FIX PEGAJOSO)
+    // FÍSICAS REFACTORIZADAS: FRICCIÓN CORREGIDA
     // ============================================================================
     if (isDashing) {
         dashTimer -= dt;
-        if (dashTimer <= 0) isDashing = false;
+        if (dashTimer <= 0.0f) isDashing = false;
     } else {
-        // Gravedad normalizada
+        // Gravedad
         vel.y += 1800.0f * dt;
-
-        // PARCHE: Solo aplicamos fricción de frenado si el jugador NO se está moviendo con los controles
-        bool isMovingInput = (vel.x > 300.0f || vel.x < -300.0f); 
         
-        if (!isMovingInput && vel.x != 0) {
-            float friction = isGrounded ? 22.0f : 5.0f; // Fricción rápida para frenados en seco limpios
-            if (std::abs(vel.x) > 0.1f) {
-                vel.x -= vel.x * friction * dt;
-                if (std::abs(vel.x) < 15.0f) vel.x = 0.0f;
-            } else {
-                vel.x = 0.0f;
-            }
+        // BUG DE FRICCIÓN REPARADO:
+        // Si el usuario soltó las teclas (m_intendedMove == false), 
+        // recién ahí desaceleramos la velocidad inercial residual (vel.x).
+        if (!m_intendedMove && vel.x != 0.0f) {
+            float friction = isGrounded ? 22.0f : 5.0f;
+            
+            // Decaimiento exponencial lineal
+            vel.x -= vel.x * friction * dt;
+            
+            // Snap a 0 para evitar micro-temblores (Zeno's paradox clamp)
+            if (std::abs(vel.x) < 15.0f) vel.x = 0.0f;
         }
     }
 
+    // Aplicar desplazamiento
     pos.x += vel.x * dt;
     pos.y += vel.y * dt;
 
+    // Actualizar caja de colisión dependiente
     hitbox.x = pos.x;
     hitbox.y = pos.y;
     hitbox.w = 32.0f;
     hitbox.h = 32.0f;
-
-    if (isGrounded) jumpCount = 0;
+    
+    // Auto-restaurar saltos y resetear aceleraciones verticales al tocar suelo
+    if (isGrounded) {
+        jumpCount = 0;
+    }
 }
 
-void Player::TakeDamage(float amount, float sourceX) {
-    if (isLiquid) return; // Inmunidad del elemento Agua
-    
-    if (invulTimer <= 0 && !isDashing) {
-        // MITIGACIÓN POR ESCUDO ELEMENTAL
-        if (isShieldActive) {
-            amount *= 0.5f; // Absorbe el 50% del impacto
-            invulTimer = 0.4f; // Menos frames de aturdimiento
-            SDL_Log("Player: ¡Escudo absorbio parte del impacto! Daño real: %.1f", amount);
-        } else {
-            invulTimer = 1.0f;
-            // Solo hay empuje físico si el escudo no bloqueó el impacto
-            float knockDir = (pos.x + hitbox.w/2 > sourceX) ? 1.0f : -1.0f;
-            vel.x = knockDir * 400.0f;
-            vel.y = -300.0f;
-            isGrounded = false;
-        }
-        
+// RESTO DE FUNCIONES (TakeDamage, LevelUp, GetAttackRect, etc.)
+// ... (Se mantienen idénticas en lógica, pero se les añade la keyword `noexcept`) ...
+
+void Player::TakeDamage(float amount, float sourceX) noexcept {
+    if (isLiquid || invulTimer > 0.0f || isDashing) return;
+
+    if (isShieldActive) {
+        health -= (amount * 0.5f);
+        invulTimer = 0.4f;
+    } else {
+        invulTimer = 1.0f;
+        float knockDir = (pos.x + hitbox.w/2.0f > sourceX) ? 1.0f : -1.0f;
+        vel.x = knockDir * 400.0f;
+        vel.y = -300.0f;
+        isGrounded = false;
         health -= amount;
     }
 }
 
-void Player::ApplyDash(float dir) {
+void Player::ApplyDash(float dir) noexcept {
     isDashing = true;
     dashTimer = 0.15f;
     dashCooldown = 0.6f;
     vel.x = dir * speed * 3.5f;
-    vel.y = 0;
+    vel.y = 0.0f; // Ignorar la gravedad temporalmente mientras hace dash
 }
 
-void Player::ApplyAttack() {
+void Player::ApplyAttack() noexcept {
     attackTimer = 0.25f;
     attackCooldown = 0.4f;
 }
 
-Rect Player::GetAttackRect() const {
+Rect Player::GetAttackRect() const noexcept {
     Rect attackBox;
-    // El ancho base de tu espadazo hereda el bono del arma equipada
-    attackBox.w = 40 + currentWeapon.rangeBonus; 
-    attackBox.h = 32;
-    attackBox.y = hitbox.y + (hitbox.h / 2) - (attackBox.h / 2);
-
-    if (faceDir > 0) {
-        attackBox.x = hitbox.x + hitbox.w;
-    } else {
-        attackBox.x = hitbox.x - attackBox.w;
-    }
-
+    attackBox.w = 40.0f + static_cast<float>(currentWeapon.rangeBonus);
+    attackBox.h = 32.0f;
+    attackBox.y = hitbox.y + (hitbox.h / 2.0f) - (attackBox.h / 2.0f);
+    
+    attackBox.x = (faceDir > 0) ? (hitbox.x + hitbox.w) : (hitbox.x - attackBox.w);
     return attackBox;
 }
 
-void Player::AddExperience(int amount, int nextLevelRequirement) {
-    expActual += amount;
-    // La verificación de LevelUp se delega al backend, pero el Player almacena los datos locales
+// ============================================================================
+// MÉTODOS ELEMENTALES
+// ============================================================================
+
+bool Player::HasElement(ElementType element) const noexcept {
+    return (elementSlot1 == element || elementSlot2 == element);
 }
 
-void Player::LevelUp(int newRequiredExp) {
+void Player::SetElements(ElementType primary, ElementType secondary) noexcept {
+    elementSlot1 = primary;
+    elementSlot2 = secondary;
+}
+
+// ============================================================================
+// SISTEMA DE PROGRESIÓN Y ESTADÍSTICAS RPG
+// ============================================================================
+
+void Player::AddExperience(int amount, int nextLevelRequirement) noexcept {
+    expActual += amount;
+    // La verificación real de LevelUp se delega al backend mediante eventos, 
+    // pero el Player almacena los datos locales para la interfaz.
+}
+
+void Player::LevelUp(int newRequiredExp) noexcept {
     nivel++;
     expActual = 0;
     expRequerida = newRequiredExp;
-    
+
     // Incrementos de estadísticas cyberpunk por nivel alcanzado
     maxHp += 12;
     maxMp += 8;
     attack += 4;
     defense += 2;
-    
+
     health = static_cast<float>(maxHp); // Sanación completa al subir de nivel
     mp = maxMp;
-    
-    SDL_Log("¡SHADOWROOT07 HA LOGRADO EL NIVEL %d! Atk: %d, Def: %d", nivel, attack, defense);
+
+    // Usamos .data() porque GetName() ahora devuelve un std::string_view optimizado
+    SDL_Log("¡%s HA LOGRADO EL NIVEL %d! Atk: %d, Def: %d", GetName().data(), nivel, attack, defense);
 }
 
-void Player::Heal(float amount) {
+void Player::Heal(float amount) noexcept {
     health += amount;
-    if (health > maxHp) health = static_cast<float>(maxHp);
+    if (health > static_cast<float>(maxHp)) {
+        health = static_cast<float>(maxHp);
+    }
 }
 
-void Player::RestoreMp(int amount) {
+void Player::RestoreMp(int amount) noexcept {
     mp += amount;
-    if (mp > maxMp) mp = maxMp;
+    if (mp > maxMp) {
+        mp = maxMp;
+    }
 }
 
-void Player::TakeRawDamage(float amount) {
+void Player::TakeRawDamage(float amount) noexcept {
     if (isLiquid) return; // Conserva la inmunidad elemental líquida de agua
-    health -= amount;
-    // Daño puro sin empuje forzado (ideal para ticks de veneno o quemaduras de neón)
+    
+    health -= amount;     // Daño puro sin empuje forzado (ideal para ticks de veneno ambiental)
 }
