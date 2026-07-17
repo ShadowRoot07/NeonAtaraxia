@@ -1,28 +1,28 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
-#include "Common.h"
+#include "Common.h"                                   
 #include <string>
 #include <string_view>
 #include <cstdint>
 
-// ============================================================================
+// ============================================================================                             
 // ENUMS ESTRICTOS OPTIMIZADOS (Forzados a 1 byte para ahorrar RAM)
-// ============================================================================
-enum class PlatformType : uint8_t { NORMAL, SPIKE, TEMPORARY, LAVA };
+// ============================================================================                             
+enum class PlatformType : uint8_t { NORMAL, SPIKE, TEMPORARY, LAVA };                                       
 enum class WorldItemType : uint8_t { COIN_GOLD, COIN_SILVER, GEM };
 enum class ObjectType : uint8_t { CHEST, DOOR };
 
 // ============================================================================
-// ESTRUCTURAS DE DATOS (PODs con inicialización garantizada)
+// ESTRUCTURAS DE DATOS BLINDADAS (Alineación de Memoria de Mayor a Menor)
 // ============================================================================
 
 struct Platform {
-    std::string textureID; // Objeto dinámico al inicio
-    Rect bounds;
-    PlatformType type;
-    float lifetime;
-    float damage;
+    std::string textureID; // 24 bytes (Alineación 8) - Siempre al inicio
+    Rect bounds;           // 16 bytes (Alineación 4)
+    float lifetime;        // 4 bytes  (Alineación 4)
+    float damage;          // 4 bytes  (Alineación 4)
+    PlatformType type;     // 1 byte   (Alineación 1) - Primitivos al final
 
     // Constructores explícitos (RAII y Zero-Initialization)
     Platform() noexcept;
@@ -30,23 +30,23 @@ struct Platform {
 };
 
 struct WorldItem {
-    std::string textureID;
-    Rect hitbox;
-    Vector2 pos;
-    WorldItemType type;
-    int value;
-    bool active;
+    std::string textureID; // 24 bytes
+    Rect hitbox;           // 16 bytes
+    Vector2 pos;           // 8 bytes
+    int value;             // 4 bytes  (Alineación 4)
+    WorldItemType type;    // 1 byte   (Alineación 1)
+    bool active;           // 1 byte   (Alineación 1)
 
     WorldItem() noexcept;
     WorldItem(std::string_view tex, const Rect& box, const Vector2& p, WorldItemType t, int val) noexcept;
 };
 
 struct InteractiveObject {
-    std::string textureID;
-    Rect hitbox;
-    Vector2 pos;
-    ObjectType type;
-    bool isOpen;
+    std::string textureID; // 24 bytes
+    Rect hitbox;           // 16 bytes
+    Vector2 pos;           // 8 bytes
+    ObjectType type;       // 1 byte
+    bool isOpen;           // 1 byte
 
     InteractiveObject() noexcept;
     InteractiveObject(std::string_view tex, const Rect& box, const Vector2& p, ObjectType t) noexcept;

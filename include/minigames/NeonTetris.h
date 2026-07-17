@@ -39,42 +39,40 @@ private:
     void initDifficulty(int diff, ShadowAudio& audio) noexcept;
     void spawnPiece() noexcept;
     
-    // El parámetro piece se pasa por referencia constante a su matriz local
     [[nodiscard]] bool checkCollision(int nextX, int nextY, const std::vector<std::vector<int>>& piece) const noexcept;
-    
     void mergePiece(ShadowAudio& audio) noexcept;
     void checkLines(ShadowAudio& audio) noexcept;
     void rotatePiece(ShadowAudio& audio) noexcept;
-    
-    // Método utilitario para acceder a la grilla 1D como si fuera 2D
+
+    // Método utilitario para acceder a la grilla 1D
     [[nodiscard]] inline int GetGridValue(int r, int c) const noexcept { return grid[r * gridWidth + c]; }
     inline void SetGridValue(int r, int c, int val) noexcept { grid[r * gridWidth + c] = val; }
 
-    int gridWidth;
-    int gridHeight;
-    int cellSize;
-    int offsetX;
-    int offsetY;
-
-    // OPTIMIZACIÓN: Matriz contigua en memoria 1D
-    std::vector<int> grid; 
-    std::vector<std::vector<int>> currentPiece;
+    // ========================================================================
+    // ALINEACIÓN DE MEMORIA HERMÉTICA (Mayor a Menor tamaño)
+    // ========================================================================
     
-    int pieceX;
-    int pieceY;
-    int pieceType;
-
-    TetrisState currentState;
-    int selectedDifficulty;
-    int score;
-    float dropTimer;
-    float dropInterval;
-    bool assetsLoaded;
-
-    std::array<std::string, 8> blockTextures;
+    std::mt19937 rng;                                  // Objeto complejo pesado
+    std::vector<int> grid;                             // Contenedor dinámico (24 bytes)
+    std::vector<std::vector<int>> currentPiece;        // Contenedor dinámico (24 bytes)
+    std::array<std::string, 8> blockTextures;          // Arreglo estático pesado
     
-    // RNG Moderno de C++ para piezas justas (7-bag logic prep)
-    std::mt19937 rng;
+    float dropTimer;                                   // 4 bytes
+    float dropInterval;                                // 4 bytes
+    
+    int gridWidth;                                     // 4 bytes
+    int gridHeight;                                    // 4 bytes
+    int cellSize;                                      // 4 bytes
+    int offsetX;                                       // 4 bytes
+    int offsetY;                                       // 4 bytes
+    int pieceX;                                        // 4 bytes
+    int pieceY;                                        // 4 bytes
+    int pieceType;                                     // 4 bytes
+    int selectedDifficulty;                            // 4 bytes
+    int score;                                         // 4 bytes
+    
+    TetrisState currentState;                          // 1 byte
+    bool assetsLoaded;                                 // 1 byte
 };
 
 #endif // NEON_TETRIS_H

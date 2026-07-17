@@ -12,14 +12,19 @@ const std::vector<std::vector<int>> TETROMINOS_SHADOW[7] = {
 };
 
 NeonTetris::NeonTetris() noexcept
-    : gridWidth(10), gridHeight(20), cellSize(24), offsetX(0), offsetY(0),
-      pieceX(0), pieceY(0), pieceType(0),
-      currentState(TetrisState::SELECTOR), selectedDifficulty(0), score(0),
-      dropTimer(0.0f), dropInterval(0.5f), assetsLoaded(false)
+    : dropTimer(0.0f), dropInterval(0.5f),
+      gridWidth(10), gridHeight(20), cellSize(24), offsetX(0), offsetY(0),
+      pieceX(0), pieceY(0), pieceType(0), selectedDifficulty(0), score(0),
+      currentState(TetrisState::SELECTOR), assetsLoaded(false)
 {
-    // Inicialización del generador aleatorio moderno Mersenne Twister
+    // Inicialización del generador aleatorio moderno
     std::random_device rd;
     rng.seed(rd());
+
+    // --- PARCHE DE SEGURIDAD DE MEMORIA ---
+    // Aseguramos que el vector 1D tenga tamaño real equivalente a gridWidth * gridHeight
+    // ANTES de que cualquier función intente acceder a GetGridValue.
+    grid.assign(gridWidth * gridHeight, 0);
 
     blockTextures[0] = "";
     blockTextures[1] = "tetris-block-cian";
@@ -52,14 +57,15 @@ void NeonTetris::initDifficulty(int diff, ShadowAudio& audio) noexcept {
         gridWidth = 10; gridHeight = 20; cellSize = 24; dropInterval = 0.50f;
     } else if (diff == 1) {
         gridWidth = 20; gridHeight = 40; cellSize = 12; dropInterval = 0.35f;
-    } else { 
+    } else {
         gridWidth = 40; gridHeight = 80; cellSize = 6;  dropInterval = 0.18f;
     }
 
     offsetX = (800 - (gridWidth * cellSize)) / 2;
     offsetY = (600 - (gridHeight * cellSize)) / 2;
 
-    // Asignación de memoria contigua ultra-rápida (Zero Fragmentation)
+    // Aquí simplemente REDIMENSIONAMOS y limpiamos el vector previamente asegurado.
+    // Reasignación limpia a O(N) sin fragmentar.
     grid.assign(gridHeight * gridWidth, 0);
     
     score = 0;
