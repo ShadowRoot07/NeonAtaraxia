@@ -37,6 +37,8 @@ public:
     
     // Método de interacción de daño
     void TakeDamage(float amount) noexcept;
+
+    void Render(ShadowGFX& gfx, const Camera& camera) const noexcept;
 };
 
 #endif // ENEMY_H

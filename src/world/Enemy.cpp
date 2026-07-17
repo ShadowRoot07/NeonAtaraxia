@@ -1,4 +1,6 @@
 #include "world/Enemy.h"
+#include "gfx/ShadowGFX.h"
+#include "world/Camera.h"
 
 [span_4](start_span)// Inicialización segura equivalente a la que tenías[span_4](end_span)
 Enemy::Enemy() noexcept
@@ -131,4 +133,52 @@ void Enemy::TakeDamage(float amount) noexcept {
         state = EnemyState::ALERT;
         timer = 0.0f;
     }
+}
+
+// ============================================================================
+// INTEGRACIÓN GRÁFICA Y DE CÁMARA
+// ============================================================================
+#include "gfx/ShadowGFX.h"
+#include "world/Camera.h"
+
+void Enemy::Render(ShadowGFX& gfx, const Camera& camera) const noexcept {
+    // 1. Obtener el offset de la cámara (incluyendo temblores/shake)
+    Vector2 camPos = camera.GetRenderPos();
+
+    // 2. Calcular la posición en el espacio de la pantalla (Screen Space)
+    SDL_Rect screenRect = {
+        static_cast<int>(pos.x - camPos.x),
+        static_cast<int>(pos.y - camPos.y),
+        static_cast<int>(hitbox.w),
+        static_cast<int>(hitbox.h)
+    };
+
+    // 3. Resolución de texturas simple basada en IA (Placeholder para animaciones)
+    std::string currentTexture;
+
+    if (type == EnemyType::WALKER) {
+        // Cambia visualmente si está patrullando o persiguiendo
+        currentTexture = (state == EnemyState::CHASE || state == EnemyState::ATTACK) 
+                         ? "enemy_walker_alert" 
+                         : "enemy_walker_idle";
+    } else {
+        currentTexture = (state == EnemyState::CHASE) 
+                         ? "enemy_flyer_alert" 
+                         : "enemy_flyer_idle";
+    }
+
+    // 4. Renderizado. (Si DrawStatic soporta volteo, multiplica por 'dir' internamente)
+    gfx.DrawStatic(currentTexture, screenRect);
+
+    // [OPCIONAL - MODO DEBUG]: Descomenta esto para ver las hitboxes en pantalla y depurar colisiones
+    /*
+    SDL_Rect debugHitbox = {
+        static_cast<int>(hitbox.x - camPos.x),
+        static_cast<int>(hitbox.y - camPos.y),
+        static_cast<int>(hitbox.w),
+        static_cast<int>(hitbox.h)
+    };
+    SDL_SetRenderDrawColor(gfx.GetRenderer(), 255, 0, 0, 100); // Rojo semi-transparente
+    SDL_RenderDrawRect(gfx.GetRenderer(), &debugHitbox);
+    */
 }

@@ -2,22 +2,14 @@
 #define WORLD_CONTEXT_H
 
 #include <vector>
+#include "player/Player.h"
+#include "world/Platform.h" // Importa Platform, WorldItem e InteractiveObject auténticos
+#include "world/Enemy.h"
+#include "input/InputManager.h"
+#include "gfx/ShadowAudio.h"
+#include "ui/DialogueBox.h"
 
-// ============================================================================
-// FORWARD DECLARATIONS (Optimización masiva del tiempo de compilación)
-// Al usar referencias, el compilador no necesita saber qué hay dentro de estas clases,
-// solo necesita saber que existen.
-// ============================================================================
-class Player;
-class Platform;
-class Enemy;
-class InputManager;
-class ShadowAudio;
-class DialogueBox;
-
-// ============================================================================
-// ESTRUCTURAS DE DATOS (PODs Seguros con Inicialización Cero)
-// ============================================================================
+// Dejamos únicamente Projectile aquí si no existe en otro header
 struct Projectile {
     float x = 0.0f;
     float y = 0.0f;
@@ -26,41 +18,21 @@ struct Projectile {
     bool active = false;
 };
 
-struct WorldItem {
-    int id = 0;
-    float x = 0.0f;
-    float y = 0.0f;
-    bool collected = false;
-};
-
-struct InteractiveObject {
-    int id = 0;
-    float x = 0.0f;
-    float y = 0.0f;
-    bool active = false;
-};
-
-// ============================================================================
-// CONTENEDOR DE CONTEXTO GLOBAL
-// ============================================================================
+// Contenedor quirúrgico para evitar firmas masivas en el bucle principal
 struct WorldContext {
     Player& player;
     std::vector<Platform>& level;
     std::vector<Enemy>& enemies;
     std::vector<Projectile>& bullets;
-    std::vector<WorldItem>& items;
-    std::vector<InteractiveObject>& objects;
-    
-    // El InputManager debe ser const para evitar que el mundo altere el hardware
-    const InputManager& input; 
-    
+    std::vector<WorldItem>& items;             // Ahora usa el WorldItem real de Platform.h
+    std::vector<InteractiveObject>& objects;   // Ahora usa el InteractiveObject real de Platform.h
+    InputManager& input;
     ShadowAudio& audio;
     DialogueBox& dialogueBox;
-    
     bool dialogueActive = false;
 };
 
-// Firma del procesador optimizado (O(1) en el stack de parámetros)
+// Firma del procesador optimizado
 void ProcessWorldOptimized(WorldContext& context, float dt) noexcept;
 
 #endif // WORLD_CONTEXT_H

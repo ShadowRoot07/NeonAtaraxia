@@ -1,55 +1,55 @@
 #include "world/WorldContext.h"
 
-// Aquí sí incluimos los encabezados completos porque la CPU necesita conocer sus métodos
-#include "player/Player.h"
-#include "world/Platform.h"
-#include "world/Enemy.h"
-#include "input/InputManager.h"
-#include "gfx/ShadowAudio.h"
-#include "ui/DialogueBox.h"
-
 void ProcessWorldOptimized(WorldContext& context, float dt) noexcept {
-    // 1. Intercepción de Interfaz
-    // Si un diálogo está activo, pausamos todo el mundo excepto la caja de texto.
+    // 1. Si hay diálogo activo, pausamos el mundo
     if (context.dialogueActive) {
         context.dialogueBox.Update(dt, context.audio);
-        return; 
+        return;
     }
 
-    // 2. Actualización de la Entidad Principal (Aven)
+    // 2. Actualización de Aven (Físicas e Input)
     context.player.HandleInput(context.input, context.audio);
     context.player.Update(dt);
 
-    // 3. Procesamiento de Proyectiles (Ciclo ultra-ligero)
+    // 3. Procesamiento de Proyectiles
     for (auto& bullet : context.bullets) {
         if (bullet.active) {
             bullet.x += bullet.vx * dt;
             bullet.y += bullet.vy * dt;
-
-            // TODO: Integrar barrido rápido AABB contra plataformas para desactivar balas
+            // (Aquí puedes añadir colisiones con las plataformas de context.level)
         }
     }
 
-    // 4. Procesamiento de Objetos Interactivos
+    // 4. Procesamiento de Objetos Interactivos (Cofres / Puertas)
     for (auto& obj : context.objects) {
-        if (!obj.active) continue;
+        if (obj.isOpen) continue; // Usamos el atributo real de Platform.h
         
-        // TODO: Lógica específica según el tipo de objeto (ej. puertas, terminales)
+        // Detección de proximidad con Aven usando sus hitbox reales
+        float dx = obj.pos.x - context.player.GetPos().x;
+        float dy = obj.pos.y - context.player.GetPos().y;
+        
+        if ((dx * dx + dy * dy) < 1600.0f) { // 40 píxeles de distancia de interacción
+            if (context.input.IsBtnPressed(VirtualButton::BTN_Z)) {
+                obj.isOpen = true;
+                context.audio.Play("chest_open", 0);
+            }
+        }
     }
 
-    // 5. Gestión de Ítems Coleccionables
+    // 5. Gestión de Ítems Coleccionables (Monedas / Gemas)
     for (auto& item : context.items) {
-        if (item.collected) continue;
+        if (!item.active) continue; // Usamos 'active' en lugar del inexistente 'collected'
 
-        // Comprobación de colisión AABB ultra rápida con el centro del jugador
-        float dx = item.x - context.player.GetPos().x;
-        float dy = item.y - context.player.GetPos().y;
-        
-        // Distancia euclidiana cuadrada (ahorra la costosa operación de raíz cuadrada std::sqrt)
-        if ((dx * dx + dy * dy) < 1024.0f) { // 32 píxeles al cuadrado
-            item.collected = true;
-            context.audio.Play("item_pickup", 0);
-            // TODO: Enviar evento al EventBus o asignar directamente al Player
+        // Distancia euclidiana cuadrada con el jugador (Evita std::sqrt)
+        float dx = item.pos.x - context.player.GetPos().x;
+        float dy = item.pos.y - context.player.GetPos().y;
+
+        if ((dx * dx + dy * dy) < 1024.0f) { // 32 píxeles de rango de recolección
+            item.active = false; // Desactivamos el ítem del mapa
+            context.audio.Play("coin_pickup", 0);
+            
+            // Aquí puedes sumar puntos o agregar el ítem al inventario de Aven
+            // context.player.GetInventory().AddItem(item.textureID, 1);
         }
     }
 }

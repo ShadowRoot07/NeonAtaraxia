@@ -1,30 +1,24 @@
-#ifndef GAMEPLAYSTATE_H
-#define GAMEPLAYSTATE_H
+#ifndef GAMEPLAY_STATE_H
+#define GAMEPLAY_STATE_H
 
 #include "core/StateManager.h"
+#include "world/WorldContext.h"
+#include "world/Camera.h" // <<-- NUEVA ADICIÓN: Control de Cámara Inteligente
+#include "player/Player.h"
+#include "world/Platform.h"
+#include "world/Enemy.h"
+#include "ui/DialogueBox.h"
+#include "input/InputManager.h"
 #include "gfx/ShadowGFX.h"
 #include "gfx/ShadowAudio.h"
-#include "input/InputManager.h"
-#include "player/Player.h"
-// #include "world/World.h" // Se incluirá cuando refactoremos el gestor de mapas
+#include <vector>
+#include <string>
 
-// CORRECCIÓN VITAL: Debe heredar de EngineState para funcionar en la pila de estados
 class GameplayState : public EngineState {
 public:
-    // Inyección estricta de dependencias por referencia. Garantiza que el estado
-    // no pueda existir sin el motor gráfico, de audio y la pila de estados.
-    GameplayState(StateManager& stack, ShadowGFX& graphics, ShadowAudio& sfx) noexcept;
+    GameplayState(StateManager& stack, ShadowGFX& graphics, ShadowAudio& sfx, const InputManager& input) noexcept;
     ~GameplayState() override = default;
 
-    // RAII: Deshabilitar copias para prevenir corrupción de memoria en Termux
-    GameplayState(const GameplayState&) = delete;
-    GameplayState& operator=(const GameplayState&) = delete;
-
-    // Habilitar semántica de movimiento
-    GameplayState(GameplayState&& other) noexcept = default;
-    GameplayState& operator=(GameplayState&& other) noexcept = default;
-
-    // Implementación de la interfaz estandarizada del motor
     void OnEnter() override;
     void OnExit() override;
     void HandleInput(const InputManager& input) override;
@@ -32,16 +26,25 @@ public:
     void Render() override;
 
 private:
-    StateManager& stateManager;
-    ShadowGFX& gfx;
-    ShadowAudio& audio;
+    StateManager& m_stateManager;
+    ShadowGFX& m_gfx;
+    ShadowAudio& m_audio;
+    const InputManager& m_input;
 
-    // Instanciación por composición (en el stack de la clase). 
-    // Evita usar 'new' o punteros para no fragmentar el heap del dispositivo móvil.
-    Player player;
-    
-    // Variables de control de estado del gameplay
-    bool isPaused;
+    // --- ENTIDADES DEL MUNDO ---
+    Player m_player;
+    Camera m_camera; // <<-- NUEVA ADICIÓN: Instancia legítima de la cámara
+    std::vector<Platform> m_level;
+    std::vector<Enemy> m_enemies;
+    std::vector<Projectile> m_bullets;
+    std::vector<WorldItem> m_items;
+    std::vector<InteractiveObject> m_objects;
+    DialogueBox m_dialogueBox;
+
+    bool m_isPaused;
+    std::string m_currentLevelPath;
+
+    [[nodiscard]] WorldContext BuildContext() noexcept;
 };
 
-#endif
+#endif // GAMEPLAY_STATE_H
